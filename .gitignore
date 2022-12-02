@@ -1,0 +1,4 @@
+.direnv
+nix-analyzer
+compile_commands.json
+.cache
