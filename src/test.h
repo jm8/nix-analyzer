@@ -1,1 +1,2 @@
-void runParseTests();
+bool runParseTests();
+bool runLexTests();

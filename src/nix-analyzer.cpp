@@ -49,7 +49,8 @@ struct NixAnalyzer
 
 NixAnalyzer::NixAnalyzer(const Strings &searchPath, nix::ref<Store> store)
     : state(make_unique<EvalState>(searchPath, store)),
-      staticEnv(new StaticEnv(false, state->staticBaseEnv.get())) {}
+      staticEnv(new StaticEnv(false, state->staticBaseEnv.get())) {
+}
 
 Expr *NixAnalyzer::parseString(string s) {
     return state->parseExprFromString(s, absPath("."), staticEnv);
@@ -93,15 +94,15 @@ void evaluateSubexpression(EvalState &state, Env &env, Expr *expr,
     return state.eval(expr, v);
 }
 
-int main() {
-    initNix();
-    initGC();
+// int main() {
+//     initNix();
+//     initGC();
 
-    Strings searchPath;
-    auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore());
-    Expr *root = analyzer->parseString("{a = 123; b = 456;}");
-    ExprAttrs *e = dynamic_cast<ExprAttrs *>(root);
-    auto [symbol, attrdef] = *e->attrs.begin();
-    auto pos = analyzer->state->positions[attrdef.pos];
-    cout << pos << endl;
-}
+//     Strings searchPath;
+//     auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore());
+//     Expr *root = analyzer->parseString("{a = 123; b = 456;}");
+//     ExprAttrs *e = dynamic_cast<ExprAttrs *>(root);
+//     auto [symbol, attrdef] = *e->attrs.begin();
+//     auto pos = analyzer->state->positions[attrdef.pos];
+//     cout << pos << endl;
+// }
