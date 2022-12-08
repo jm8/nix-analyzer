@@ -306,6 +306,16 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
     };
 }
 
+// nix-analyzer
+#include <iostream>
+#include "debugExpr.h"
+
+void visitExpr(Expr *e, const YYLTYPE & loc, ParseData * data) {
+    std::cout << data->origin.file << loc.first_line << " " << loc.first_column << "\n";
+    debugExpr(data->state, std::cout, e);
+}
+
+#define VISIT std::cout << __LINE__ << std::endl; visitExpr(yyvalp->e, *yylocp, data)
 
 %}
 
@@ -370,59 +380,59 @@ expr: expr_function;
 
 expr_function
   : ID ':' expr_function
-    { $$ = new ExprLambda(CUR_POS, data->symbols.create($1), 0, $3); }
+    { $$ = new ExprLambda(CUR_POS, data->symbols.create($1), 0, $3); VISIT; }
   | '{' formals '}' ':' expr_function
-    { $$ = new ExprLambda(CUR_POS, toFormals(*data, $2), $5); }
+    { $$ = new ExprLambda(CUR_POS, toFormals(*data, $2), $5); VISIT; }
   | '{' formals '}' '@' ID ':' expr_function
     {
       auto arg = data->symbols.create($5);
-      $$ = new ExprLambda(CUR_POS, arg, toFormals(*data, $2, CUR_POS, arg), $7);
+      $$ = new ExprLambda(CUR_POS, arg, toFormals(*data, $2, CUR_POS, arg), $7); VISIT;
     }
   | ID '@' '{' formals '}' ':' expr_function
     {
       auto arg = data->symbols.create($1);
-      $$ = new ExprLambda(CUR_POS, arg, toFormals(*data, $4, CUR_POS, arg), $7);
+      $$ = new ExprLambda(CUR_POS, arg, toFormals(*data, $4, CUR_POS, arg), $7); VISIT;
     }
   | ASSERT expr ';' expr_function
-    { $$ = new ExprAssert(CUR_POS, $2, $4); }
+    { $$ = new ExprAssert(CUR_POS, $2, $4); VISIT; }
   | WITH expr ';' expr_function
-    { $$ = new ExprWith(CUR_POS, $2, $4); }
+    { $$ = new ExprWith(CUR_POS, $2, $4); VISIT; }
   | LET binds IN expr_function
     { if (!$2->dynamicAttrs.empty())
         throw ParseError({
             .msg = hintfmt("dynamic attributes not allowed in let"),
             .errPos = data->state.positions[CUR_POS]
         });
-      $$ = new ExprLet($2, $4);
+      $$ = new ExprLet($2, $4); VISIT;
     }
   | expr_if
   ;
 
 expr_if
-  : IF expr THEN expr ELSE expr { $$ = new ExprIf(CUR_POS, $2, $4, $6); }
+  : IF expr THEN expr ELSE expr { $$ = new ExprIf(CUR_POS, $2, $4, $6); VISIT; }
   | expr_op
   ;
 
 expr_op
-  : '!' expr_op %prec NOT { $$ = new ExprOpNot($2); }
-  | '-' expr_op %prec NEGATE { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__sub")), {new ExprInt(0), $2}); }
-  | expr_op EQ expr_op { $$ = new ExprOpEq($1, $3); }
-  | expr_op NEQ expr_op { $$ = new ExprOpNEq($1, $3); }
-  | expr_op '<' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$1, $3}); }
-  | expr_op LEQ expr_op { $$ = new ExprOpNot(new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$3, $1})); }
-  | expr_op '>' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$3, $1}); }
-  | expr_op GEQ expr_op { $$ = new ExprOpNot(new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$1, $3})); }
-  | expr_op AND expr_op { $$ = new ExprOpAnd(CUR_POS, $1, $3); }
-  | expr_op OR expr_op { $$ = new ExprOpOr(CUR_POS, $1, $3); }
-  | expr_op IMPL expr_op { $$ = new ExprOpImpl(CUR_POS, $1, $3); }
-  | expr_op UPDATE expr_op { $$ = new ExprOpUpdate(CUR_POS, $1, $3); }
-  | expr_op '?' attrpath { $$ = new ExprOpHasAttr($1, *$3); }
+  : '!' expr_op %prec NOT { $$ = new ExprOpNot($2); VISIT; }
+  | '-' expr_op %prec NEGATE { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__sub")), {new ExprInt(0), $2}); VISIT; }
+  | expr_op EQ expr_op { $$ = new ExprOpEq($1, $3); VISIT; }
+  | expr_op NEQ expr_op { $$ = new ExprOpNEq($1, $3); VISIT; }
+  | expr_op '<' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$1, $3}); VISIT; }
+  | expr_op LEQ expr_op { $$ = new ExprOpNot(new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$3, $1})); VISIT; }
+  | expr_op '>' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$3, $1}); VISIT; }
+  | expr_op GEQ expr_op { $$ = new ExprOpNot(new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__lessThan")), {$1, $3})); VISIT; }
+  | expr_op AND expr_op { $$ = new ExprOpAnd(CUR_POS, $1, $3); VISIT; }
+  | expr_op OR expr_op { $$ = new ExprOpOr(CUR_POS, $1, $3); VISIT; }
+  | expr_op IMPL expr_op { $$ = new ExprOpImpl(CUR_POS, $1, $3); VISIT; }
+  | expr_op UPDATE expr_op { $$ = new ExprOpUpdate(CUR_POS, $1, $3); VISIT; }
+  | expr_op '?' attrpath { $$ = new ExprOpHasAttr($1, *$3); VISIT; }
   | expr_op '+' expr_op
-    { $$ = new ExprConcatStrings(CUR_POS, false, new std::vector<std::pair<PosIdx, Expr *>>({{makeCurPos(@1, data), $1}, {makeCurPos(@3, data), $3}})); }
-  | expr_op '-' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__sub")), {$1, $3}); }
-  | expr_op '*' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__mul")), {$1, $3}); }
-  | expr_op '/' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__div")), {$1, $3}); }
-  | expr_op CONCAT expr_op { $$ = new ExprOpConcatLists(CUR_POS, $1, $3); }
+    { $$ = new ExprConcatStrings(CUR_POS, false, new std::vector<std::pair<PosIdx, Expr *>>({{makeCurPos(@1, data), $1}, {makeCurPos(@3, data), $3}})); VISIT; }
+  | expr_op '-' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__sub")), {$1, $3}); VISIT; }
+  | expr_op '*' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__mul")), {$1, $3}); VISIT; }
+  | expr_op '/' expr_op { $$ = new ExprCall(CUR_POS, new ExprVar(data->symbols.create("__div")), {$1, $3}); VISIT; }
+  | expr_op CONCAT expr_op { $$ = new ExprOpConcatLists(CUR_POS, $1, $3); VISIT; }
   | expr_app
   ;
 
@@ -431,34 +441,36 @@ expr_app
       if (auto e2 = dynamic_cast<ExprCall *>($1)) {
           e2->args.push_back($2);
           $$ = $1;
-      } else
-          $$ = new ExprCall(CUR_POS, $1, {$2});
+      } else {
+          $$ = new ExprCall(CUR_POS, $1, {$2}); VISIT;
+      }
   }
   | expr_select
   ;
 
 expr_select
   : expr_simple '.' attrpath
-    { $$ = new ExprSelect(CUR_POS, $1, *$3, 0); }
+    { $$ = new ExprSelect(CUR_POS, $1, *$3, 0); VISIT; }
   | expr_simple '.' attrpath OR_KW expr_select
-    { $$ = new ExprSelect(CUR_POS, $1, *$3, $5); }
+    { $$ = new ExprSelect(CUR_POS, $1, *$3, $5); VISIT; }
   | /* Backwards compatibility: because Nixpkgs has a rarely used
        function named ‘or’, allow stuff like ‘map or [...]’. */
     expr_simple OR_KW
-    { $$ = new ExprCall(CUR_POS, $1, {new ExprVar(CUR_POS, data->symbols.create("or"))}); }
+    { $$ = new ExprCall(CUR_POS, $1, {new ExprVar(CUR_POS, data->symbols.create("or"))}); VISIT; }
   | expr_simple { $$ = $1; }
   ;
 
 expr_simple
   : ID {
       std::string_view s = "__curPos";
-      if ($1.l == s.size() && strncmp($1.p, s.data(), s.size()) == 0)
-          $$ = new ExprPos(CUR_POS);
-      else
-          $$ = new ExprVar(CUR_POS, data->symbols.create($1));
+      if ($1.l == s.size() && strncmp($1.p, s.data(), s.size()) == 0) {
+          $$ = new ExprPos(CUR_POS); VISIT;
+      } else {
+          $$ = new ExprVar(CUR_POS, data->symbols.create($1)); VISIT;
+      }
   }
-  | INT { $$ = new ExprInt($1); }
-  | FLOAT { $$ = new ExprFloat($1); }
+  | INT { $$ = new ExprInt($1); VISIT; }
+  | FLOAT { $$ = new ExprFloat($1); VISIT; }
   | '"' string_parts '"' { $$ = $2; }
   | IND_STRING_OPEN ind_string_parts IND_STRING_CLOSE {
       $$ = stripIndentation(CUR_POS, data->symbols, *$2);
@@ -466,14 +478,14 @@ expr_simple
   | path_start PATH_END { $$ = $1; }
   | path_start string_parts_interpolated PATH_END {
       $2->insert($2->begin(), {makeCurPos(@1, data), $1});
-      $$ = new ExprConcatStrings(CUR_POS, false, $2);
+      $$ = new ExprConcatStrings(CUR_POS, false, $2); VISIT;
   }
   | SPATH {
       std::string path($1.p + 1, $1.l - 2);
       $$ = new ExprCall(CUR_POS,
           new ExprVar(data->symbols.create("__findFile")),
           {new ExprVar(data->symbols.create("__nixPath")),
-           new ExprString(path)});
+           new ExprString(path)}); VISIT;
   }
   | URI {
       static bool noURLLiterals = settings.isExperimentalFeatureEnabled(Xp::NoUrlLiterals);
@@ -482,13 +494,13 @@ expr_simple
               .msg = hintfmt("URL literals are disabled"),
               .errPos = data->state.positions[CUR_POS]
           });
-      $$ = new ExprString(std::string($1));
+      $$ = new ExprString(std::string($1)); VISIT;
   }
   | '(' expr ')' { $$ = $2; }
   /* Let expressions `let {..., body = ...}' are just desugared
      into `(rec {..., body = ...}).body'. */
   | LET '{' binds '}'
-    { $3->recursive = true; $$ = new ExprSelect(noPos, $3, data->symbols.create("body")); }
+    { $3->recursive = true; $$ = new ExprSelect(noPos, $3, data->symbols.create("body")); VISIT; }
   | REC '{' binds '}'
     { $3->recursive = true; $$ = $3; }
   | '{' binds '}'
@@ -497,9 +509,9 @@ expr_simple
   ;
 
 string_parts
-  : STR { $$ = new ExprString(std::string($1)); }
-  | string_parts_interpolated { $$ = new ExprConcatStrings(CUR_POS, true, $1); }
-  | { $$ = new ExprString(""); }
+  : STR { $$ = new ExprString(std::string($1)); VISIT; }
+  | string_parts_interpolated { $$ = new ExprConcatStrings(CUR_POS, true, $1); VISIT; }
+  | { $$ = new ExprString(""); VISIT; }
   ;
 
 string_parts_interpolated
@@ -520,9 +532,7 @@ path_start
     /* add back in the trailing '/' to the first segment */
     if ($1.p[$1.l-1] == '/' && $1.l > 1)
       path += "/";
-    $$ = new ExprPath(path);
-    // nix-analyzer
-    $$->pos = CUR_POS;
+    $$ = new ExprPath(path); VISIT;
   }
   | HPATH {
     if (evalSettings.pureEval) {
@@ -532,7 +542,7 @@ path_start
         );
     }
     Path path(getHome() + std::string($1.p + 1, $1.l - 1));
-    $$ = new ExprPath(path);
+    $$ = new ExprPath(path); VISIT;
   }
   ;
 
@@ -617,7 +627,7 @@ string_attr
 
 expr_list
   : expr_list expr_select { $$ = $1; $1->elems.push_back($2); /* !!! dangerous */ }
-  | { $$ = new ExprList; }
+  | { $$ = new ExprList; VISIT; }
   ;
 
 formals
@@ -638,7 +648,6 @@ formal
 
 %%
 
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -649,9 +658,7 @@ formal
 #include "fetchers.hh"
 #include "store-api.hh"
 
-
 namespace nix {
-
 
 Expr * EvalState::parse(char * text, size_t length, FileOrigin origin,
     const PathView path, const PathView basePath, std::shared_ptr<StaticEnv> & staticEnv)

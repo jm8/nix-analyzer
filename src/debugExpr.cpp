@@ -1,10 +1,11 @@
-#include "nix-analyzer.h"
+#include "debugExpr.h"
+#include "eval.hh"
 
 using namespace std;
 using namespace nix;
 
-void NixAnalyzer::debugExpr(std::ostream &s, nix::Expr *e, int indent) {
-    s << string(indent, ' ') << state->positions[e->getPos()] << ' ';
+void debugExpr(EvalState &state, std::ostream &s, nix::Expr *e, int indent) {
+    s << string(indent, ' ') << state.positions[e->getPos()] << ' ';
     if (ExprInt *e2 = dynamic_cast<ExprInt *>(e)) {
         s << "ExprInt";
     }
@@ -39,12 +40,7 @@ void NixAnalyzer::debugExpr(std::ostream &s, nix::Expr *e, int indent) {
         s << "ExprLambda";
     }
     if (ExprCall *e2 = dynamic_cast<ExprCall *>(e)) {
-        s << "ExprCall"
-          << "\n";
-        debugExpr(s, e2->fun, indent + 2);
-        for (Expr *arg : e2->args) {
-            debugExpr(s, arg, indent + 2);
-        }
+        s << "ExprCall";
     }
     if (ExprWith *e2 = dynamic_cast<ExprWith *>(e)) {
         s << "ExprWith";
@@ -77,13 +73,13 @@ void NixAnalyzer::debugExpr(std::ostream &s, nix::Expr *e, int indent) {
         s << "ExprOpUpdate";
     }
     if (ExprOpConcatLists *e2 = dynamic_cast<ExprOpConcatLists *>(e)) {
-        s << string(indent, ' ') << "ExprOpConcatLists";
+        s << "ExprOpConcatLists";
     }
     if (ExprConcatStrings *e2 = dynamic_cast<ExprConcatStrings *>(e)) {
-        s << string(indent, ' ') << "ExprConcatStrings";
+        s << "ExprConcatStrings";
     }
     if (ExprPos *e2 = dynamic_cast<ExprPos *>(e)) {
-        s << string(indent, ' ') << "ExprPos";
+        s << "ExprPos";
     }
     s << endl;
 }

@@ -2,6 +2,12 @@
 
 #include "config.h"
 
+#if HAVE_BOEHMGC
+#define GC_INCLUDE_NEW
+#include <gc/gc_allocator.h>
+#include <gc/gc_cpp.h>
+#endif
+
 #include <iostream>
 #include <memory>
 
@@ -17,11 +23,6 @@
 
 #include "store-api.hh"
 #include "util.hh"
-
-#if HAVE_BOEHMGC
-#define GC_INCLUDE_NEW
-#include <gc/gc_cpp.h>
-#endif
 
 struct NixAnalyzer
 #if HAVE_BOEHMGC
@@ -42,6 +43,4 @@ struct NixAnalyzer
     void evalString(std::string s, nix::Value &v);
 
     void printValue(std::ostream &s, nix::Value &v);
-
-    void debugExpr(std::ostream &s, nix::Expr *e, int indent = 0);
 };
