@@ -1,2 +1,0 @@
-bool runParseTests();
-bool runLexTests();

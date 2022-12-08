@@ -18,7 +18,15 @@
             name = "nix-repl";
             src = ./.;
             boostInclude = "${pkgs.boost.dev}/include";
-            buildInputs = with pkgs; [pkgconfig nixUnstable boehmgc boost nlohmann_json];
+            buildInputs = with pkgs; [
+              pkgconfig
+              nixUnstable
+              boehmgc
+              boost
+              nlohmann_json
+              flex
+              bison
+            ];
             NIX_VERSION = (builtins.parseDrvName pkgs.nixUnstable.name).version;
             installPhase = ''
               mkdir -p $out/bin
