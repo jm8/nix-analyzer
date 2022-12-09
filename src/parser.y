@@ -308,23 +308,23 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
 
 // nix-analyzer
 #include <iostream>
-#include "debugExpr.h"
+#include "nix-analyzer.h"
+#include "debug.h"
 
 void visitExpr(Expr *e, const YYLTYPE &loc, ParseData *data) {
     const Pos targetPos{"test.nix", foFile, 2, 22};
+    Pos start{data->origin.file, data->origin.origin, (uint32_t)loc.first_line, (uint32_t)loc.first_column};
+    Pos end{data->origin.file, data->origin.origin, (uint32_t)loc.last_line, (uint32_t)loc.last_column};
+
     if (data->origin.origin != targetPos.origin ||
         data->origin.file != targetPos.file)
         return;
-    std::cout << "\n\n";
-    debugExpr(data->state, std::cout, e);
-    std::cout << loc.first_line << ":"  << loc.first_column << " to " << loc.last_line << ":" << loc.last_column << "\n";
-    if (!((uint32_t)loc.first_line <= targetPos.line && targetPos.line <= (uint32_t)loc.last_line))
+
+    if (!(poscmp(start, targetPos) <= 0 && poscmp(targetPos, end) <= 0)) {
         return;
-    if (!((uint32_t)loc.first_column <= targetPos.column &&
-          targetPos.column <= (uint32_t)loc.last_column))
-        return;
-    std::cout << data->origin.file << loc.first_line << " " << loc.first_column << "\n";
-    
+    }
+
+    std::cout << exprTypeName(e) << "\n";
 }
 
 #define VISIT visitExpr(yyvalp->e, *yylocp, data)

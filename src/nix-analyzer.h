@@ -44,3 +44,5 @@ struct NixAnalyzer
 
     void printValue(std::ostream &s, nix::Value &v);
 };
+
+int poscmp(nix::Pos a, nix::Pos b);

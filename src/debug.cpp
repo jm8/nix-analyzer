@@ -1,85 +1,84 @@
-#include "debugExpr.h"
+#include "debug.h"
 #include "eval.hh"
 
 using namespace std;
 using namespace nix;
 
-void debugExpr(EvalState &state, std::ostream &s, nix::Expr *e, int indent) {
-    s << string(indent, ' ') << state.positions[e->getPos()] << ' ';
+const char *exprTypeName(nix::Expr *e) {
     if (dynamic_cast<ExprInt *>(e)) {
-        s << "ExprInt";
+        return "ExprInt";
     }
     if (dynamic_cast<ExprFloat *>(e)) {
-        s << "ExprFloat";
+        return "ExprFloat";
     }
     if (dynamic_cast<ExprString *>(e)) {
-        s << "ExprString";
+        return "ExprString";
     }
     if (dynamic_cast<ExprPath *>(e)) {
-        s << "ExprPath";
+        return "ExprPath";
     }
     if (dynamic_cast<ExprAttrs *>(e)) {
-        s << "ExprAttrs";
+        return "ExprAttrs";
     }
     if (dynamic_cast<ExprVar *>(e)) {
-        s << "ExprVar";
+        return "ExprVar";
     }
     if (dynamic_cast<ExprLet *>(e)) {
-        s << "ExprLet";
+        return "ExprLet";
     }
     if (dynamic_cast<ExprList *>(e)) {
-        s << "ExprList";
+        return "ExprList";
     }
     if (dynamic_cast<ExprSelect *>(e)) {
-        s << "ExprSelect";
+        return "ExprSelect";
     }
     if (dynamic_cast<ExprOpHasAttr *>(e)) {
-        s << "ExprOpHasAttr";
+        return "ExprOpHasAttr";
     }
     if (dynamic_cast<ExprLambda *>(e)) {
-        s << "ExprLambda";
+        return "ExprLambda";
     }
     if (dynamic_cast<ExprCall *>(e)) {
-        s << "ExprCall";
+        return "ExprCall";
     }
     if (dynamic_cast<ExprWith *>(e)) {
-        s << "ExprWith";
+        return "ExprWith";
     }
     if (dynamic_cast<ExprIf *>(e)) {
-        s << "ExprIf";
+        return "ExprIf";
     }
     if (dynamic_cast<ExprAssert *>(e)) {
-        s << "ExprAssert";
+        return "ExprAssert";
     }
     if (dynamic_cast<ExprOpNot *>(e)) {
-        s << "ExprOpNot";
+        return "ExprOpNot";
     }
     if (dynamic_cast<ExprOpEq *>(e)) {
-        s << "ExprOpEq";
+        return "ExprOpEq";
     }
     if (dynamic_cast<ExprOpNEq *>(e)) {
-        s << "ExprOpNEq";
+        return "ExprOpNEq";
     }
     if (dynamic_cast<ExprOpAnd *>(e)) {
-        s << "ExprOpAnd";
+        return "ExprOpAnd";
     }
     if (dynamic_cast<ExprOpOr *>(e)) {
-        s << "ExprOpOr";
+        return "ExprOpOr";
     }
     if (dynamic_cast<ExprOpImpl *>(e)) {
-        s << "ExprOpImpl";
+        return "ExprOpImpl";
     }
     if (dynamic_cast<ExprOpUpdate *>(e)) {
-        s << "ExprOpUpdate";
+        return "ExprOpUpdate";
     }
     if (dynamic_cast<ExprOpConcatLists *>(e)) {
-        s << "ExprOpConcatLists";
+        return "ExprOpConcatLists";
     }
     if (dynamic_cast<ExprConcatStrings *>(e)) {
-        s << "ExprConcatStrings";
+        return "ExprConcatStrings";
     }
     if (dynamic_cast<ExprPos *>(e)) {
-        s << "ExprPos";
+        return "ExprPos";
     }
-    s << endl;
+    return "???";
 }

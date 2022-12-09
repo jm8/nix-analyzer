@@ -1,5 +1,5 @@
 #include "test.h"
-#include "debugExpr.h"
+#include "error.hh"
 #include "nix-analyzer.h"
 
 using namespace std;
@@ -11,6 +11,5 @@ int main() {
 
     Strings searchPath;
     auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore());
-    Expr *root = analyzer->state->parseExprFromFile("test.nix");
-    debugExpr(*analyzer->state, cout, root);
+    analyzer->state->parseExprFromFile("test.nix");
 }
