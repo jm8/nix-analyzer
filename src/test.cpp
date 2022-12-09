@@ -11,6 +11,6 @@ int main() {
 
     Strings searchPath;
     auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore());
-    Expr *root = analyzer->parseString("import ./whatever.nix");
+    Expr *root = analyzer->state->parseExprFromFile("test.nix");
     debugExpr(*analyzer->state, cout, root);
 }

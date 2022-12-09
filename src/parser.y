@@ -310,12 +310,24 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
 #include <iostream>
 #include "debugExpr.h"
 
-void visitExpr(Expr *e, const YYLTYPE & loc, ParseData * data) {
-    std::cout << data->origin.file << loc.first_line << " " << loc.first_column << "\n";
+void visitExpr(Expr *e, const YYLTYPE &loc, ParseData *data) {
+    const Pos targetPos{"test.nix", foFile, 2, 22};
+    if (data->origin.origin != targetPos.origin ||
+        data->origin.file != targetPos.file)
+        return;
+    std::cout << "\n\n";
     debugExpr(data->state, std::cout, e);
+    std::cout << loc.first_line << ":"  << loc.first_column << " to " << loc.last_line << ":" << loc.last_column << "\n";
+    if (!((uint32_t)loc.first_line <= targetPos.line && targetPos.line <= (uint32_t)loc.last_line))
+        return;
+    if (!((uint32_t)loc.first_column <= targetPos.column &&
+          targetPos.column <= (uint32_t)loc.last_column))
+        return;
+    std::cout << data->origin.file << loc.first_line << " " << loc.first_column << "\n";
+    
 }
 
-#define VISIT std::cout << __LINE__ << std::endl; visitExpr(yyvalp->e, *yylocp, data)
+#define VISIT visitExpr(yyvalp->e, *yylocp, data)
 
 %}
 
@@ -502,10 +514,10 @@ expr_simple
   | LET '{' binds '}'
     { $3->recursive = true; $$ = new ExprSelect(noPos, $3, data->symbols.create("body")); VISIT; }
   | REC '{' binds '}'
-    { $3->recursive = true; $$ = $3; }
+    { $3->recursive = true; $$ = $3; VISIT; }
   | '{' binds '}'
-    { $$ = $2; }
-  | '[' expr_list ']' { $$ = $2; }
+    { $$ = $2; VISIT; }
+  | '[' expr_list ']' { $$ = $2; VISIT; }
   ;
 
 string_parts
