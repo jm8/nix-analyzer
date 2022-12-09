@@ -37,6 +37,9 @@ namespace nix {
         Path basePath;
         PosTable::Origin origin;
         std::optional<ErrorInfo> error;
+        // nix-analyzer
+        std::optional<Pos> targetPos;
+        std::vector<Expr *> exprPath{};
         ParseData(EvalState & state, PosTable::Origin origin)
             : state(state)
             , symbols(state.symbols)
@@ -311,23 +314,26 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
 #include "nix-analyzer.h"
 #include "debug.h"
 
+// add expression to data->path if it contains targetPos
 void visitExpr(Expr *e, const YYLTYPE &loc, ParseData *data) {
-    const Pos targetPos{"test.nix", foFile, 2, 22};
     Pos start{data->origin.file, data->origin.origin, (uint32_t)loc.first_line, (uint32_t)loc.first_column};
     Pos end{data->origin.file, data->origin.origin, (uint32_t)loc.last_line, (uint32_t)loc.last_column};
 
-    if (data->origin.origin != targetPos.origin ||
-        data->origin.file != targetPos.file)
+    if (data->origin.origin != data->targetPos->origin ||
+        data->origin.file != data->targetPos->file)
         return;
 
-    if (!(poscmp(start, targetPos) <= 0 && poscmp(targetPos, end) <= 0)) {
+    if (!(poscmp(start, *data->targetPos) <= 0 && poscmp(*data->targetPos, end) <= 0)) {
         return;
     }
+
+    data->exprPath.push_back(e);
 
     std::cout << exprTypeName(e) << "\n";
 }
 
 #define VISIT visitExpr(yyvalp->e, *yylocp, data)
+
 
 %}
 
@@ -767,6 +773,71 @@ Expr * EvalState::parseStdin()
     return parse(buffer.data(), buffer.size(), foStdin, "", absPath("."), staticBaseEnv);
 }
 
+}
+
+// nix-analyzer
+// parse and return the path to an expression as a list of Exprs
+std::vector<Expr *> NixAnalyzer::parsePathTo(char * text, size_t length, FileOrigin origin,
+    const PathView path, const PathView basePath, std::shared_ptr<StaticEnv> & staticEnv, Pos targetPos)
+{
+    // modified from parse()
+    yyscan_t scanner;
+    std::string file;
+    switch (origin) {
+        case foFile:
+            file = path;
+            break;
+        case foStdin:
+        case foString:
+            file = text;
+            break;
+        default:
+            assert(false);
+    }
+    ParseData data(*state, {file, origin});
+    data.basePath = basePath;
+    data.targetPos = std::make_optional<Pos>(targetPos);
+
+    yylex_init(&scanner);
+    yy_scan_buffer(text, length, scanner);
+    int res = yyparse(scanner, &data);
+    yylex_destroy(scanner);
+
+    if (res) throw ParseError(data.error.value());
+
+    data.result->bindVars(*state, staticEnv);
+
+    return data.exprPath;
+}
+
+std::vector<Expr *> NixAnalyzer::parsePathToFile(const Path & path, Pos pos)
+{
+    return parsePathToFile(path, state->staticBaseEnv, pos);
+}
+
+
+std::vector<Expr *> NixAnalyzer::parsePathToFile(const Path & path, std::shared_ptr<StaticEnv> & staticEnv, Pos pos)
+{
+    auto buffer = readFile(path);
+    // readFile should have left some extra space for terminators
+    buffer.append("\0\0", 2);
+    return parsePathTo(buffer.data(), buffer.size(), foFile, path, dirOf(path), staticEnv, pos);
+}
+
+
+std::vector<Expr *> NixAnalyzer::parsePathToString(std::string s, const Path & basePath, std::shared_ptr<StaticEnv> & staticEnv, Pos pos)
+{
+    s.append("\0\0", 2);
+    return parsePathTo(s.data(), s.size(), foString, "", basePath, staticEnv, pos);
+}
+
+
+std::vector<Expr *> NixAnalyzer::parsePathToString(std::string s, const Path & basePath, Pos pos)
+{
+    return parsePathToString(std::move(s), basePath, state->staticBaseEnv, pos);
+}
+
+namespace nix {
 
 void EvalState::addToSearchPath(const std::string & s)
 {

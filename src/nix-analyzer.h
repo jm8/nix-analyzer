@@ -34,15 +34,45 @@ struct NixAnalyzer
     const static int envSize = 32768;
     std::shared_ptr<nix::StaticEnv> staticEnv;
 
-    nix::Env *env;
+    nix::Env* env;
 
-    NixAnalyzer(const nix::Strings &searchPath, nix::ref<nix::Store> store);
+    NixAnalyzer(const nix::Strings& searchPath, nix::ref<nix::Store> store);
 
-    nix::Expr *parseString(std::string s);
+    nix::Expr* parseString(std::string s);
 
-    void evalString(std::string s, nix::Value &v);
+    void evalString(std::string s, nix::Value& v);
 
-    void printValue(std::ostream &s, nix::Value &v);
+    void printValue(std::ostream& s, nix::Value& v);
+
+    // void parsePathToString(std::string s);
+
+    // defined in parser.y
+    std::vector<nix::Expr*> parsePathTo(
+        char* text,
+        size_t length,
+        nix::FileOrigin origin,
+        const nix::PathView path,
+        const nix::PathView basePath,
+        std::shared_ptr<nix::StaticEnv>& staticEnv,
+        nix::Pos targetPos);
+
+    std::vector<nix::Expr*> parsePathToFile(const nix::Path& path,
+                                            nix::Pos pos);
+
+    std::vector<nix::Expr*> parsePathToFile(
+        const nix::Path& path,
+        std::shared_ptr<nix::StaticEnv>& staticEnv,
+        nix::Pos pos);
+
+    std::vector<nix::Expr*> parsePathToString(
+        std::string s,
+        const nix::Path& basePath,
+        std::shared_ptr<nix::StaticEnv>& staticEnv,
+        nix::Pos pos);
+
+    std::vector<nix::Expr*> parsePathToString(std::string s,
+                                              const nix::Path& basePath,
+                                              nix::Pos pos);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);
