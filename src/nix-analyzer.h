@@ -73,6 +73,8 @@ struct NixAnalyzer
     std::vector<nix::Expr*> parsePathToString(std::string s,
                                               const nix::Path& basePath,
                                               nix::Pos pos);
+
+    std::vector<std::string> complete(std::vector<nix::Expr*> exprPath);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);

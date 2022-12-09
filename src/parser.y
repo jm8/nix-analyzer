@@ -328,8 +328,6 @@ void visitExpr(Expr *e, const YYLTYPE &loc, ParseData *data) {
     }
 
     data->exprPath.push_back(e);
-
-    std::cout << exprTypeName(e) << "\n";
 }
 
 #define VISIT visitExpr(yyvalp->e, *yylocp, data)
