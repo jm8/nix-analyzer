@@ -1,4 +1,5 @@
 #include "nix-analyzer.h"
+#include "nixexpr.hh"
 
 using namespace std;
 using namespace nix;
@@ -40,9 +41,11 @@ int poscmp(Pos a, Pos b) {
 vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
     vector<string> result;
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
-        auto attrs = select->e;
+        AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
+        ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
-        state->eval(attrs, v);
+        state->eval(&prefix, v);
+
         if (v.type() == nAttrs) {
             for (auto attr : *v.attrs) {
                 result.push_back(state->symbols[attr.name]);
