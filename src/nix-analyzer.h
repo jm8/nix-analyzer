@@ -29,6 +29,8 @@ struct NixAnalyzer
     : gc
 #endif
 {
+    using Callback = std::function<void(nix::Expr*, nix::Pos, nix::Pos)>;
+
     std::unique_ptr<nix::EvalState> state;
 
     std::shared_ptr<nix::StaticEnv> staticEnv;
@@ -38,31 +40,15 @@ struct NixAnalyzer
     // void parsePathToString(std::string s);
 
     // defined in parser.y
-    std::vector<nix::Expr*> parsePathTo(
-        char* text,
-        size_t length,
-        nix::FileOrigin origin,
-        const nix::PathView path,
-        const nix::PathView basePath,
-        std::shared_ptr<nix::StaticEnv>& staticEnv,
-        nix::Pos targetPos);
+    void parseWithCallback(std::string text,
+                           nix::FileOrigin origin,
+                           const nix::PathView path,
+                           const nix::PathView basePath,
+                           std::shared_ptr<nix::StaticEnv>& staticEnv,
+                           Callback callback);
 
-    std::vector<nix::Expr*> parsePathToFile(const nix::Path& path,
-                                            nix::Pos pos);
-
-    std::vector<nix::Expr*> parsePathToFile(
-        const nix::Path& path,
-        std::shared_ptr<nix::StaticEnv>& staticEnv,
-        nix::Pos pos);
-
-    std::vector<nix::Expr*> parsePathToString(
-        std::string s,
-        const nix::Path& basePath,
-        std::shared_ptr<nix::StaticEnv>& staticEnv,
-        nix::Pos pos);
-
-    std::vector<nix::Expr*> parsePathToString(std::string s,
-                                              const nix::Path& basePath,
+    std::vector<nix::Expr*> parsePathToString(std::string source,
+                                              nix::Path basePath,
                                               nix::Pos pos);
 
     std::vector<std::string> complete(std::vector<nix::Expr*> exprPath);

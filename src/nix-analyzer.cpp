@@ -1,5 +1,6 @@
 #include "nix-analyzer.h"
 #include "debug.h"
+#include "error.hh"
 #include "nixexpr.hh"
 
 using namespace std;
@@ -24,6 +25,29 @@ int poscmp(Pos a, Pos b) {
         return -1;
     }
     return 0;
+}
+
+vector<Expr*> NixAnalyzer::parsePathToString(string source,
+                                             Path basePath,
+                                             Pos targetPos) {
+    vector<Expr*> result;
+    parseWithCallback(source, nix::foString, "", basePath, state->staticBaseEnv,
+                      [targetPos, &result](Expr* e, Pos start, Pos end) {
+                          if (start.origin != targetPos.origin ||
+                              start.file != targetPos.file) {
+                              cout << "wrong file: " << start.file
+                                   << " expected " << targetPos.file << endl;
+                              return;
+                          }
+
+                          if (!(poscmp(start, targetPos) <= 0 &&
+                                poscmp(targetPos, end) <= 0)) {
+                              return;
+                          }
+
+                          result.push_back(e);
+                      });
+    return result;
 }
 
 vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
@@ -56,7 +80,7 @@ Env& NixAnalyzer::updateEnv(Expr* super, Expr* sub, Env& up) {
 
         Displacement displ = 0;
 
-        // if sub is an inherited let binding use the env up.
+        // if sub is an inherited let binding use the env from the parent.
         // if it is a non-inherited let binding or the body use env2.
         bool useSuperEnv = false;
 

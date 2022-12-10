@@ -1,22 +1,22 @@
 CFLAGS:=-Isrc -O3 -Wall -std=c++20 $(shell pkg-config --cflags --libs nix-main bdw-gc nlohmann_json) -I$(boostInclude) -DNIX_VERSION=\"$(NIX_VERSION)\" -lnixutil -lnixstore -lnixexpr -lnixmain -lnixcmd -lnixfetchers -lgc
-SOURCE:=$(wildcard src/*.cpp) build/lexer-tab.cpp build/parser-tab.cpp
-OBJ:=$(patsubst build/%.cpp,build/%.o,$(patsubst src/%.cpp,build/%.o,$(SOURCE)))
+SOURCE:=$(wildcard src/*.cpp) build/lexer-tab.cc build/parser-tab.cc
+OBJ:=$(patsubst build/%.cc,build/%.o,$(patsubst src/%.cpp,build/%.o,$(SOURCE)))
 
 all: nix-analyzer
 
-build/parser-tab.cpp build/parser-tab.hh: src/parser.y
+build/parser-tab.cc build/parser-tab.hh: src/parser.y
 	mkdir -p build
-	bison -v -o build/parser-tab.cpp $< -d
+	bison -v -o build/parser-tab.cc $< -d
 
-build/lexer-tab.cpp build/lexer-tab.hh: src/lexer.l
+build/lexer-tab.cc build/lexer-tab.hh: src/lexer.l
 	mkdir -p build
-	flex --outfile build/lexer-tab.cpp --header-file=build/lexer-tab.hh $<
+	flex --outfile build/lexer-tab.cc --header-file=build/lexer-tab.hh $<
 
 build/%.o: src/%.cpp
 	mkdir -p build
 	g++ $(CFLAGS) $< -c -o $@
 
-build/%.o: build/%.cpp
+build/%.o: build/%.cc
 	mkdir -p build
 	g++ $(CFLAGS) $< -c -o $@
 
