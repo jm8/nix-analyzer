@@ -31,18 +31,9 @@ struct NixAnalyzer
 {
     std::unique_ptr<nix::EvalState> state;
 
-    const static int envSize = 32768;
     std::shared_ptr<nix::StaticEnv> staticEnv;
 
-    nix::Env* env;
-
     NixAnalyzer(const nix::Strings& searchPath, nix::ref<nix::Store> store);
-
-    nix::Expr* parseString(std::string s);
-
-    void evalString(std::string s, nix::Value& v);
-
-    void printValue(std::ostream& s, nix::Value& v);
 
     // void parsePathToString(std::string s);
 
@@ -75,6 +66,10 @@ struct NixAnalyzer
                                               nix::Pos pos);
 
     std::vector<std::string> complete(std::vector<nix::Expr*> exprPath);
+
+    // returns the env that sub would be evaluated in within super.
+    // sub must be a direct child of super.
+    nix::Env& updateEnv(nix::Expr* super, nix::Expr* sub, nix::Env& up);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);

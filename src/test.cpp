@@ -41,10 +41,12 @@ bool completionTest(NixAnalyzer& analyzer,
         for (auto s : expected) {
             cout << s << " ";
         }
+        cout << "\n";
         cout << "ACTUAL: ";
         for (auto s : completions) {
             cout << s << " ";
         }
+        cout << "\n";
     }
     return good;
 }
@@ -146,4 +148,7 @@ int main() {
                     "mathcomp-solvable",
                     "deriving",
                     "mathcomp-ssreflect"});
+    completionTest(*analyzer,
+                   "(let something = {thething = 4; }; in something.oeijwt",
+                   ")", {"thething"});
 }
