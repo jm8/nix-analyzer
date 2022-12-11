@@ -24,6 +24,11 @@
 #include "store-api.hh"
 #include "util.hh"
 
+struct Analysis {
+    std::vector<nix::Expr*> exprPath;
+    // nix::StaticEnv staticEnv;
+};
+
 struct NixAnalyzer
 #if HAVE_BOEHMGC
     : gc
@@ -33,11 +38,7 @@ struct NixAnalyzer
 
     std::unique_ptr<nix::EvalState> state;
 
-    std::shared_ptr<nix::StaticEnv> staticEnv;
-
     NixAnalyzer(const nix::Strings& searchPath, nix::ref<nix::Store> store);
-
-    // void parsePathToString(std::string s);
 
     // defined in parser.y
     void parseWithCallback(std::string text,
@@ -47,9 +48,7 @@ struct NixAnalyzer
                            std::shared_ptr<nix::StaticEnv>& staticEnv,
                            Callback callback);
 
-    std::vector<nix::Expr*> parsePathToString(std::string source,
-                                              nix::Path basePath,
-                                              nix::Pos pos);
+    Analysis analyzeAtPos(std::string source, nix::Path basePath, nix::Pos pos);
 
     std::vector<std::string> complete(std::vector<nix::Expr*> exprPath);
 

@@ -27,7 +27,7 @@ bool completionTest(NixAnalyzer& analyzer,
         }
     }
     Pos pos{source, foString, line, col};
-    auto exprPath = analyzer.parsePathToString(source, absPath("."), pos);
+    auto [exprPath] = analyzer.analyzeAtPos(source, absPath("."), pos);
     auto completions = analyzer.complete(exprPath);
     sort(expected.begin(), expected.end());
     sort(completions.begin(), completions.end());
@@ -151,4 +151,5 @@ int main() {
     completionTest(*analyzer,
                    "(let something = {thething = 4; }; in something.oeijwt",
                    ")", {"thething"});
+    completionTest(*analyzer, "map", "", {});
 }

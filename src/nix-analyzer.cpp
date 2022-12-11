@@ -1,5 +1,6 @@
 #include "nix-analyzer.h"
 #include "debug.h"
+
 #include "error.hh"
 #include "nixexpr.hh"
 
@@ -7,8 +8,7 @@ using namespace std;
 using namespace nix;
 
 NixAnalyzer::NixAnalyzer(const Strings& searchPath, nix::ref<Store> store)
-    : state(make_unique<EvalState>(searchPath, store)),
-      staticEnv(new StaticEnv(false, state->staticBaseEnv.get())) {
+    : state(make_unique<EvalState>(searchPath, store)) {
 }
 
 int poscmp(Pos a, Pos b) {
@@ -27,16 +27,15 @@ int poscmp(Pos a, Pos b) {
     return 0;
 }
 
-vector<Expr*> NixAnalyzer::parsePathToString(string source,
-                                             Path basePath,
-                                             Pos targetPos) {
-    vector<Expr*> result;
+Analysis NixAnalyzer::analyzeAtPos(string source,
+                                   Path basePath,
+                                   Pos targetPos) {
+    vector<Expr*> exprPath;
+    // StaticEnv* se = state->staticBaseEnv;
     parseWithCallback(source, nix::foString, "", basePath, state->staticBaseEnv,
-                      [targetPos, &result](Expr* e, Pos start, Pos end) {
+                      [targetPos, &exprPath](Expr* e, Pos start, Pos end) {
                           if (start.origin != targetPos.origin ||
                               start.file != targetPos.file) {
-                              cout << "wrong file: " << start.file
-                                   << " expected " << targetPos.file << endl;
                               return;
                           }
 
@@ -45,9 +44,9 @@ vector<Expr*> NixAnalyzer::parsePathToString(string source,
                               return;
                           }
 
-                          result.push_back(e);
+                          exprPath.push_back(e);
                       });
-    return result;
+    return {exprPath};
 }
 
 vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
@@ -69,6 +68,13 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
                 result.push_back(state->symbols[attr.name]);
             }
         }
+    }
+    if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
+        auto se = state->getStaticEnv(*var);
+        cout << bool(se) << endl;
+        // for (auto [symbol, displ] : se->vars) {
+        // result.push_back(state->symbols[symbol]);
+        // }
     }
     return result;
 }
