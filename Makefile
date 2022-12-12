@@ -11,7 +11,10 @@ build/%.o: src/%.cpp
 nix-analyzer: $(OBJ) nixlib
 	g++ $(CFLAGS) $(OBJ) -o nix-analyzer
 
-nixlib:
+nix/config.h:
+	cd nix && ./bootstrap.sh && ./configure --prefix=$$PWD/build
+
+nixlib: nix/config.h
 	$(MAKE) -C nix
 
 clean:

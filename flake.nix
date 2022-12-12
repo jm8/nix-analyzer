@@ -46,7 +46,7 @@
             inputsFrom = [self.packages.${system}.default];
             boostInclude = "${pkgs.boost.dev}/include";
             shellHook = ''
-
+              export LD_LIBRARY_PATH=$PWD/nix/build/lib
             '';
           };
           default = nix-analyzer;
