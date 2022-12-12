@@ -70,11 +70,13 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
         }
     }
     if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
-        auto se = state->getStaticEnv(*var);
-        cout << bool(se) << endl;
-        // for (auto [symbol, displ] : se->vars) {
-        // result.push_back(state->symbols[symbol]);
-        // }
+        const StaticEnv* se = state->getStaticEnv(*var).get();
+        while (se) {
+            for (auto [symbol, displ] : se->vars) {
+                result.push_back(state->symbols[symbol]);
+            }
+            se = se->up;
+        }
     }
     return result;
 }

@@ -1,4 +1,4 @@
-CFLAGS:=-Isrc -Ibuild -O3 -Wall -std=c++20 $(shell pkg-config --cflags --libs bdw-gc nlohmann_json) -I$(boostInclude) -Inix/build/include/nix -Inix -Lnix/build/lib -lnixutil -lnixstore -lnixexpr -lnixmain -lnixcmd -lnixfetchers -lgc
+CFLAGS:=-Isrc -Ibuild -O3 -Wall $(shell pkg-config --cflags --libs bdw-gc nlohmann_json) -I$(boostInclude) -Inix/build/include/nix -Inix -Lnix/build/lib -lnixutil -lnixstore -lnixexpr -lnixmain -lnixcmd -lnixfetchers -lgc
 SOURCE:=$(wildcard src/*.cpp)
 OBJ:=$(patsubst src/%.cpp,build/%.o,$(SOURCE))
 
