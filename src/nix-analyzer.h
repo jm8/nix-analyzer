@@ -11,8 +11,6 @@
 #include <iostream>
 #include <memory>
 
-#include "common-eval-args.hh"
-#include "derivations.hh"
 #include "eval-inline.hh"
 #include "eval.hh"
 #include "get-drvs.hh"
