@@ -32,6 +32,7 @@ Analysis NixAnalyzer::analyzeAtPos(string source,
                                    Path basePath,
                                    Pos targetPos) {
     vector<Expr*> exprPath;
+    vector<ParseError> errors;
     // StaticEnv* se = state->staticBaseEnv;
     parseWithCallback(
         source, nix::foString, "", basePath, state->staticBaseEnv,
@@ -48,8 +49,8 @@ Analysis NixAnalyzer::analyzeAtPos(string source,
 
             exprPath.push_back(e);
         },
-        [](ParseError error) { cerr << error.msg() << "\n"; });
-    return {exprPath};
+        [&errors](ParseError error) { errors.push_back(error); });
+    return {exprPath, errors};
 }
 
 vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {

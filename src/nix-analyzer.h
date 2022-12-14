@@ -24,7 +24,7 @@
 
 struct Analysis {
     std::vector<nix::Expr*> exprPath;
-    // nix::StaticEnv staticEnv;
+    std::vector<nix::ParseError> parseErrors;
 };
 
 struct NixAnalyzer

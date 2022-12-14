@@ -14,7 +14,7 @@ using namespace nix;
 bool completionTest(NixAnalyzer& analyzer,
                     string beforeCursor,
                     string afterCursor,
-                    vector<string>&& expected,
+                    vector<string>&& expectedCompletions,
                     vector<string>&& expectedErrors) {
     string source = beforeCursor + afterCursor;
     uint32_t line = 1;
@@ -28,26 +28,46 @@ bool completionTest(NixAnalyzer& analyzer,
         }
     }
     Pos pos{source, foString, line, col};
-    auto [exprPath] = analyzer.analyzeAtPos(source, absPath("."), pos);
-    auto completions = analyzer.complete(exprPath);
-    sort(expected.begin(), expected.end());
-    sort(completions.begin(), completions.end());
-    bool good = expected == completions;
-    if (good) {
-        cout << "PASS"
-             << "\n";
-    } else {
-        cout << "FAIL:\n" << source << "\n";
+    auto [exprPath, parseErrors] =
+        analyzer.analyzeAtPos(source, absPath("."), pos);
+    auto actualCompletions = analyzer.complete(exprPath);
+    sort(expectedCompletions.begin(), expectedCompletions.end());
+    sort(actualCompletions.begin(), actualCompletions.end());
+    bool good = true;
+    if (expectedCompletions != actualCompletions) {
+        good = false;
         cout << "EXPECTED: ";
-        for (auto s : expected) {
+        for (auto s : expectedCompletions) {
             cout << s << " ";
         }
         cout << "\n";
         cout << "ACTUAL: ";
-        for (auto s : completions) {
+        for (auto s : actualCompletions) {
             cout << s << " ";
         }
         cout << "\n";
+    }
+    vector<string> actualErrors;
+    for (ParseError error : parseErrors) {
+        actualErrors.push_back(filterANSIEscapes(error.info().msg.str(), true));
+    }
+    if (actualErrors != expectedErrors) {
+        good = false;
+        cout << "EXPECTED: ";
+        for (auto s : expectedErrors) {
+            cout << s << " ";
+        }
+        cout << "\n";
+        cout << "ACTUAL: ";
+        for (auto s : actualErrors) {
+            cout << s << " ";
+        }
+        cout << "\n";
+    }
+    if (good) {
+        cout << "PASS\n";
+    } else {
+        cout << "FAIL:\n" << source << "\n";
     }
     return good;
 }
@@ -268,5 +288,6 @@ int main() {
                        "true",
                    },
                    {});
-    completionTest(*analyzer, "{a = 2; a = 3;}", "", {}, {});
+    completionTest(*analyzer, "{a = 2; a = 3;}", "", {},
+                   {"attribute 'a' already defined at (string):1:2"});
 }
