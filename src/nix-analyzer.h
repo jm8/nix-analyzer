@@ -33,6 +33,7 @@ struct NixAnalyzer
 #endif
 {
     using Callback = std::function<void(nix::Expr*, nix::Pos, nix::Pos)>;
+    using ErrorCallback = std::function<void(nix::ParseError)>;
 
     std::unique_ptr<nix::EvalState> state;
 
@@ -44,7 +45,8 @@ struct NixAnalyzer
                            const nix::PathView path,
                            const nix::PathView basePath,
                            std::shared_ptr<nix::StaticEnv>& staticEnv,
-                           Callback callback);
+                           Callback callback,
+                           ErrorCallback errorCallback);
 
     Analysis analyzeAtPos(std::string source, nix::Path basePath, nix::Pos pos);
 

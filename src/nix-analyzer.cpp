@@ -1,4 +1,5 @@
 #include "nix-analyzer.h"
+#include <iostream>
 #include "debug.h"
 
 #include "error.hh"
@@ -32,20 +33,22 @@ Analysis NixAnalyzer::analyzeAtPos(string source,
                                    Pos targetPos) {
     vector<Expr*> exprPath;
     // StaticEnv* se = state->staticBaseEnv;
-    parseWithCallback(source, nix::foString, "", basePath, state->staticBaseEnv,
-                      [targetPos, &exprPath](Expr* e, Pos start, Pos end) {
-                          if (start.origin != targetPos.origin ||
-                              start.file != targetPos.file) {
-                              return;
-                          }
+    parseWithCallback(
+        source, nix::foString, "", basePath, state->staticBaseEnv,
+        [targetPos, &exprPath](Expr* e, Pos start, Pos end) {
+            if (start.origin != targetPos.origin ||
+                start.file != targetPos.file) {
+                return;
+            }
 
-                          if (!(poscmp(start, targetPos) <= 0 &&
-                                poscmp(targetPos, end) <= 0)) {
-                              return;
-                          }
+            if (!(poscmp(start, targetPos) <= 0 &&
+                  poscmp(targetPos, end) <= 0)) {
+                return;
+            }
 
-                          exprPath.push_back(e);
-                      });
+            exprPath.push_back(e);
+        },
+        [](ParseError error) { cerr << error.msg() << "\n"; });
     return {exprPath};
 }
 
