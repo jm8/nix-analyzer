@@ -2,14 +2,18 @@ CFLAGS:=-Isrc -Ibuild -O3 -Wall $(shell pkg-config --cflags --libs bdw-gc nlohma
 SOURCE:=$(wildcard src/*.cpp)
 OBJ:=$(patsubst src/%.cpp,build/%.o,$(SOURCE))
 
-all: nix-analyzer
+all: nix-analyzer-test
+
+test: nix-analyzer-test
+	./nix-analyzer-test
+
 
 build/%.o: src/%.cpp
 	mkdir -p build
 	g++ $(CFLAGS) $< -c -o $@
 
-nix-analyzer: $(OBJ) nixlib
-	g++ $(CFLAGS) $(OBJ) -o nix-analyzer
+nix-analyzer-test: $(OBJ) nixlib
+	g++ $(CFLAGS) $(OBJ) -o nix-analyzer-test
 
 nix/config.h:
 	cd nix && ./bootstrap.sh && ./configure --prefix=$$PWD/build
@@ -19,5 +23,5 @@ nixlib: nix/config.h
 
 clean:
 	rm -rf build
-	rm nix-analyzer
+	rm nix-analyzer-test
 	$(MAKE) -C nix clean
