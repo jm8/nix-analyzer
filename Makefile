@@ -20,3 +20,4 @@ nixlib: nix/config.h
 clean:
 	rm -rf build
 	rm nix-analyzer
+	$(MAKE) -C nix clean

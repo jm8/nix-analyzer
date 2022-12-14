@@ -14,7 +14,8 @@ using namespace nix;
 bool completionTest(NixAnalyzer& analyzer,
                     string beforeCursor,
                     string afterCursor,
-                    vector<string>&& expected) {
+                    vector<string>&& expected,
+                    vector<string>&& expectedErrors) {
     string source = beforeCursor + afterCursor;
     uint32_t line = 1;
     uint32_t col = 1;
@@ -59,7 +60,7 @@ int main() {
     auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore());
 
     completionTest(*analyzer, "{apple = 4; banana = 7; }.a", "",
-                   {"apple", "banana"});
+                   {"apple", "banana"}, {});
     completionTest(*analyzer, "(import <nixpkgs> {}).coqPackages.whatev", "",
                    {"Cheerios",
                     "dpdgraph",
@@ -147,11 +148,12 @@ int main() {
                     "corn",
                     "mathcomp-solvable",
                     "deriving",
-                    "mathcomp-ssreflect"});
+                    "mathcomp-ssreflect"},
+                   {});
     completionTest(*analyzer,
                    "(let something = {thething = 4; }; in something.oeijwt",
-                   ")", {"thething"});
-    completionTest(*analyzer, "whaterv", "",
+                   ")", {"thething"}, {});
+    completionTest(*analyzer, "map", "",
                    {
                        "__add",
                        "__addErrorContext",
@@ -264,5 +266,7 @@ int main() {
                        "throw",
                        "toString",
                        "true",
-                   });
+                   },
+                   {});
+    completionTest(*analyzer, "{a = 2; a = 3;}", "", {}, {});
 }
