@@ -1,5 +1,7 @@
 .direnv
 nix-analyzer
+nix-analyzer-test
+result
 compile_commands.json
 .cache
 build
