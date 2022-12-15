@@ -4,11 +4,7 @@ OBJ:=$(patsubst src/%.cpp,build/%.o,$(SOURCE))
 
 all: nix-analyzer-test
 
-test: nix-analyzer-test
-	./nix-analyzer-test
-
-
-build/%.o: src/%.cpp
+build/%.o: src/%.cpp nixlib
 	mkdir -p build
 	g++ $(CFLAGS) $< -c -o $@
 
@@ -20,6 +16,7 @@ nix/config.h:
 
 nixlib: nix/config.h
 	$(MAKE) -C nix
+	$(MAKE) -C nix install
 
 clean:
 	rm -rf build

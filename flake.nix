@@ -34,9 +34,25 @@
               ]
               ++ nix.devShells.${system}.default.buildInputs
               ++ nix.devShells.${system}.default.nativeBuildInputs;
+            enableParalellBuilding = true;
+            autoreconfPhase = ''
+
+            '';
+            buildPhase = ''
+              make
+            '';
             installPhase = ''
-              mkdir -p $out/bin
-              cp nix-analyzer $out/bin
+              mkdir -p $out/{bin,lib}
+              cp nix/build/lib/*.so $out/lib
+              cp nix-analyzer-test $out/bin
+            '';
+            preFixup = ''
+              patchelf --add-rpath $out/lib $out/lib/*.so
+              patchelf --shrink-rpath --allowed-rpath-prefixes /nix/store $out/lib/*.so
+              addAutoPatchelfSearchPath $out/lib
+            '';
+            checkPhase = ''
+              $out/bin/nix-analyzer-test
             '';
           };
           default = nix-analyzer;
