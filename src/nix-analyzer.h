@@ -32,21 +32,9 @@ struct NixAnalyzer
     : gc
 #endif
 {
-    using Callback = std::function<void(nix::Expr*, nix::Pos, nix::Pos)>;
-    using ErrorCallback = std::function<void(nix::ParseError)>;
-
     std::unique_ptr<nix::EvalState> state;
 
     NixAnalyzer(const nix::Strings& searchPath, nix::ref<nix::Store> store);
-
-    // defined in parser.y
-    void parseWithCallback(std::string text,
-                           nix::FileOrigin origin,
-                           const nix::PathView path,
-                           const nix::PathView basePath,
-                           std::shared_ptr<nix::StaticEnv>& staticEnv,
-                           Callback callback,
-                           ErrorCallback errorCallback);
 
     Analysis analyzeAtPos(std::string source, nix::Path basePath, nix::Pos pos);
 

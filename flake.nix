@@ -3,13 +3,13 @@
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.nix.url = "path:./nix";
+  inputs.nixfork.url = "github:jm8/nix";
 
   outputs = {
     self,
     nixpkgs,
     flake-utils,
-    nix,
+    nixfork,
   }:
     flake-utils.lib.eachDefaultSystem (
       system: let
@@ -32,37 +32,20 @@
                 flex
                 bison
               ]
-              ++ nix.devShells.${system}.default.buildInputs
-              ++ nix.devShells.${system}.default.nativeBuildInputs;
+              ++ [
+                nixfork.packages.${system}.default
+              ];
             enableParalellBuilding = true;
-            autoreconfPhase = ''
-
-            '';
             buildPhase = ''
               make
             '';
             installPhase = ''
               mkdir -p $out/{bin,lib}
-              cp nix/build/lib/*.so $out/lib
               cp nix-analyzer-test $out/bin
             '';
-            preFixup = ''
-              patchelf --add-rpath $out/lib $out/lib/*.so
-              patchelf --shrink-rpath --allowed-rpath-prefixes /nix/store $out/lib/*.so
-              addAutoPatchelfSearchPath $out/lib
-            '';
+            doCheck = true;
             checkPhase = ''
-              $out/bin/nix-analyzer-test
-            '';
-          };
-          default = nix-analyzer;
-        };
-        devShells = rec {
-          nix-analyzer = pkgs.mkShell {
-            inputsFrom = [self.packages.${system}.default];
-            boostInclude = "${pkgs.boost.dev}/include";
-            shellHook = ''
-              export LD_LIBRARY_PATH=$PWD/nix/build/lib
+              ./nix-analyzer-test
             '';
           };
           default = nix-analyzer;

@@ -31,21 +31,24 @@
         "type": "github"
       }
     },
-    "nix": {
+    "nixfork": {
       "inputs": {
         "lowdown-src": "lowdown-src",
         "nixpkgs": "nixpkgs",
         "nixpkgs-regression": "nixpkgs-regression"
       },
       "locked": {
-        "lastModified": 1,
-        "narHash": "sha256-0eVhiR5khZftrJY1G41pFkBs2U/fffvCeFg17nZ9arE=",
-        "path": "./nix",
-        "type": "path"
+        "lastModified": 1671162615,
+        "narHash": "sha256-8F+2DF6Qru9xTJsTSLLUfWkTmgk/VHZo+nZAnKCZgfo=",
+        "owner": "jm8",
+        "repo": "nix",
+        "rev": "380721aa108f1824672c0697ff10d562ffd18d7f",
+        "type": "github"
       },
       "original": {
-        "path": "./nix",
-        "type": "path"
+        "owner": "jm8",
+        "repo": "nix",
+        "type": "github"
       }
     },
     "nixpkgs": {
@@ -98,7 +101,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nix": "nix",
+        "nixfork": "nixfork",
         "nixpkgs": "nixpkgs_2"
       }
     }
