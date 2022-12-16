@@ -83,7 +83,7 @@ int main() {
         make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"));
 
     vector<CompletionTest> completionTests{
-        {"{apple = 4; banana = 7; }.a", "", {"apple", "banana"}, {}},
+        {"{apple = 4; banana = 7; }.a", "", {"apple", "failthetest"}, {}},
         // {"(import <nixpkgs> {}).coqPackages.whatev",
         //  "",
         //  {"Cheerios",
