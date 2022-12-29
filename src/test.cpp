@@ -1,5 +1,6 @@
 #include <bits/ranges_algo.h>
 #include <algorithm>
+#include <iostream>
 #include "debug.h"
 #include "error.hh"
 #include "nix-analyzer.h"
@@ -122,6 +123,12 @@ int main() {
             "",
             builtinIDsPlus({"a", "b"}),
             {"duplicate formal function argument 'a'"},
+        },
+        {
+            "(abc)",
+            "",
+            {},
+            {},
         },
     };
 

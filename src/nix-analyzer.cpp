@@ -56,6 +56,9 @@ Analysis NixAnalyzer::analyzeAtPos(string source,
 vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
     vector<string> result;
     Env* env = &state->baseEnv;
+    if (exprPath.empty()) {
+        return result;
+    }
     for (size_t i = exprPath.size() - 1; i >= 1; i--) {
         Expr* sub = exprPath[i - 1];
         Expr* super = exprPath[i];
