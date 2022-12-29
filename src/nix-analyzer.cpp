@@ -77,6 +77,11 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
         const StaticEnv* se = state->getStaticEnv(*var).get();
         while (se) {
             for (auto [symbol, displ] : se->vars) {
+                SymbolStr sym = state->symbols[symbol];
+                if (!se->up && string_view(sym).rfind("__", 0) == 0) {
+                    // ignore top level symbols starting with double underscore
+                    continue;
+                }
                 result.push_back(state->symbols[symbol]);
             }
             se = se->up;
