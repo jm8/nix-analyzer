@@ -130,6 +130,12 @@ int main() {
             {},
             {},
         },
+        {
+            "(2+)",
+            "",
+            builtinIDs,
+            {"syntax error, unexpected ')'"},
+        },
     };
 
     bool good = true;
