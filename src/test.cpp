@@ -158,13 +158,13 @@ int main() {
             {"syntax error, unexpected '.', expecting ID or OR_KW or "
              "DOLLAR_CURLY or '\"'"},
         },
-        // gives seg fault
-        // {
-        //     "{a = 1, b = 2}",
-        //     "",
-        //     {},
-        //     {},
-        // },
+        {
+            "{a = 1, b = 2}",
+            "",
+            builtinIDs,
+            {"syntax error, unexpected ',', expecting ';'",
+             "syntax error, unexpected '}', expecting ';'"},
+        },
     };
 
     bool good = true;
