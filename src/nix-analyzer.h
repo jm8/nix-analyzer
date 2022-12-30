@@ -36,7 +36,10 @@ struct NixAnalyzer
 
     NixAnalyzer(const nix::Strings& searchPath, nix::ref<nix::Store> store);
 
-    Analysis analyzeAtPos(std::string source, nix::Path basePath, nix::Pos pos);
+    Analysis analyzeAtPos(std::string source,
+                          nix::Path path,
+                          nix::Path basePath,
+                          nix::Pos pos);
 
     std::vector<std::string> complete(std::vector<nix::Expr*> exprPath);
 

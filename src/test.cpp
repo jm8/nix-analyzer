@@ -14,6 +14,7 @@ using namespace nix;
 struct CompletionTest {
     string beforeCursor;
     string afterCursor;
+    string path;
     vector<string> expectedCompletions;
     vector<string> expectedErrors;
 
@@ -30,8 +31,9 @@ struct CompletionTest {
             }
         }
         Pos pos{source, foString, line, col};
+        Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto [exprPath, parseErrors] =
-            analyzer.analyzeAtPos(source, absPath("."), pos);
+            analyzer.analyzeAtPos(source, path, basePath, pos);
         auto actualCompletions = analyzer.complete(exprPath);
         sort(expectedCompletions.begin(), expectedCompletions.end());
         sort(actualCompletions.begin(), actualCompletions.end());
@@ -101,76 +103,68 @@ int main() {
 
     vector<CompletionTest> completionTests{
         {
-            "{apple = 4; banana = 7; }.a",
-            "",
-            {"apple", "banana"},
-            {},
+            .beforeCursor = "{apple = 4; banana = 7; }.a",
+            .expectedCompletions = {"apple", "banana"},
         },
         {
-            "map",
-            "",
-            builtinIDs,
-            {},
+            .beforeCursor = "map",
+            .expectedCompletions = builtinIDs,
         },
         {
-            "{a = 2; a = 3;}",
-            "",
-            builtinIDs,
-            {"attribute 'a' already defined at (string):1:2"},
+            .beforeCursor = "{a = 2; a = 3;}",
+            .expectedCompletions = builtinIDs,
+            .expectedErrors = {"attribute 'a' already defined at (string):1:2"},
         },
         {
-            "{a, b, a}: a",
-            "",
-            builtinIDsPlus({"a", "b"}),
-            {"duplicate formal function argument 'a'"},
+            .beforeCursor = "{a, b, a}: a",
+            .expectedCompletions = builtinIDsPlus({"a", "b"}),
+            .expectedErrors = {"duplicate formal function argument 'a'"},
         },
         {
-            "(abc)",
-            "",
-            builtinIDs,
-            {},
+            .beforeCursor = "(abc)",
+            .expectedCompletions = builtinIDs,
         },
         {
-            "(2+)",
-            "",
-            builtinIDs,
-            {"syntax error, unexpected ')'"},
+            .beforeCursor = "(2+)",
+            .expectedCompletions = builtinIDs,
+            .expectedErrors = {"syntax error, unexpected ')'"},
         },
         {
-            "{abc = 2; def = \"green\";}.",
-            "",
-            {"abc", "def"},
-            {"syntax error, unexpected end of file, expecting ID or OR_KW or "
-             "DOLLAR_CURLY or '\"'"},
+            .beforeCursor = "{abc = 2; def = \"green\";}.",
+            .expectedCompletions = {"abc", "def"},
+            .expectedErrors = {"syntax error, unexpected end of file, "
+                               "expecting ID or OR_KW or "
+                               "DOLLAR_CURLY or '\"'"},
         },
         {
-            "({ colors.red = 0; colors.green = 100; somethingelse = "
-            "-1; }.colors.",
-            ")",
-            {"green", "red"},
-            {"syntax error, unexpected ')', expecting ID or OR_KW or "
-             "DOLLAR_CURLY or '\"'"},
+            .beforeCursor =
+                "({ colors.red = 0; colors.green = 100; somethingelse = "
+                "-1; }.colors.",
+            .afterCursor = ")",
+            .expectedCompletions = {"green", "red"},
+            .expectedErrors =
+                {"syntax error, unexpected ')', expecting ID or OR_KW or "
+                 "DOLLAR_CURLY or '\"'"},
         },
         {
-            "{ \"\" = { a = 1; }; }..",
-            "",
-            {"a"},
-            {"syntax error, unexpected '.', expecting ID or OR_KW or "
-             "DOLLAR_CURLY or '\"'"},
+            .beforeCursor = "{ \"\" = { a = 1; }; }..",
+            .expectedCompletions = {"a"},
+            .expectedErrors =
+                {"syntax error, unexpected '.', expecting ID or OR_KW or "
+                 "DOLLAR_CURLY or '\"'"},
         },
         {
-            "{a = 1, b = 2}",
-            "",
-            builtinIDs,
-            {"syntax error, unexpected ',', expecting ';'",
-             "syntax error, unexpected '}', expecting ';'"},
+            .beforeCursor = "{a = 1, b = 2}",
+            .expectedCompletions = builtinIDs,
+            .expectedErrors = {"syntax error, unexpected ',', expecting ';'",
+                               "syntax error, unexpected '}', expecting ';'"},
         },
         {
-            "undefinedvariable.",
-            "",
-            {},
-            {"syntax error, unexpected end of file, expecting ID or OR_KW or "
-             "DOLLAR_CURLY or '\"'"},
+            .beforeCursor = "undefinedvariable.",
+            .expectedCompletions = {},
+            .expectedErrors = {"syntax error, unexpected end of file, "
+                               "expecting ID or OR_KW or "
+                               "DOLLAR_CURLY or '\"'"},
         }};
 
     bool good = true;

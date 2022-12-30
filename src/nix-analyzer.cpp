@@ -30,13 +30,15 @@ int poscmp(Pos a, Pos b) {
 }
 
 Analysis NixAnalyzer::analyzeAtPos(string source,
+                                   Path path,
                                    Path basePath,
                                    Pos targetPos) {
     vector<Expr*> exprPath;
     vector<ParseError> errors;
     // StaticEnv* se = state->staticBaseEnv;
     state->parseWithCallback(
-        source, nix::foString, "", basePath, state->staticBaseEnv,
+        source, path.empty() ? nix::foString : nix::foFile, path, basePath,
+        state->staticBaseEnv,
         [targetPos, &exprPath](Expr* e, Pos start, Pos end) {
             if (start.origin != targetPos.origin ||
                 start.file != targetPos.file) {
