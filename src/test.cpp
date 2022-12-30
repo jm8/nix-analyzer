@@ -68,9 +68,9 @@ struct CompletionTest {
             cout << "\n";
         }
         if (good) {
-            cout << "PASS\n";
+            cout << "PASS: " << source << "\n\n";
         } else {
-            cout << "FAIL:\n" << source << "\n";
+            cout << "FAIL: " << source << "\n\n";
         }
         return good;
     }
@@ -115,7 +115,7 @@ int main() {
         {
             "{a = 2; a = 3;}",
             "",
-            {},
+            builtinIDs,
             {"attribute 'a' already defined at (string):1:2"},
         },
         {
@@ -127,7 +127,7 @@ int main() {
         {
             "(abc)",
             "",
-            {},
+            builtinIDs,
             {},
         },
         {

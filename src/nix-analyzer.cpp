@@ -54,17 +54,29 @@ Analysis NixAnalyzer::analyzeAtPos(string source,
 }
 
 vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
-    vector<string> result;
-    Env* env = &state->baseEnv;
     if (exprPath.empty()) {
+        vector<string> result;
+        for (auto [symbol, displ] : state->staticBaseEnv->vars) {
+            SymbolStr sym = state->symbols[symbol];
+            if (string_view(sym).rfind("__", 0) == 0) {
+                // ignore top level symbols starting with double
+                // underscore
+                continue;
+            }
+            result.push_back(sym);
+        }
         return result;
     }
+
+    Env* env = &state->baseEnv;
     for (size_t i = exprPath.size() - 1; i >= 1; i--) {
         Expr* sub = exprPath[i - 1];
         Expr* super = exprPath[i];
         env = &updateEnv(super, sub, *env);
     }
+
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
+        vector<string> result;
         AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
         ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
@@ -75,20 +87,22 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
                 result.push_back(state->symbols[attr.name]);
             }
         }
+        return result;
     }
-    if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
-        const StaticEnv* se = state->getStaticEnv(*var).get();
-        while (se) {
-            for (auto [symbol, displ] : se->vars) {
-                SymbolStr sym = state->symbols[symbol];
-                if (!se->up && string_view(sym).rfind("__", 0) == 0) {
-                    // ignore top level symbols starting with double underscore
-                    continue;
-                }
-                result.push_back(state->symbols[symbol]);
+
+    vector<string> result;
+    const StaticEnv* se = state->getStaticEnv(*exprPath.front()).get();
+    while (se) {
+        for (auto [symbol, displ] : se->vars) {
+            SymbolStr sym = state->symbols[symbol];
+            if (!se->up && string_view(sym).rfind("__", 0) == 0) {
+                // ignore top level symbols starting with double
+                // underscore
+                continue;
             }
-            se = se->up;
+            result.push_back(sym);
         }
+        se = se->up;
     }
     return result;
 }
