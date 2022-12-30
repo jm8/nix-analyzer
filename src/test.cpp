@@ -136,6 +136,35 @@ int main() {
             builtinIDs,
             {"syntax error, unexpected ')'"},
         },
+        {
+            "{abc = 2; def = \"green\";}.",
+            "",
+            {"abc", "def"},
+            {"syntax error, unexpected end of file, expecting ID or OR_KW or "
+             "DOLLAR_CURLY or '\"'"},
+        },
+        {
+            "({ colors.red = 0; colors.green = 100; somethingelse = "
+            "-1; }.colors.",
+            ")",
+            {"green", "red"},
+            {"syntax error, unexpected ')', expecting ID or OR_KW or "
+             "DOLLAR_CURLY or '\"'"},
+        },
+        {
+            "{ \"\" = { a = 1; }; }..",
+            "",
+            {"a"},
+            {"syntax error, unexpected '.', expecting ID or OR_KW or "
+             "DOLLAR_CURLY or '\"'"},
+        },
+        // gives seg fault
+        // {
+        //     "{a = 1, b = 2}",
+        //     "",
+        //     {},
+        //     {},
+        // },
     };
 
     bool good = true;
