@@ -165,7 +165,13 @@ int main() {
             {"syntax error, unexpected ',', expecting ';'",
              "syntax error, unexpected '}', expecting ';'"},
         },
-    };
+        {
+            "undefinedvariable.",
+            "",
+            {},
+            {"syntax error, unexpected end of file, expecting ID or OR_KW or "
+             "DOLLAR_CURLY or '\"'"},
+        }};
 
     bool good = true;
     for (auto& test : completionTests) {

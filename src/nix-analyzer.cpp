@@ -4,6 +4,7 @@
 
 #include "error.hh"
 #include "nixexpr.hh"
+#include "url.hh"
 
 using namespace std;
 using namespace nix;
@@ -76,12 +77,17 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
     }
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
-        vector<string> result;
         AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
         ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
-        prefix.eval(*state, *env, v);
 
+        try {
+            prefix.eval(*state, *env, v);
+        } catch (Error& e) {
+            return {};
+        }
+
+        vector<string> result;
         if (v.type() == nAttrs) {
             for (auto attr : *v.attrs) {
                 result.push_back(state->symbols[attr.name]);
