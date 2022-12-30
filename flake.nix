@@ -45,7 +45,7 @@
             '';
             doCheck = true;
             checkPhase = ''
-              ./nix-analyzer-test
+              ./nix-analyzer-test ${nixpkgs}
             '';
           };
           default = nix-analyzer;

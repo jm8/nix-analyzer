@@ -93,9 +93,16 @@ vector<string> builtinIDsPlus(const vector<string>& additional) {
     return result;
 }
 
-int main() {
+int main(int argc, char** argv) {
     initNix();
     initGC();
+
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " [path to nixpkgs]\n";
+        return 1;
+    }
+
+    PathView nixpkgs{argv[1]};
 
     Strings searchPath;
     auto analyzer =
@@ -165,7 +172,115 @@ int main() {
             .expectedErrors = {"syntax error, unexpected end of file, "
                                "expecting ID or OR_KW or "
                                "DOLLAR_CURLY or '\"'"},
-        }};
+        },
+        {
+            .beforeCursor = "(import \"" + nixpkgs + "\"{}).coqPackages.aaa",
+            .expectedCompletions =
+                {
+                    "Cheerios",
+                    "CoLoR",
+                    "HoTT",
+                    "ITree",
+                    "InfSeqExt",
+                    "LibHyps",
+                    "QuickChick",
+                    "StructTact",
+                    "VST",
+                    "Verdi",
+                    "aac-tactics",
+                    "addition-chains",
+                    "autosubst",
+                    "bignums",
+                    "callPackage",
+                    "category-theory",
+                    "ceres",
+                    "compcert",
+                    "contribs",
+                    "coq",
+                    "coq-bits",
+                    "coq-elpi",
+                    "coq-ext-lib",
+                    "coq-record-update",
+                    "coqPackages",
+                    "coqeal",
+                    "coqide",
+                    "coqprime",
+                    "coquelicot",
+                    "corn",
+                    "deriving",
+                    "dpdgraph",
+                    "equations",
+                    "extructures",
+                    "filterPackages",
+                    "flocq",
+                    "fourcolor",
+                    "gaia",
+                    "gaia-hydras",
+                    "gappalib",
+                    "goedel",
+                    "graph-theory",
+                    "hierarchy-builder",
+                    "hydra-battles",
+                    "interval",
+                    "iris",
+                    "itauto",
+                    "lib",
+                    "math-classes",
+                    "mathcomp",
+                    "mathcomp-abel",
+                    "mathcomp-algebra",
+                    "mathcomp-algebra-tactics",
+                    "mathcomp-analysis",
+                    "mathcomp-bigenough",
+                    "mathcomp-character",
+                    "mathcomp-classical",
+                    "mathcomp-field",
+                    "mathcomp-fingroup",
+                    "mathcomp-finmap",
+                    "mathcomp-real-closed",
+                    "mathcomp-solvable",
+                    "mathcomp-ssreflect",
+                    "mathcomp-tarjan",
+                    "mathcomp-word",
+                    "mathcomp-zify",
+                    "metaFetch",
+                    "metacoq",
+                    "metacoq-erasure",
+                    "metacoq-pcuic",
+                    "metacoq-safechecker",
+                    "metacoq-template-coq",
+                    "metalib",
+                    "mkCoqDerivation",
+                    "multinomials",
+                    "newScope",
+                    "odd-order",
+                    "overrideScope",
+                    "overrideScope'",
+                    "packages",
+                    "paco",
+                    "paramcoq",
+                    "parsec",
+                    "pocklington",
+                    "recurseForDerivations",
+                    "reglang",
+                    "relation-algebra",
+                    "semantics",
+                    "serapi",
+                    "simple-io",
+                    "ssreflect",
+                    "stdpp",
+                    "tlc",
+                    "topology",
+                    "trakt",
+                    "zorns-lemma",
+                },
+        },
+        {
+            .beforeCursor = "with {a = 2; b = 3;}; ",
+            .expectedCompletions = builtinIDs,
+            .expectedErrors = {"syntax error, unexpected end of file"},
+        },
+    };
 
     bool good = true;
     for (auto& test : completionTests) {
