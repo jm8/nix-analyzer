@@ -14,20 +14,29 @@ using namespace nix;
 struct CompletionTest {
     string beforeCursor;
     string afterCursor;
+    // position overrides before cursor and after cursor
+    optional<pair<uint32_t, uint32_t>> position;
     string path;
     vector<string> expectedCompletions;
     vector<string> expectedErrors;
 
     bool run(NixAnalyzer& analyzer) {
+        uint32_t line;
+        uint32_t col;
         string source = beforeCursor + afterCursor;
-        uint32_t line = 1;
-        uint32_t col = 1;
-        for (char c : beforeCursor) {
-            if (c == '\n') {
-                line++;
-                col = 1;
-            } else {
-                col++;
+        if (position) {
+            line = position->first;
+            col = position->second;
+        } else {
+            line = 1;
+            col = 1;
+            for (char c : beforeCursor) {
+                if (c == '\n') {
+                    line++;
+                    col = 1;
+                } else {
+                    col++;
+                }
             }
         }
         Pos pos{source, foString, line, col};
@@ -69,10 +78,11 @@ struct CompletionTest {
             }
             cout << "\n";
         }
+        const string& description = path.empty() ? source : path;
         if (good) {
-            cout << "PASS: " << source << "\n\n";
+            cout << "PASS: " << description << "\n\n";
         } else {
-            cout << "FAIL: " << source << "\n\n";
+            cout << "FAIL: " << description << "\n\n";
         }
         return good;
     }
@@ -107,6 +117,9 @@ int main(int argc, char** argv) {
     Strings searchPath;
     auto analyzer =
         make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"));
+
+    Path allpackages{string{nixpkgs} +
+                     string{"/pkgs/top-level/all-packages.nix"}};
 
     vector<CompletionTest> completionTests{
         {
@@ -279,6 +292,12 @@ int main(int argc, char** argv) {
             .beforeCursor = "with {a = 2; b = 3;}; ",
             .expectedCompletions = builtinIDs,
             .expectedErrors = {"syntax error, unexpected end of file"},
+        },
+        {
+            .beforeCursor = readFile(allpackages),
+            .position = {{113, 28}},
+            .path = allpackages,
+            .expectedCompletions = builtinIDs,
         },
     };
 
