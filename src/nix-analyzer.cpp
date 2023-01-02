@@ -29,10 +29,10 @@ int poscmp(Pos a, Pos b) {
     return 0;
 }
 
-Analysis NixAnalyzer::analyzeAtPos(string source,
-                                   Path path,
-                                   Path basePath,
-                                   Pos targetPos) {
+Analysis NixAnalyzer::getExprPath(string source,
+                                  Path path,
+                                  Path basePath,
+                                  Pos targetPos) {
     vector<Expr*> exprPath;
     vector<ParseError> errors;
     state->parseWithCallback(
@@ -55,7 +55,7 @@ Analysis NixAnalyzer::analyzeAtPos(string source,
     return {exprPath, errors};
 }
 
-vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
+vector<string> NixAnalyzer::complete(vector<Expr*> exprPath, FileInfo file) {
     if (exprPath.empty()) {
         vector<string> result;
         for (auto [symbol, displ] : state->staticBaseEnv->vars) {
@@ -70,12 +70,8 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
         return result;
     }
 
-    Env* env = &state->baseEnv;
-    for (size_t i = exprPath.size() - 1; i >= 1; i--) {
-        Expr* sub = exprPath[i - 1];
-        Expr* super = exprPath[i];
-        env = &updateEnv(super, sub, *env);
-    }
+    vector<optional<Value*>> lambdaArgs = calculateLambdaArgs(exprPath, file);
+    Env* env = calculateEnv(exprPath, lambdaArgs, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
         AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
@@ -88,11 +84,13 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
             return {};
         }
 
+        if (v.type() != nAttrs) {
+            return {};
+        }
+
         vector<string> result;
-        if (v.type() == nAttrs) {
-            for (auto attr : *v.attrs) {
-                result.push_back(state->symbols[attr.name]);
-            }
+        for (auto attr : *v.attrs) {
+            result.push_back(state->symbols[attr.name]);
         }
         return result;
     }
@@ -114,10 +112,25 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath) {
     return result;
 }
 
-Env& NixAnalyzer::updateEnv(Expr* super, Expr* sub, Env& up) {
+Env* NixAnalyzer::calculateEnv(vector<Expr*> exprPath,
+                               vector<optional<Value*>> lambdaArgs,
+                               FileInfo file) {
+    Env* env = &state->baseEnv;
+    for (size_t i = exprPath.size() - 1; i >= 1; i--) {
+        Expr* sub = exprPath[i - 1];
+        Expr* super = exprPath[i];
+        env = updateEnv(super, sub, env, lambdaArgs[i]);
+    }
+    return env;
+}
+
+Env* NixAnalyzer::updateEnv(Expr* super,
+                            Expr* sub,
+                            Env* up,
+                            optional<Value*> lambdaArg) {
     if (auto let = dynamic_cast<ExprLet*>(super)) {
-        Env& env2 = state->allocEnv(let->attrs->attrs.size());
-        env2.up = &up;
+        Env* env2 = &state->allocEnv(let->attrs->attrs.size());
+        env2->up = up;
 
         Displacement displ = 0;
 
@@ -126,12 +139,108 @@ Env& NixAnalyzer::updateEnv(Expr* super, Expr* sub, Env& up) {
         bool useSuperEnv = false;
 
         for (auto& [symbol, attrDef] : let->attrs->attrs) {
-            env2.values[displ++] =
-                attrDef.e->maybeThunk(*state, attrDef.inherited ? up : env2);
+            env2->values[displ++] =
+                attrDef.e->maybeThunk(*state, attrDef.inherited ? *up : *env2);
             if (attrDef.e == sub && attrDef.inherited)
                 useSuperEnv = true;
         }
         return useSuperEnv ? up : env2;
     }
+    if (auto lambda = dynamic_cast<ExprLambda*>(super)) {
+        auto size =
+            (!lambda->arg ? 0 : 1) +
+            (lambda->hasFormals() ? lambda->formals->formals.size() : 0);
+        Env* env2 = &state->allocEnv(size);
+        env2->up = up;
+
+        Value* arg;
+        if (lambdaArg) {
+            arg = *lambdaArg;
+        } else {
+            arg = state->allocValue();
+            arg->mkNull();
+        }
+
+        Displacement displ = 0;
+
+        if (!lambda->hasFormals()) {
+            env2->values[displ++] = arg;
+        } else {
+            try {
+                state->forceAttrs(*arg, noPos);
+            } catch (Error& e) {
+                for (uint32_t i = 0; i < lambda->formals->formals.size(); i++) {
+                    Value* val = state->allocValue();
+                    val->mkNull();
+                    env2->values[displ++] = val;
+                }
+                return env2;
+            }
+
+            if (lambda->arg) {
+                env2->values[displ++] = arg;
+            }
+
+            /* For each formal argument, get the actual argument.  If
+               there is no matching actual argument but the formal
+               argument has a default, use the default. */
+            for (auto& i : lambda->formals->formals) {
+                auto j = arg->attrs->get(i.name);
+                if (!j) {
+                    Value* val;
+                    if (i.def) {
+                        try {
+                            val = i.def->maybeThunk(*state, *env2);
+                        } catch (Error& e) {
+                            val = state->allocValue();
+                            val->mkNull();
+                        }
+                    } else {
+                        val = state->allocValue();
+                        val->mkNull();
+                    }
+                    env2->values[displ++] = val;
+                } else {
+                    env2->values[displ++] = j->value;
+                }
+            }
+        }
+        return env2;
+    }
     return up;
+}
+
+vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
+    vector<Expr*> exprPath,
+    FileInfo file) {
+    if (exprPath.empty()) {
+        return {};
+    }
+    vector<optional<Value*>> result(exprPath.size());
+
+    bool firstLambda = true;
+    ExprLambda* e;
+
+    // how to loop backwards https://stackoverflow.com/a/3611799
+    for (size_t i = exprPath.size(); i-- != 0;) {
+        e = dynamic_cast<ExprLambda*>(exprPath[i]);
+        if (!e) {
+            continue;
+        }
+        if (firstLambda && file.type == FileType::Package) {
+            Value* v = state->allocValue();
+            try {
+                state->evalFile(file.nixpkgs() + "/default.nix"s, *v);
+                result[i] = v;
+            } catch (Error& e) {
+            }
+        }
+        firstLambda = false;
+    }
+
+    return result;
+}
+
+Path FileInfo::nixpkgs() {
+    return "/nix/store/xif4dbqvi7bmcwfxiqqhq0nr7ax07liw-source";
 }

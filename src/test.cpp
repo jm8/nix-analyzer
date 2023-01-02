@@ -9,7 +9,18 @@
 #include "value.hh"
 
 using namespace std;
+using namespace std::literals;
 using namespace nix;
+
+void printStrings(const vector<string>& strings) {
+    const char* sep = "";
+    cout << "{";
+    for (auto& string : strings) {
+        cout << sep << '"' << string << '"';
+        sep = ", ";
+    }
+    cout << "}";
+}
 
 struct CompletionTest {
     string beforeCursor;
@@ -17,19 +28,18 @@ struct CompletionTest {
     // position overrides before cursor and after cursor
     optional<pair<uint32_t, uint32_t>> position;
     string path;
+    FileType ftype;
     vector<string> expectedCompletions;
     vector<string> expectedErrors;
 
     bool run(NixAnalyzer& analyzer) {
-        uint32_t line;
-        uint32_t col;
         string source = beforeCursor + afterCursor;
+        Pos pos;
         if (position) {
-            line = position->first;
-            col = position->second;
+            pos = {path, foFile, position->first, position->second};
         } else {
-            line = 1;
-            col = 1;
+            uint32_t line = 1;
+            uint32_t col = 1;
             for (char c : beforeCursor) {
                 if (c == '\n') {
                     line++;
@@ -38,26 +48,22 @@ struct CompletionTest {
                     col++;
                 }
             }
+            pos = {source, foString, line, col};
         }
-        Pos pos{source, foString, line, col};
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto [exprPath, parseErrors] =
-            analyzer.analyzeAtPos(source, path, basePath, pos);
-        auto actualCompletions = analyzer.complete(exprPath);
+            analyzer.getExprPath(source, path, basePath, pos);
+        auto actualCompletions = analyzer.complete(exprPath, {path, ftype});
         sort(expectedCompletions.begin(), expectedCompletions.end());
         sort(actualCompletions.begin(), actualCompletions.end());
         bool good = true;
         if (expectedCompletions != actualCompletions) {
             good = false;
             cout << "EXPECTED: ";
-            for (auto s : expectedCompletions) {
-                cout << s << " ";
-            }
+            printStrings(expectedCompletions);
             cout << "\n";
             cout << "ACTUAL: ";
-            for (auto s : actualCompletions) {
-                cout << s << " ";
-            }
+            printStrings(actualCompletions);
             cout << "\n";
         }
         vector<string> actualErrors;
@@ -68,21 +74,16 @@ struct CompletionTest {
         if (actualErrors != expectedErrors) {
             good = false;
             cout << "EXPECTED: ";
-            for (auto s : expectedErrors) {
-                cout << s << " ";
-            }
+            printStrings(expectedErrors);
             cout << "\n";
             cout << "ACTUAL: ";
-            for (auto s : actualErrors) {
-                cout << s << " ";
-            }
+            printStrings(actualErrors);
             cout << "\n";
         }
-        const string& description = path.empty() ? source : path;
         if (good) {
-            cout << "PASS: " << description << "\n\n";
+            cout << "PASS: " << pos.file << "\n\n";
         } else {
-            cout << "FAIL: " << description << "\n\n";
+            cout << "FAIL: " << pos.file << "\n\n";
         }
         return good;
     }
@@ -112,14 +113,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    PathView nixpkgs{argv[1]};
+    Path nixpkgs{argv[1]};
 
     Strings searchPath;
     auto analyzer =
         make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"));
 
-    Path allpackages{string{nixpkgs} +
-                     string{"/pkgs/top-level/all-packages.nix"}};
+    Path allpackages{nixpkgs + "/pkgs/top-level/all-packages.nix"s};
+    Path graphviz{nixpkgs + "/pkgs/tools/graphics/graphviz/default.nix"s};
 
     vector<CompletionTest> completionTests{
         {
@@ -133,7 +134,8 @@ int main(int argc, char** argv) {
         {
             .beforeCursor = "{a = 2; a = 3;}",
             .expectedCompletions = builtinIDs,
-            .expectedErrors = {"attribute 'a' already defined at (string):1:2"},
+            .expectedErrors = {"attribute 'a' already "
+                               "defined at (string):1:2"},
         },
         {
             .beforeCursor = "{a, b, a}: a",
@@ -157,27 +159,29 @@ int main(int argc, char** argv) {
                                "DOLLAR_CURLY or '\"'"},
         },
         {
-            .beforeCursor =
-                "({ colors.red = 0; colors.green = 100; somethingelse = "
-                "-1; }.colors.",
+            .beforeCursor = "({ colors.red = 0; colors.green = 100; "
+                            "somethingelse = "
+                            "-1; }.colors.",
             .afterCursor = ")",
             .expectedCompletions = {"green", "red"},
-            .expectedErrors =
-                {"syntax error, unexpected ')', expecting ID or OR_KW or "
-                 "DOLLAR_CURLY or '\"'"},
+            .expectedErrors = {"syntax error, unexpected ')', expecting "
+                               "ID or OR_KW or "
+                               "DOLLAR_CURLY or '\"'"},
         },
         {
             .beforeCursor = "{ \"\" = { a = 1; }; }..",
             .expectedCompletions = {"a"},
-            .expectedErrors =
-                {"syntax error, unexpected '.', expecting ID or OR_KW or "
-                 "DOLLAR_CURLY or '\"'"},
+            .expectedErrors = {"syntax error, unexpected '.', expecting "
+                               "ID or OR_KW or "
+                               "DOLLAR_CURLY or '\"'"},
         },
         {
             .beforeCursor = "{a = 1, b = 2}",
             .expectedCompletions = builtinIDs,
-            .expectedErrors = {"syntax error, unexpected ',', expecting ';'",
-                               "syntax error, unexpected '}', expecting ';'"},
+            .expectedErrors = {"syntax error, unexpected "
+                               "',', expecting ';'",
+                               "syntax error, unexpected "
+                               "'}', expecting ';'"},
         },
         {
             .beforeCursor = "undefinedvariable.",
@@ -297,8 +301,129 @@ int main(int argc, char** argv) {
             .beforeCursor = readFile(allpackages),
             .position = {{113, 28}},
             .path = allpackages,
-            .expectedCompletions = builtinIDs,
+            .expectedCompletions =
+                builtinIDsPlus({"lib", "super", "overlays", "pkgs", "noSysDirs",
+                                "res", "config"}),
         },
+        {.beforeCursor = readFile(graphviz),
+         .position = {{68, 15}},
+         .path = graphviz,
+         .ftype = FileType::Package,
+         .expectedCompletions =
+             {
+                 "abort",
+                 "add",
+                 "addErrorContext",
+                 "all",
+                 "any",
+                 "appendContext",
+                 "attrNames",
+                 "attrValues",
+                 "baseNameOf",
+                 "bitAnd",
+                 "bitOr",
+                 "bitXor",
+                 "break",
+                 "builtins",
+                 "catAttrs",
+                 "ceil",
+                 "compareVersions",
+                 "concatLists",
+                 "concatMap",
+                 "concatStringsSep",
+                 "currentSystem",
+                 "currentTime",
+                 "deepSeq",
+                 "derivation",
+                 "derivationStrict",
+                 "dirOf",
+                 "div",
+                 "elem",
+                 "elemAt",
+                 "false",
+                 "fetchGit",
+                 "fetchMercurial",
+                 "fetchTarball",
+                 "fetchTree",
+                 "fetchurl",
+                 "filter",
+                 "filterSource",
+                 "findFile",
+                 "floor",
+                 "foldl'",
+                 "fromJSON",
+                 "fromTOML",
+                 "functionArgs",
+                 "genList",
+                 "genericClosure",
+                 "getAttr",
+                 "getContext",
+                 "getEnv",
+                 "getFlake",
+                 "groupBy",
+                 "hasAttr",
+                 "hasContext",
+                 "hashFile",
+                 "hashString",
+                 "head",
+                 "import",
+                 "intersectAttrs",
+                 "isAttrs",
+                 "isBool",
+                 "isFloat",
+                 "isFunction",
+                 "isInt",
+                 "isList",
+                 "isNull",
+                 "isPath",
+                 "isString",
+                 "langVersion",
+                 "length",
+                 "lessThan",
+                 "listToAttrs",
+                 "map",
+                 "mapAttrs",
+                 "match",
+                 "mul",
+                 "nixPath",
+                 "nixVersion",
+                 "null",
+                 "parseDrvName",
+                 "partition",
+                 "path",
+                 "pathExists",
+                 "placeholder",
+                 "readDir",
+                 "readFile",
+                 "removeAttrs",
+                 "replaceStrings",
+                 "scopedImport",
+                 "seq",
+                 "sort",
+                 "split",
+                 "splitVersion",
+                 "storeDir",
+                 "storePath",
+                 "stringLength",
+                 "sub",
+                 "substring",
+                 "tail",
+                 "throw",
+                 "toFile",
+                 "toJSON",
+                 "toPath",
+                 "toString",
+                 "toXML",
+                 "trace",
+                 "traceVerbose",
+                 "true",
+                 "tryEval",
+                 "typeOf",
+                 "unsafeDiscardOutputDependency",
+                 "unsafeDiscardStringContext",
+                 "unsafeGetAttrPos",
+                 "zipAttrsWith",
+             }},
     };
 
     bool good = true;
