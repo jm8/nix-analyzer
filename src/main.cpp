@@ -7,6 +7,7 @@
 #include <network/uri.hpp>
 #include <ostream>
 #include <string_view>
+#include <vector>
 
 #include "LibLsp/JsonRpc/Condition.h"
 #include "LibLsp/JsonRpc/Endpoint.h"
@@ -19,9 +20,13 @@
 #include "LibLsp/lsp/general/exit.h"
 #include "LibLsp/lsp/general/initialize.h"
 #include "LibLsp/lsp/general/lsServerCapabilities.h"
+#include "LibLsp/lsp/general/lsTextDocumentClientCapabilities.h"
 #include "LibLsp/lsp/general/shutdown.h"
+#include "LibLsp/lsp/lsMarkedString.h"
+#include "LibLsp/lsp/lsp_completion.h"
 #include "LibLsp/lsp/textDocument/declaration_definition.h"
 #include "LibLsp/lsp/textDocument/document_symbol.h"
+#include "LibLsp/lsp/textDocument/hover.h"
 #include "LibLsp/lsp/textDocument/resolveCompletionItem.h"
 #include "LibLsp/lsp/textDocument/signature_help.h"
 #include "LibLsp/lsp/textDocument/typeHierarchy.h"
@@ -49,6 +54,11 @@ class DummyLog : public lsp::Log {
         file << msg << std::endl;
     };
 };
+
+TextDocumentHover::Either markdown(std::string markdown) {
+    // lol
+    return {{}, {{"markdown", markdown}}};
+}
 
 class NixLanguageServer {
    public:
@@ -81,6 +91,10 @@ class NixLanguageServer {
             res.id = req.id;
             log.info("initialize");
             res.result.capabilities.hoverProvider = true;
+            res.result.capabilities.completionProvider = {{
+                .resolveProvider = false,
+                .triggerCharacters = {{".", "${"}},
+            }};
             return res;
         });
 
@@ -88,6 +102,23 @@ class NixLanguageServer {
             log.info("exit: " + notify.jsonrpc);
             remoteEndPoint.stop();
             esc_event.notify(make_unique<bool>(true));
+        });
+
+        remoteEndPoint.registerHandler([&](const td_hover::request& req) {
+            log.info("hover");
+            td_hover::response res;
+            res.result.contents = markdown("Hello there");
+            return res;
+        });
+
+        remoteEndPoint.registerHandler([&](const td_completion::request& req) {
+            td_completion::response res;
+            res.result.items.push_back(lsCompletionItem{
+                .label = "aaa",
+                .kind = {lsCompletionItemKind::Function},
+                .detail = {"Scream"},
+            });
+            return res;
         });
 
         remoteEndPoint.registerHandler([&](const td_shutdown::request& req) {
