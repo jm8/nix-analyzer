@@ -31,6 +31,22 @@
         "type": "github"
       }
     },
+    "lspcppsrc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1662377520,
+        "narHash": "sha256-r6bO+mOL+SuoREyI/cZQJ1mRby2f58apSdGvmHr0vKE=",
+        "owner": "kuafuwang",
+        "repo": "LspCpp",
+        "rev": "201a525284f3158080485bbd3dcb6e4c20be25b3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kuafuwang",
+        "repo": "LspCpp",
+        "type": "github"
+      }
+    },
     "nixfork": {
       "inputs": {
         "lowdown-src": "lowdown-src",
@@ -101,6 +117,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "lspcppsrc": "lspcppsrc",
         "nixfork": "nixfork",
         "nixpkgs": "nixpkgs_2"
       }

@@ -5,3 +5,6 @@ result
 compile_commands.json
 .cache
 build
+.helix
+log.txt
+test.nix
