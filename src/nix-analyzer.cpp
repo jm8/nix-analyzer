@@ -236,9 +236,13 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
             continue;
         }
         if (firstLambda && file.type == FileType::Package) {
-            Value* v = state->allocValue();
             try {
-                state->evalFile(file.nixpkgs() + "/default.nix"s, *v);
+            Value* v = state->allocValue();
+                Value fun;
+                Value arg;
+                arg.mkAttrs(state->allocBindings(0));
+                state->evalFile(file.nixpkgs() + "/default.nix"s, fun);
+                state->callFunction(fun, arg, *v, noPos);
                 result[i] = v;
             } catch (Error& e) {
                 log.info(e.info().msg.str());
