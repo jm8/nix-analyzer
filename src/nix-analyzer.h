@@ -38,6 +38,16 @@ struct Analysis {
     std::vector<nix::ParseError> parseErrors;
 };
 
+struct CompletionItem {
+    enum class Type {
+        Variable,
+        Property,
+    };
+
+    std::string text;
+    Type type;
+};
+
 struct NixAnalyzer
 #if HAVE_BOEHMGC
     : gc
@@ -52,8 +62,8 @@ struct NixAnalyzer
                          nix::Path basePath,
                          nix::Pos pos);
 
-    std::vector<std::string> complete(std::vector<nix::Expr*> exprPath,
-                                      FileInfo file);
+    std::vector<CompletionItem> complete(std::vector<nix::Expr*> exprPath,
+                                         FileInfo file);
 
     nix::Env* calculateEnv(std::vector<nix::Expr*> exprPath,
                            std::vector<std::optional<nix::Value*>>,

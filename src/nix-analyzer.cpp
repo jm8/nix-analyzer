@@ -55,9 +55,10 @@ Analysis NixAnalyzer::getExprPath(string source,
     return {exprPath, errors};
 }
 
-vector<string> NixAnalyzer::complete(vector<Expr*> exprPath, FileInfo file) {
+vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
+                                             FileInfo file) {
     if (exprPath.empty()) {
-        vector<string> result;
+        vector<CompletionItem> result;
         for (auto [symbol, displ] : state->staticBaseEnv->vars) {
             SymbolStr sym = state->symbols[symbol];
             if (string_view(sym).rfind("__", 0) == 0) {
@@ -65,7 +66,8 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath, FileInfo file) {
                 // underscore
                 continue;
             }
-            result.push_back(sym);
+            result.push_back(
+                CompletionItem{string(sym), CompletionItem::Type::Variable});
         }
         return result;
     }
@@ -88,14 +90,15 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath, FileInfo file) {
             return {};
         }
 
-        vector<string> result;
+        vector<CompletionItem> result;
         for (auto attr : *v.attrs) {
-            result.push_back(state->symbols[attr.name]);
+            result.push_back(
+                {state->symbols[attr.name], CompletionItem::Type::Property});
         }
         return result;
     }
 
-    vector<string> result;
+    vector<CompletionItem> result;
     const StaticEnv* se = state->getStaticEnv(*exprPath.front()).get();
     while (se) {
         for (auto [symbol, displ] : se->vars) {
@@ -105,7 +108,7 @@ vector<string> NixAnalyzer::complete(vector<Expr*> exprPath, FileInfo file) {
                 // underscore
                 continue;
             }
-            result.push_back(sym);
+            result.push_back({string(sym), CompletionItem::Type::Variable});
         }
         se = se->up;
     }

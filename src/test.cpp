@@ -53,7 +53,10 @@ struct CompletionTest {
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto [exprPath, parseErrors] =
             analyzer.getExprPath(source, path, basePath, pos);
-        auto actualCompletions = analyzer.complete(exprPath, {path, ftype});
+        vector<string> actualCompletions;
+        for (auto completionItem : analyzer.complete(exprPath, {path, ftype})) {
+            actualCompletions.push_back(completionItem.text);
+        }
         sort(expectedCompletions.begin(), expectedCompletions.end());
         sort(actualCompletions.begin(), actualCompletions.end());
         bool good = true;

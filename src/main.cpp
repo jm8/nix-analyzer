@@ -1,11 +1,11 @@
+#include <boost/algorithm/string/find.hpp>
 #include <fstream>
 #include <iostream>
-
-#include <boost/program_options.hpp>
 
 #include <memory>
 #include <network/uri.hpp>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -44,6 +44,7 @@
 #include "error.hh"
 #include "nix-analyzer.h"
 #include "store-api.hh"
+#include "util.hh"
 
 using namespace std;
 
@@ -71,6 +72,13 @@ class DummyLog : public lsp::Log {
 TextDocumentHover::Either markdown(std::string markdown) {
     // lol
     return {{}, {{"markdown", markdown}}};
+}
+
+template <typename T>
+string stringify(T x) {
+    stringstream ss;
+    ss << x;
+    return ss.str();
 }
 
 class NixLanguageServer {
@@ -171,16 +179,26 @@ class NixLanguageServer {
             basePath = nix::dirOf(path);
             log.info("base path of " + url + " is " + basePath);
             string source = it->second;
-            auto analysis = analyzer->getExprPath(
-                source, path, basePath,
-                {path, nix::foFile, req.params.position.line,
-                 req.params.position.character});
+
+            nix::Pos pos{path, nix::foFile, req.params.position.line + 1,
+                         req.params.position.character + 1};
+
+            auto analysis = analyzer->getExprPath(source, path, basePath, pos);
             auto completions = analyzer->complete(analysis.exprPath,
                                                   {path, FileType::Package});
+
+            auto toLsCompletionItemKind = [](CompletionItem::Type type) {
+                if (type == CompletionItem::Type::Variable)
+                    return lsCompletionItemKind::Variable;
+                if (type == CompletionItem::Type::Property)
+                    return lsCompletionItemKind::Property;
+                return lsCompletionItemKind::Variable;
+            };
+
             for (auto completion : completions) {
                 res.result.items.push_back({
-                    .label = completion,
-                    .kind = {lsCompletionItemKind::Function},
+                    .label = completion.text,
+                    .kind = {toLsCompletionItemKind(completion.type)},
                 });
             }
             return res;
