@@ -38,8 +38,10 @@
 #include "LibLsp/lsp/textDocument/resolveCompletionItem.h"
 #include "LibLsp/lsp/textDocument/signature_help.h"
 #include "LibLsp/lsp/textDocument/typeHierarchy.h"
+#include "LibLsp/lsp/utils.h"
 #include "LibLsp/lsp/workspace/execute_command.h"
 
+#include "error.hh"
 #include "nix-analyzer.h"
 #include "store-api.hh"
 
@@ -103,7 +105,6 @@ class NixLanguageServer {
           analyzer(make_unique<NixAnalyzer>(searchPath, store)) {
         remoteEndPoint.registerHandler([&](const td_initialize::request& req) {
             td_initialize::response res;
-            res.id = req.id;
             log.info("initialize");
             res.result.capabilities.hoverProvider = true;
             res.result.capabilities.completionProvider = {{
@@ -162,12 +163,26 @@ class NixLanguageServer {
             if (it == documents.end()) {
                 return res;
             }
-            string_view content{it->second};
-            res.result.items.push_back(lsCompletionItem{
-                .label = "aaa" + string(1, content[0]),
-                .kind = {lsCompletionItemKind::Function},
-                .detail = {"Scream"},
-            });
+            string path = req.params.textDocument.uri.GetAbsolutePath().path;
+            string basePath;
+            if (path.empty() or lsp::StartsWith(path, "file://")) {
+                return res;
+            }
+            basePath = nix::dirOf(path);
+            log.info("base path of " + url + " is " + basePath);
+            string source = it->second;
+            auto analysis = analyzer->getExprPath(
+                source, path, basePath,
+                {path, nix::foFile, req.params.position.line,
+                 req.params.position.character});
+            auto completions = analyzer->complete(analysis.exprPath,
+                                                  {path, FileType::Package});
+            for (auto completion : completions) {
+                res.result.items.push_back({
+                    .label = completion,
+                    .kind = {lsCompletionItemKind::Function},
+                });
+            }
             return res;
         });
 
