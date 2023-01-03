@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
     Path nixpkgs{argv[1]};
 
     Strings searchPath;
-    ::Logger log{};
+    ::Logger log{"log.txt"};
     auto analyzer =
         make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"), log);
 

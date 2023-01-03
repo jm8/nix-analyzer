@@ -18,9 +18,3 @@ void Logger::log(Level level, std::string&& msg) {
 void Logger::log(Level level, const std::string& msg) {
     file << nix::filterANSIEscapes(msg, true) << std::endl;
 };
-
-Logger::Logger() {
-    string cacheDir = nix::getHome() + "/.cache/nix-analyzer"s;
-    boost::filesystem::create_directories(cacheDir);
-    file = ofstream{(cacheDir + "/nix-analyzer.log").data()};
-}

@@ -212,7 +212,9 @@ int main() {
     nix::initNix();
     nix::initGC();
     nix::Strings searchPath;
-    Logger log{};
+    string cacheDir = nix::getHome() + "/.cache/nix-analyzer"s;
+    boost::filesystem::create_directories(cacheDir);
+    Logger log{cacheDir + "/nix-analyzer.log"};
     NixLanguageServer server(searchPath, nix::openStore(), log);
 
     server.esc_event.wait();

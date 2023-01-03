@@ -8,7 +8,6 @@ class Logger : public lsp::Log {
    public:
     std::ofstream file;
 
-    explicit Logger();
     Logger(std::string_view path);
 
     void log(Level level, const std::wstring& msg);
