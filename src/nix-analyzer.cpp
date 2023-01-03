@@ -3,6 +3,7 @@
 #include "debug.h"
 
 #include "error.hh"
+#include "globals.hh"
 #include "nixexpr.hh"
 #include "url.hh"
 
@@ -12,7 +13,9 @@ using namespace nix;
 NixAnalyzer::NixAnalyzer(const Strings& searchPath,
                          nix::ref<Store> store,
                          ::Logger& log)
-    : state(make_unique<EvalState>(searchPath, store)), log(log) {
+    : log(log) {
+    nix::settings.experimentalFeatures.set("flakes", true);
+    state = make_unique<EvalState>(searchPath, store);
 }
 
 int poscmp(Pos a, Pos b) {
@@ -237,7 +240,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
         }
         if (firstLambda && file.type == FileType::Package) {
             try {
-            Value* v = state->allocValue();
+                Value* v = state->allocValue();
                 Value fun;
                 Value arg;
                 arg.mkAttrs(state->allocBindings(0));
