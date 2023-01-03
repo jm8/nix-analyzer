@@ -18,9 +18,10 @@
 #include "local-fs-store.hh"
 #include "nixexpr.hh"
 #include "shared.hh"
-
 #include "store-api.hh"
 #include "util.hh"
+
+#include "logger.h"
 
 enum class FileType {
     None,
@@ -54,8 +55,11 @@ struct NixAnalyzer
 #endif
 {
     std::unique_ptr<nix::EvalState> state;
+    Logger& log;
 
-    NixAnalyzer(const nix::Strings& searchPath, nix::ref<nix::Store> store);
+    NixAnalyzer(const nix::Strings& searchPath,
+                nix::ref<nix::Store> store,
+                Logger& log);
 
     Analysis getExprPath(std::string source,
                          nix::Path path,

@@ -9,8 +9,10 @@
 using namespace std;
 using namespace nix;
 
-NixAnalyzer::NixAnalyzer(const Strings& searchPath, nix::ref<Store> store)
-    : state(make_unique<EvalState>(searchPath, store)) {
+NixAnalyzer::NixAnalyzer(const Strings& searchPath,
+                         nix::ref<Store> store,
+                         ::Logger& log)
+    : state(make_unique<EvalState>(searchPath, store)), log(log) {
 }
 
 int poscmp(Pos a, Pos b) {
@@ -83,6 +85,7 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         try {
             prefix.eval(*state, *env, v);
         } catch (Error& e) {
+            log.info(e.info().msg.str());
             return {};
         }
 
@@ -172,6 +175,7 @@ Env* NixAnalyzer::updateEnv(Expr* super,
             try {
                 state->forceAttrs(*arg, noPos);
             } catch (Error& e) {
+                log.info(e.info().msg.str());
                 for (uint32_t i = 0; i < lambda->formals->formals.size(); i++) {
                     Value* val = state->allocValue();
                     val->mkNull();
@@ -195,6 +199,7 @@ Env* NixAnalyzer::updateEnv(Expr* super,
                         try {
                             val = i.def->maybeThunk(*state, *env2);
                         } catch (Error& e) {
+                            log.info(e.info().msg.str());
                             val = state->allocValue();
                             val->mkNull();
                         }
@@ -236,6 +241,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
                 state->evalFile(file.nixpkgs() + "/default.nix"s, *v);
                 result[i] = v;
             } catch (Error& e) {
+                log.info(e.info().msg.str());
             }
         }
         firstLambda = false;

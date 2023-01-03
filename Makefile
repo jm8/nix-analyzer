@@ -1,5 +1,5 @@
 CFLAGS:=-Isrc -Ibuild -O3 -Wall $(shell pkg-config --cflags --libs bdw-gc nlohmann_json nix-main) -I$(boostInclude) -L$(boostLib) -I$(lspcpp)/include -lnixutil -lnixstore -lnixexpr -lnixmain -lnixcmd -lnixfetchers -lgc -lboost_filesystem
-SOURCE:=src/nix-analyzer.cpp
+SOURCE:=src/nix-analyzer.cpp src/logger.cpp
 OBJ:=$(patsubst src/%.cpp,build/%.o,$(SOURCE))
 
 all: nix-analyzer-test nix-analyzer

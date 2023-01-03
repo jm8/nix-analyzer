@@ -3,6 +3,7 @@
 #include <iostream>
 #include "debug.h"
 #include "error.hh"
+#include "logger.h"
 #include "nix-analyzer.h"
 #include "nixexpr.hh"
 #include "util.hh"
@@ -119,8 +120,9 @@ int main(int argc, char** argv) {
     Path nixpkgs{argv[1]};
 
     Strings searchPath;
+    ::Logger log{};
     auto analyzer =
-        make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"));
+        make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"), log);
 
     Path allpackages{nixpkgs + "/pkgs/top-level/all-packages.nix"s};
     Path graphviz{nixpkgs + "/pkgs/tools/graphics/graphviz/default.nix"s};

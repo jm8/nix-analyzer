@@ -1,4 +1,5 @@
 #include <boost/algorithm/string/find.hpp>
+#include <boost/filesystem.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -46,28 +47,9 @@
 #include "store-api.hh"
 #include "util.hh"
 
+#include "logger.h"
+
 using namespace std;
-
-class DummyLog : public lsp::Log {
-   public:
-    std::ofstream file;
-
-    DummyLog(string_view path) : file(path.data()) {
-    }
-
-    void log(Level level, const std::wstring& msg) {
-        file << msg.c_str() << std::endl;
-    }
-    void log(Level level, std::wstring&& msg) {
-        file << msg.c_str() << std::endl;
-    }
-    void log(Level level, std::string&& msg) {
-        file << msg << std::endl;
-    };
-    void log(Level level, const std::string& msg) {
-        file << msg << std::endl;
-    };
-};
 
 TextDocumentHover::Either markdown(std::string markdown) {
     // lol
@@ -84,7 +66,7 @@ string stringify(T x) {
 class NixLanguageServer {
    public:
     RemoteEndPoint remoteEndPoint;
-    DummyLog log{"log.txt"};
+    lsp::Log& log;
     unique_ptr<NixAnalyzer> analyzer;
     // map from url to document content
     unordered_map<string, string> documents;
@@ -106,11 +88,14 @@ class NixLanguageServer {
         }
     };
 
-    NixLanguageServer(nix::Strings searchPath, nix::ref<nix::Store> store)
+    NixLanguageServer(nix::Strings searchPath,
+                      nix::ref<nix::Store> store,
+                      Logger& log)
         : remoteEndPoint(make_shared<lsp::ProtocolJsonHandler>(),
                          make_shared<GenericEndpoint>(log),
                          log),
-          analyzer(make_unique<NixAnalyzer>(searchPath, store)) {
+          log(log),
+          analyzer(make_unique<NixAnalyzer>(searchPath, store, log)) {
         remoteEndPoint.registerHandler([&](const td_initialize::request& req) {
             td_initialize::response res;
             log.info("initialize");
@@ -159,29 +144,32 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler([&](const td_hover::request& req) {
             log.info("hover");
             td_hover::response res;
-            res.result.contents = markdown("Hello there");
+            res.result.contents = markdown("Yoo **wassup**");
             return res;
         });
 
         remoteEndPoint.registerHandler([&](const td_completion::request& req) {
             log.info("completion");
             td_completion::response res;
+
             string url = req.params.textDocument.uri.raw_uri_;
             auto it = documents.find(url);
             if (it == documents.end()) {
                 return res;
             }
+            string source = it->second;
+
             string path = req.params.textDocument.uri.GetAbsolutePath().path;
             string basePath;
             if (path.empty() or lsp::StartsWith(path, "file://")) {
                 return res;
             }
             basePath = nix::dirOf(path);
-            log.info("base path of " + url + " is " + basePath);
-            string source = it->second;
 
             nix::Pos pos{path, nix::foFile, req.params.position.line + 1,
                          req.params.position.character + 1};
+
+            log.info(nix::filterANSIEscapes(stringify(pos), true));
 
             auto analysis = analyzer->getExprPath(source, path, basePath, pos);
             auto completions = analyzer->complete(analysis.exprPath,
@@ -224,7 +212,8 @@ int main() {
     nix::initNix();
     nix::initGC();
     nix::Strings searchPath;
-    NixLanguageServer server(searchPath, nix::openStore());
+    Logger log{};
+    NixLanguageServer server(searchPath, nix::openStore(), log);
 
     server.esc_event.wait();
 }
