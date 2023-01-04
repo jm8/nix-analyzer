@@ -175,18 +175,10 @@ class NixLanguageServer {
             auto completions = analyzer->complete(analysis.exprPath,
                                                   {path, FileType::Package});
 
-            auto toLsCompletionItemKind = [](CompletionItem::Type type) {
-                if (type == CompletionItem::Type::Variable)
-                    return lsCompletionItemKind::Variable;
-                if (type == CompletionItem::Type::Property)
-                    return lsCompletionItemKind::Property;
-                return lsCompletionItemKind::Variable;
-            };
-
             for (auto completion : completions) {
                 res.result.items.push_back({
                     .label = completion.text,
-                    .kind = {toLsCompletionItemKind(completion.type)},
+                    .kind = {completion.type},
                 });
             }
             return res;

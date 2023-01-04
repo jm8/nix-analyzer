@@ -7,3 +7,5 @@ compile_commands.json
 build
 .helix
 test.nix
+mkderivation-schema.h
+log.txt

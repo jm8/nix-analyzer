@@ -11,6 +11,7 @@
 #include <iostream>
 #include <memory>
 
+#include "LibLsp/lsp/lsp_completion.h"
 #include "eval-inline.hh"
 #include "eval.hh"
 #include "get-drvs.hh"
@@ -39,11 +40,23 @@ struct Analysis {
     std::vector<nix::ParseError> parseErrors;
 };
 
+struct Schema;
+
+struct SchemaItem {
+    std::string name;
+    std::string doc;
+};
+
+// a Schema represents the possible attributes a
+// attrset can have
+struct Schema {
+    std::vector<SchemaItem> items;
+};
+
+#include "mkderivation-schema.h"
+
 struct CompletionItem {
-    enum class Type {
-        Variable,
-        Property,
-    };
+    using Type = lsCompletionItemKind;
 
     std::string text;
     Type type;
@@ -75,8 +88,8 @@ struct NixAnalyzer
 
     // returns the env that sub would be evaluated in within super.
     // sub must be a direct child of super.
-    nix::Env* updateEnv(nix::Expr* super,
-                        nix::Expr* sub,
+    nix::Env* updateEnv(nix::Expr* parent,
+                        nix::Expr* child,
                         nix::Env* up,
                         std::optional<nix::Value*> lambdaArg);
 
@@ -87,6 +100,9 @@ struct NixAnalyzer
     std::vector<std::optional<nix::Value*>> calculateLambdaArgs(
         std::vector<nix::Expr*> exprPath,
         FileInfo file);
+
+    // returns what attributes are expected to be on a direct child of parent
+    std::optional<Schema> getSchema(nix::Expr* parent, nix::Expr* child);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);

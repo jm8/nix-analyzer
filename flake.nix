@@ -44,7 +44,7 @@
             # not sure why boost isn't showing up in pkg-config
             boostInclude = "${pkgs.boost.dev}/include";
             boostLib = "${pkgs.boost}/lib";
-            lspcpp = lspcpp;
+            inherit lspcpp nixpkgs;
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
               pkgconfig
@@ -56,6 +56,7 @@
                 nlohmann_json
                 flex
                 bison
+                python
               ]
               ++ [
                 nixfork.packages.${system}.default

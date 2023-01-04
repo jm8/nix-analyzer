@@ -1,10 +1,17 @@
-CFLAGS:=-Isrc -Ibuild -O3 -Wall $(shell pkg-config --cflags --libs bdw-gc nlohmann_json nix-main) -I$(boostInclude) -L$(boostLib) -I$(lspcpp)/include -lnixutil -lnixstore -lnixexpr -lnixmain -lnixcmd -lnixfetchers -lgc -lboost_filesystem
+CFLAGS:=-Isrc -Ibuild -O3 -Wall
+CFLAGS+=$(shell pkg-config --cflags --libs bdw-gc nlohmann_json nix-main) -lnixutil -lnixstore -lnixexpr -lnixmain -lnixcmd -lnixfetchers -lgc
+CFLAGS+=-I$(boostInclude) -L$(boostLib) -lboost_filesystem
+CFLAGS+=-I$(lspcpp)/include
+HEADERS:=src/nix-analyzer.h src/logger.h src/mkderivation-schema.h
 SOURCE:=src/nix-analyzer.cpp src/logger.cpp
 OBJ:=$(patsubst src/%.cpp,build/%.o,$(SOURCE))
 
 all: nix-analyzer-test nix-analyzer
 
-build/%.o: src/%.cpp
+src/mkderivation-schema.h: src/gen_mkderivation_schema.py
+	python3 $< $(nixpkgs) > $@
+
+build/%.o: src/%.cpp $(HEADERS)
 	mkdir -p build
 	g++ $(CFLAGS) $< -c -o $@
 
@@ -19,5 +26,6 @@ nix/config.h:
 
 clean:
 	rm -rf build
-	rm nix-analyzer-test
+	rm -f nix-analyzer nix-analyzer-test
+	rm -f src/mkderivation-schema.h
 	$(MAKE) -C nix clean

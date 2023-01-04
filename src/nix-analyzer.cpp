@@ -63,6 +63,7 @@ Analysis NixAnalyzer::getExprPath(string source,
 vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
                                              FileInfo file) {
     if (exprPath.empty()) {
+        log.info("Completing empty exprPath");
         vector<CompletionItem> result;
         for (auto [symbol, displ] : state->staticBaseEnv->vars) {
             SymbolStr sym = state->symbols[symbol];
@@ -81,6 +82,7 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
+        log.info("Completing ExprSelect");
         AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
         ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
@@ -104,6 +106,20 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         return result;
     }
 
+    if (auto attrs = dynamic_cast<ExprAttrs*>(exprPath.front())) {
+        if (exprPath.size() == 1) {
+            return {};
+        }
+        if (auto schema = getSchema(exprPath[1], attrs)) {
+            vector<CompletionItem> result;
+            for (auto item : schema->items) {
+                result.push_back({item.name, CompletionItem::Type::Field});
+            }
+            return result;
+        }
+    }
+
+    log.info("Defaulting to variable completion");
     vector<CompletionItem> result;
     const StaticEnv* se = state->getStaticEnv(*exprPath.front()).get();
     while (se) {
@@ -114,7 +130,7 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
                 // underscore
                 continue;
             }
-            result.push_back({string(sym), CompletionItem::Type::Variable});
+            result.push_back({string(sym), CompletionItem::Type::Field});
         }
         se = se->up;
     }
@@ -126,18 +142,18 @@ Env* NixAnalyzer::calculateEnv(vector<Expr*> exprPath,
                                FileInfo file) {
     Env* env = &state->baseEnv;
     for (size_t i = exprPath.size() - 1; i >= 1; i--) {
-        Expr* sub = exprPath[i - 1];
-        Expr* super = exprPath[i];
-        env = updateEnv(super, sub, env, lambdaArgs[i]);
+        Expr* child = exprPath[i - 1];
+        Expr* parent = exprPath[i];
+        env = updateEnv(parent, child, env, lambdaArgs[i]);
     }
     return env;
 }
 
-Env* NixAnalyzer::updateEnv(Expr* super,
-                            Expr* sub,
+Env* NixAnalyzer::updateEnv(Expr* parent,
+                            Expr* child,
                             Env* up,
                             optional<Value*> lambdaArg) {
-    if (auto let = dynamic_cast<ExprLet*>(super)) {
+    if (auto let = dynamic_cast<ExprLet*>(parent)) {
         Env* env2 = &state->allocEnv(let->attrs->attrs.size());
         env2->up = up;
 
@@ -150,12 +166,12 @@ Env* NixAnalyzer::updateEnv(Expr* super,
         for (auto& [symbol, attrDef] : let->attrs->attrs) {
             env2->values[displ++] =
                 attrDef.e->maybeThunk(*state, attrDef.inherited ? *up : *env2);
-            if (attrDef.e == sub && attrDef.inherited)
+            if (attrDef.e == child && attrDef.inherited)
                 useSuperEnv = true;
         }
         return useSuperEnv ? up : env2;
     }
-    if (auto lambda = dynamic_cast<ExprLambda*>(super)) {
+    if (auto lambda = dynamic_cast<ExprLambda*>(parent)) {
         auto size =
             (!lambda->arg ? 0 : 1) +
             (lambda->hasFormals() ? lambda->formals->formals.size() : 0);
@@ -255,6 +271,23 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
     }
 
     return result;
+}
+
+optional<Schema> NixAnalyzer::getSchema(Expr* parent, Expr* child) {
+    if (auto call = dynamic_cast<ExprCall*>(parent)) {
+        if (child == call->fun) {
+            return {};
+        }
+        ExprSelect* select = dynamic_cast<ExprSelect*>(call->fun);
+        ExprVar* var = dynamic_cast<ExprVar*>(call->fun);
+        if ((select && state->symbols[select->attrPath.back().symbol] ==
+                           "mkDerivation") ||
+            (var && state->symbols[var->name] == "mkDerivation")) {
+            log.info("Completing with schemaMkDerivation");
+            return schemaMkDerivation;
+        }
+    }
+    return {};
 }
 
 Path FileInfo::nixpkgs() {
