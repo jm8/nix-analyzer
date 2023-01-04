@@ -571,5 +571,4 @@ int main(int argc, char** argv) {
     }
 
     cout << "All good\n";
-    return good;
 }

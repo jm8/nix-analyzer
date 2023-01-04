@@ -48,6 +48,7 @@
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
               pkgconfig
+              python3
             ];
             buildInputs = with pkgs;
               [
@@ -56,7 +57,6 @@
                 nlohmann_json
                 flex
                 bison
-                python
               ]
               ++ [
                 nixfork.packages.${system}.default
