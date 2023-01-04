@@ -3,7 +3,7 @@ CFLAGS+=$(shell pkg-config --cflags --libs bdw-gc nlohmann_json nix-main) -lnixu
 CFLAGS+=-I$(boostInclude) -L$(boostLib) -lboost_filesystem
 CFLAGS+=-I$(lspcpp)/include
 HEADERS:=src/nix-analyzer.h src/logger.h src/mkderivation-schema.h
-SOURCE:=src/nix-analyzer.cpp src/logger.cpp
+SOURCE:=src/nix-analyzer.cpp src/logger.cpp src/debug.cpp
 OBJ:=$(patsubst src/%.cpp,build/%.o,$(SOURCE))
 
 all: nix-analyzer-test nix-analyzer

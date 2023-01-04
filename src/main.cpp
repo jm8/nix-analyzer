@@ -15,6 +15,7 @@
 #include "LibLsp/JsonRpc/Condition.h"
 #include "LibLsp/JsonRpc/Endpoint.h"
 #include "LibLsp/JsonRpc/MessageIssue.h"
+#include "LibLsp/JsonRpc/NotificationInMessage.h"
 #include "LibLsp/JsonRpc/RemoteEndPoint.h"
 #include "LibLsp/JsonRpc/TcpServer.h"
 #include "LibLsp/JsonRpc/stream.h"
@@ -30,12 +31,14 @@
 #include "LibLsp/lsp/lsDocumentUri.h"
 #include "LibLsp/lsp/lsMarkedString.h"
 #include "LibLsp/lsp/lsp_completion.h"
+#include "LibLsp/lsp/lsp_diagnostic.h"
 #include "LibLsp/lsp/textDocument/declaration_definition.h"
 #include "LibLsp/lsp/textDocument/did_change.h"
 #include "LibLsp/lsp/textDocument/did_close.h"
 #include "LibLsp/lsp/textDocument/did_open.h"
 #include "LibLsp/lsp/textDocument/document_symbol.h"
 #include "LibLsp/lsp/textDocument/hover.h"
+#include "LibLsp/lsp/textDocument/publishDiagnostics.h"
 #include "LibLsp/lsp/textDocument/resolveCompletionItem.h"
 #include "LibLsp/lsp/textDocument/signature_help.h"
 #include "LibLsp/lsp/textDocument/typeHierarchy.h"
@@ -44,6 +47,7 @@
 
 #include "error.hh"
 #include "nix-analyzer.h"
+#include "nixexpr.hh"
 #include "store-api.hh"
 #include "util.hh"
 
@@ -70,13 +74,17 @@ string stringify(T x) {
     return ss.str();
 }
 
+struct Document {
+    string text;
+};
+
 class NixLanguageServer {
    public:
     RemoteEndPoint remoteEndPoint;
     lsp::Log& log;
     unique_ptr<NixAnalyzer> analyzer;
-    // map from url to document content
-    unordered_map<string, string> documents;
+    // map from uri to document content
+    unordered_map<string, Document> documents;
 
     struct OStream : lsp::base_ostream<std::ostream> {
         explicit OStream(std::ostream& _t) : base_ostream<std::ostream>(_t) {
@@ -94,6 +102,60 @@ class NixLanguageServer {
             return {};
         }
     };
+
+    void publishDiagnostics(lsDocumentUri uri,
+                            const vector<nix::ParseError> parseErrors) {
+        log.info("Publishing diagnostics to " + uri.raw_uri_);
+        TextDocumentPublishDiagnostics::Params params;
+        params.uri = uri;
+        for (const auto& error : parseErrors) {
+            lsDiagnostic diagnostic;
+            if (auto pos = error.info().errPos) {
+                diagnostic.range.start = {pos->line - 1, pos->column - 1};
+                diagnostic.range.end = {pos->line - 1, pos->column + 5};
+                diagnostic.message =
+                    nix::filterANSIEscapes(error.info().msg.str(), true);
+                params.diagnostics.push_back(diagnostic);
+            }
+        }
+        Notify_TextDocumentPublishDiagnostics::notify notify;
+        notify.params = params;
+        remoteEndPoint.sendNotification(notify);
+    }
+
+    std::optional<Analysis> getExprPath(
+        lsDocumentUri uri,
+        optional<pair<uint32_t, uint32_t>> position) {
+        auto it = documents.find(uri.raw_uri_);
+        if (it == documents.end()) {
+            log.info("Document " + uri.raw_uri_ + " does not exist");
+            return {};
+        }
+        string source = it->second.text;
+
+        string path = uri.GetAbsolutePath().path;
+        string basePath;
+        if (path.empty() || lsp::StartsWith(path, "file://")) {
+            log.info("Path does not have a base path: " + uri.raw_uri_);
+            basePath = nix::absPath(".");
+        } else {
+            basePath = nix::dirOf(path);
+        }
+
+        nix::Pos pos;
+        if (position) {
+            log.info("Given a position");
+            pos = {path, nix::foFile, position->first, position->second};
+        } else {
+            log.info("Not given a position");
+            pos = {path, nix::foFile, 1, 1};
+        }
+
+        log.info("Position for analysis: " +
+                 nix::filterANSIEscapes(stringify(pos), true));
+
+        return analyzer->getExprPath(source, path, basePath, pos);
+    }
 
     NixLanguageServer(nix::Strings searchPath,
                       nix::ref<nix::Store> store,
@@ -129,16 +191,28 @@ class NixLanguageServer {
 
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidOpen::notify& notify) {
-                string uri = notify.params.textDocument.uri.raw_uri_;
-                log.info("didOpen: " + uri);
-                documents[uri] = notify.params.textDocument.text;
+                auto uri = notify.params.textDocument.uri;
+                log.info("didOpen: " + uri.raw_uri_);
+                documents[uri.raw_uri_].text = {
+                    notify.params.textDocument.text};
+                auto analysis = getExprPath(uri, {});
+                if (!analysis) {
+                    return;
+                }
+                publishDiagnostics(uri, analysis->parseErrors);
             });
 
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidChange::notify& notify) {
-                string uri = notify.params.textDocument.uri.raw_uri_;
-                log.info("didChange: " + uri);
-                documents[uri] = notify.params.contentChanges[0].text;
+                auto uri = notify.params.textDocument.uri;
+                log.info("didChange: " + uri.raw_uri_);
+                documents[uri.raw_uri_].text =
+                    notify.params.contentChanges[0].text;
+                auto analysis = getExprPath(uri, {});
+                if (!analysis) {
+                    return;
+                }
+                publishDiagnostics(uri, analysis->parseErrors);
             });
 
         remoteEndPoint.registerHandler(
@@ -158,29 +232,12 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler([&](const td_completion::request& req) {
             log.info("completion");
             td_completion::response res;
-
-            string url = req.params.textDocument.uri.raw_uri_;
-            auto it = documents.find(url);
-            if (it == documents.end()) {
-                return res;
-            }
-            string source = it->second;
-
-            string path = req.params.textDocument.uri.GetAbsolutePath().path;
-            string basePath;
-            if (path.empty() or lsp::StartsWith(path, "file://")) {
-                return res;
-            }
-            basePath = nix::dirOf(path);
-
-            nix::Pos pos{path, nix::foFile, req.params.position.line + 1,
-                         req.params.position.character + 1};
-
-            log.info(nix::filterANSIEscapes(stringify(pos), true));
-
-            auto analysis = analyzer->getExprPath(source, path, basePath, pos);
-            auto completions = analyzer->complete(analysis.exprPath,
-                                                  {path, FileType::Package});
+            auto uri = req.params.textDocument.uri;
+            auto analysis =
+                getExprPath(uri, {{req.params.position.line + 1,
+                                   req.params.position.character + 1}});
+            auto completions = analyzer->complete(
+                analysis->exprPath, {analysis->path, FileType::Package});
 
             for (auto completion : completions) {
                 res.result.items.push_back({

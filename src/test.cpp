@@ -52,10 +52,10 @@ struct CompletionTest {
             pos = {source, foString, line, col};
         }
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
-        auto [exprPath, parseErrors] =
-            analyzer.getExprPath(source, path, basePath, pos);
+        auto analysis = analyzer.getExprPath(source, path, basePath, pos);
         vector<string> actualCompletions;
-        for (auto completionItem : analyzer.complete(exprPath, {path, ftype})) {
+        for (auto completionItem :
+             analyzer.complete(analysis.exprPath, {path, ftype})) {
             actualCompletions.push_back(completionItem.text);
         }
         sort(expectedCompletions.begin(), expectedCompletions.end());
@@ -71,7 +71,7 @@ struct CompletionTest {
             cout << "\n";
         }
         vector<string> actualErrors;
-        for (ParseError error : parseErrors) {
+        for (ParseError error : analysis.parseErrors) {
             actualErrors.push_back(
                 filterANSIEscapes(error.info().msg.str(), true));
         }

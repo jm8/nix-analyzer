@@ -38,6 +38,8 @@ struct FileInfo {
 struct Analysis {
     std::vector<nix::Expr*> exprPath;
     std::vector<nix::ParseError> parseErrors;
+    std::string path;
+    std::string basePath;
 };
 
 struct Schema;

@@ -1,5 +1,6 @@
 #include "nix-analyzer.h"
 #include <iostream>
+#include <sstream>
 #include "debug.h"
 
 #include "error.hh"
@@ -57,7 +58,7 @@ Analysis NixAnalyzer::getExprPath(string source,
             exprPath.push_back(e);
         },
         [&errors](ParseError error) { errors.push_back(error); });
-    return {exprPath, errors};
+    return {exprPath, errors, path, basePath};
 }
 
 vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
@@ -78,26 +79,33 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         return result;
     }
 
+    log.info("Completing "s + exprTypeName(exprPath.front()));
+
     vector<optional<Value*>> lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
-        log.info("Completing ExprSelect");
         AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
         ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
-
+        log.info("AT POINT A");
         try {
             prefix.eval(*state, *env, v);
+            // state->forceValue(v, select->pos);
         } catch (Error& e) {
             log.info(e.info().msg.str());
             return {};
         }
-
+        log.info("AT POINT B");
+        log.info("v.type() == " + to_string(v.type()));
+        stringstream ss;
+        v.print(state->symbols, ss);
+        log.info("v == " + ss.str());
         if (v.type() != nAttrs) {
             return {};
         }
 
+        log.info("AT POINT C");
         vector<NACompletionItem> result;
         for (auto attr : *v.attrs) {
             result.push_back(
