@@ -55,11 +55,12 @@ struct Schema {
 
 #include "mkderivation-schema.h"
 
-struct CompletionItem {
+struct NACompletionItem {
     using Type = lsCompletionItemKind;
 
     std::string text;
     Type type;
+    std::optional<std::string> documentation;
 };
 
 struct NixAnalyzer
@@ -79,8 +80,8 @@ struct NixAnalyzer
                          nix::Path basePath,
                          nix::Pos pos);
 
-    std::vector<CompletionItem> complete(std::vector<nix::Expr*> exprPath,
-                                         FileInfo file);
+    std::vector<NACompletionItem> complete(std::vector<nix::Expr*> exprPath,
+                                           FileInfo file);
 
     nix::Env* calculateEnv(std::vector<nix::Expr*> exprPath,
                            std::vector<std::optional<nix::Value*>>,

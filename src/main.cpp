@@ -51,9 +51,16 @@
 
 using namespace std;
 
-TextDocumentHover::Either markdown(std::string markdown) {
+TextDocumentHover::Either hoverMarkdown(std::string markdown) {
     // lol
     return {{}, {{"markdown", markdown}}};
+}
+
+std::optional<
+    std::pair<std::optional<std::string>, std::optional<MarkupContent>>>
+docMarkdown(std::string markdown) {
+    // lol
+    return {{{}, {{"markdown", markdown}}}};
 }
 
 template <typename T>
@@ -144,7 +151,7 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler([&](const td_hover::request& req) {
             log.info("hover");
             td_hover::response res;
-            res.result.contents = markdown("Yoo **wassup**");
+            res.result.contents = hoverMarkdown("Yoo **wassup**");
             return res;
         });
 
@@ -179,6 +186,10 @@ class NixLanguageServer {
                 res.result.items.push_back({
                     .label = completion.text,
                     .kind = {completion.type},
+                    .documentation =
+                        completion.documentation
+                            ? docMarkdown(*completion.documentation)
+                            : std::nullopt,
                 });
             }
             return res;

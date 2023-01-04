@@ -60,11 +60,11 @@ Analysis NixAnalyzer::getExprPath(string source,
     return {exprPath, errors};
 }
 
-vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
-                                             FileInfo file) {
+vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
+                                               FileInfo file) {
     if (exprPath.empty()) {
         log.info("Completing empty exprPath");
-        vector<CompletionItem> result;
+        vector<NACompletionItem> result;
         for (auto [symbol, displ] : state->staticBaseEnv->vars) {
             SymbolStr sym = state->symbols[symbol];
             if (string_view(sym).rfind("__", 0) == 0) {
@@ -72,8 +72,8 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
                 // underscore
                 continue;
             }
-            result.push_back(
-                CompletionItem{string(sym), CompletionItem::Type::Variable});
+            result.push_back(NACompletionItem{
+                string(sym), NACompletionItem::Type::Variable});
         }
         return result;
     }
@@ -98,10 +98,10 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
             return {};
         }
 
-        vector<CompletionItem> result;
+        vector<NACompletionItem> result;
         for (auto attr : *v.attrs) {
             result.push_back(
-                {state->symbols[attr.name], CompletionItem::Type::Property});
+                {state->symbols[attr.name], NACompletionItem::Type::Property});
         }
         return result;
     }
@@ -111,16 +111,17 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
             return {};
         }
         if (auto schema = getSchema(exprPath[1], attrs)) {
-            vector<CompletionItem> result;
+            vector<NACompletionItem> result;
             for (auto item : schema->items) {
-                result.push_back({item.name, CompletionItem::Type::Field});
+                result.push_back(
+                    {item.name, NACompletionItem::Type::Field, item.doc});
             }
             return result;
         }
     }
 
     log.info("Defaulting to variable completion");
-    vector<CompletionItem> result;
+    vector<NACompletionItem> result;
     const StaticEnv* se = state->getStaticEnv(*exprPath.front()).get();
     while (se) {
         for (auto [symbol, displ] : se->vars) {
@@ -130,7 +131,7 @@ vector<CompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
                 // underscore
                 continue;
             }
-            result.push_back({string(sym), CompletionItem::Type::Field});
+            result.push_back({string(sym), NACompletionItem::Type::Field});
         }
         se = se->up;
     }
