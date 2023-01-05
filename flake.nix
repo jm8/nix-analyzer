@@ -5,7 +5,7 @@
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.nixfork.url = "github:jm8/nix";
   inputs.lspcppsrc = {
-    url = "github:kuafuwang/LspCpp";
+    url = "github:jm8/LspCpp";
     flake = false;
   };
 
@@ -24,6 +24,7 @@
           lspcpp = pkgs.stdenv.mkDerivation {
             name = "LspCpp";
             src = lspcppsrc;
+            enableParallelBuilding = true;
             nativeBuildInputs = with pkgs; [
               cmake
             ];

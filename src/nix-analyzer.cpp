@@ -40,14 +40,19 @@ Analysis NixAnalyzer::getExprPath(string source,
                                   Path basePath,
                                   Pos targetPos) {
     vector<Expr*> exprPath;
+    vector<Spanned<ExprPath*>> paths;
     vector<ParseError> errors;
     state->parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state->staticBaseEnv,
-        [targetPos, &exprPath](Expr* e, Pos start, Pos end) {
+        [&](Expr* e, Pos start, Pos end) {
             if (start.origin != targetPos.origin ||
                 start.file != targetPos.file) {
                 return;
+            }
+
+            if (auto path = dynamic_cast<ExprPath*>(e)) {
+                paths.push_back({path, start, end});
             }
 
             if (!(poscmp(start, targetPos) <= 0 &&
@@ -58,7 +63,7 @@ Analysis NixAnalyzer::getExprPath(string source,
             exprPath.push_back(e);
         },
         [&errors](ParseError error) { errors.push_back(error); });
-    return {exprPath, errors, path, basePath};
+    return {exprPath, errors, path, basePath, paths};
 }
 
 vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
@@ -92,7 +97,7 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
             prefix.eval(*state, *env, v);
             // state->forceValue(v, select->pos);
         } catch (Error& e) {
-            log.info(e.info().msg.str());
+            log.info("Caught error: " + e.info().msg.str());
             return {};
         }
         if (v.type() != nAttrs) {
@@ -196,7 +201,7 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
             try {
                 state->forceAttrs(*arg, noPos);
             } catch (Error& e) {
-                log.info(e.info().msg.str());
+                log.info("Caught error: " + e.info().msg.str());
                 for (uint32_t i = 0; i < lambda->formals->formals.size(); i++) {
                     Value* val = state->allocValue();
                     val->mkNull();
@@ -220,7 +225,7 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
                         try {
                             val = i.def->maybeThunk(*state, *env2);
                         } catch (Error& e) {
-                            log.info(e.info().msg.str());
+                            log.info("Caught error: " + e.info().msg.str());
                             val = state->allocValue();
                             val->mkNull();
                         }
@@ -290,7 +295,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
                 state->callFunction(fun, arg, *v, noPos);
                 result[i] = v;
             } catch (Error& e) {
-                log.info(e.info().msg.str());
+                log.info("Caught error: " + e.info().msg.str());
             }
         }
         firstLambda = false;

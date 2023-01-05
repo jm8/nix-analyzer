@@ -35,11 +35,19 @@ struct FileInfo {
     nix::Path nixpkgs();
 };
 
+template <typename T>
+struct Spanned {
+    T value;
+    nix::Pos start;
+    nix::Pos end;
+};
+
 struct Analysis {
     std::vector<nix::Expr*> exprPath;
     std::vector<nix::ParseError> parseErrors;
     std::string path;
     std::string basePath;
+    std::vector<Spanned<nix::ExprPath*>> paths;
 };
 
 struct Schema;

@@ -34,15 +34,15 @@
     "lspcppsrc": {
       "flake": false,
       "locked": {
-        "lastModified": 1662377520,
-        "narHash": "sha256-r6bO+mOL+SuoREyI/cZQJ1mRby2f58apSdGvmHr0vKE=",
-        "owner": "kuafuwang",
+        "lastModified": 1672881430,
+        "narHash": "sha256-lM2kSNg/cxEiBAZxzMG+SoRjz5MMUTmx4WlcxDQFRyw=",
+        "owner": "jm8",
         "repo": "LspCpp",
-        "rev": "201a525284f3158080485bbd3dcb6e4c20be25b3",
+        "rev": "4c0b67fe4eabfc5d0e056728cdd0e5c16d3b98e1",
         "type": "github"
       },
       "original": {
-        "owner": "kuafuwang",
+        "owner": "jm8",
         "repo": "LspCpp",
         "type": "github"
       }

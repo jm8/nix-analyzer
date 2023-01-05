@@ -36,6 +36,7 @@
 #include "LibLsp/lsp/textDocument/did_change.h"
 #include "LibLsp/lsp/textDocument/did_close.h"
 #include "LibLsp/lsp/textDocument/did_open.h"
+#include "LibLsp/lsp/textDocument/document_link.h"
 #include "LibLsp/lsp/textDocument/document_symbol.h"
 #include "LibLsp/lsp/textDocument/hover.h"
 #include "LibLsp/lsp/textDocument/publishDiagnostics.h"
@@ -46,12 +47,14 @@
 #include "LibLsp/lsp/workspace/execute_command.h"
 
 #include "error.hh"
+#include "eval.hh"
 #include "nix-analyzer.h"
 #include "nixexpr.hh"
 #include "store-api.hh"
 #include "util.hh"
 
 #include "logger.h"
+#include "value.hh"
 
 using namespace std;
 
@@ -175,6 +178,9 @@ class NixLanguageServer {
             }};
             res.result.capabilities.textDocumentSync = {
                 {lsTextDocumentSyncKind::Full}, {}};
+            res.result.capabilities.documentLinkProvider = {
+                .resolveProvider = false,
+            };
             return res;
         });
 
@@ -226,6 +232,38 @@ class NixLanguageServer {
             log.info("hover");
             td_hover::response res;
             res.result.contents = hoverMarkdown("Yoo **wassup**");
+            return res;
+        });
+
+        remoteEndPoint.registerHandler([&](const td_links::request& req) {
+            log.info("documentLinks");
+            td_links::response res;
+            auto uri = req.params.textDocument.uri;
+            auto analysis = getExprPath(uri, {});
+            if (!analysis) {
+                return res;
+            }
+            if (analysis->paths.empty()) {
+                log.info("No paths");
+                return res;
+            }
+
+            for (auto spannedExprPath : analysis->paths) {
+                lsDocumentLink link;
+                link.range = {
+                    {static_cast<int>(spannedExprPath.start.line - 1),
+                     static_cast<int>(spannedExprPath.start.column - 1)},
+                    {static_cast<int>(spannedExprPath.end.line - 1),
+                     static_cast<int>(spannedExprPath.end.column - 1)}};
+                string path = spannedExprPath.value->s;
+                try {
+                    path = nix::resolveExprPath(path);
+                } catch (nix::Error& e) {
+                }
+                link.target = lsDocumentUri{};
+                link.target->SetPath(path);
+                res.result.push_back(link);
+            }
             return res;
         });
 
