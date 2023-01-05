@@ -866,6 +866,11 @@ int main(int argc, char** argv) {
             .afterCursor = " ]; }",
             .expectedCompletions = {"b"},
         },
+        {
+            .beforeCursor = "let a = { b = 3; }; in { s = [ a.aaa",
+            .afterCursor = " ]; }",
+            .expectedCompletions = {"b"},
+        },
     };
 
     bool good = true;

@@ -90,20 +90,29 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
+        log.info("Completing ExprSelect FOR REAL");
         AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
         ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
         try {
             prefix.eval(*state, *env, v);
-            // state->forceValue(v, select->pos);
+            state->forceValue(v, select->pos);
         } catch (Error& e) {
             log.info("Caught error: " + e.info().msg.str());
             return {};
         }
+        // stringstream ss;
+        // ss << "prefix == ";
+        // prefix.show(state->symbols, ss);
+        // ss << "\n";
+        // ss << "v == ";
+        // v.print(state->symbols, ss);
+        // ss << "\n";
+        // log.info(ss.str());
+
         if (v.type() != nAttrs) {
             return {};
         }
-
         vector<NACompletionItem> result;
         for (auto attr : *v.attrs) {
             result.push_back(
@@ -242,6 +251,10 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
         return env2;
     }
     if (auto exprAttrs = dynamic_cast<ExprAttrs*>(parent)) {
+        if (!exprAttrs->recursive) {
+            return up;
+        }
+
         Env* env2 = &state->allocEnv(exprAttrs->attrs.size());
         env2->up = up;
 
