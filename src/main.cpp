@@ -285,6 +285,7 @@ class NixLanguageServer {
                         completion.documentation
                             ? docMarkdown(*completion.documentation)
                             : std::nullopt,
+                    .commitCharacters = {{".", "/"}},
                 });
             }
             return res;
