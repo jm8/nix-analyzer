@@ -5,7 +5,7 @@
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.nixfork.url = "github:jm8/nix";
   inputs.lspcppsrc = {
-    url = "github:jm8/LspCpp";
+    url = "github:kuafuwang/LspCpp";
     flake = false;
   };
 
