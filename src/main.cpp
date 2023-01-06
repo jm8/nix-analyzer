@@ -1,10 +1,10 @@
 #include <boost/algorithm/string/find.hpp>
 #include <boost/filesystem.hpp>
+#include <network/uri.hpp>
+
 #include <fstream>
 #include <iostream>
-
 #include <memory>
-#include <network/uri.hpp>
 #include <ostream>
 #include <sstream>
 #include <string>
