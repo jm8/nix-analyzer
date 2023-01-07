@@ -1,5 +1,7 @@
+#include <algorithm>
 #include <boost/algorithm/string/find.hpp>
 #include <boost/filesystem.hpp>
+#include <cstddef>
 #include <network/uri.hpp>
 
 #include <fstream>
@@ -30,6 +32,7 @@
 #include "LibLsp/lsp/lsAny.h"
 #include "LibLsp/lsp/lsDocumentUri.h"
 #include "LibLsp/lsp/lsMarkedString.h"
+#include "LibLsp/lsp/lsPosition.h"
 #include "LibLsp/lsp/lsp_completion.h"
 #include "LibLsp/lsp/lsp_diagnostic.h"
 #include "LibLsp/lsp/textDocument/declaration_definition.h"
@@ -126,6 +129,54 @@ class NixLanguageServer {
         remoteEndPoint.sendNotification(notify);
     }
 
+    size_t findStartOfLne(string_view content, size_t line0indexed) {
+        size_t startOfLine = 0;
+        for (size_t i = 0; i < line0indexed; i++) {
+            size_t nextNewLine = content.find('\n', startOfLine);
+            if (nextNewLine == string_view::npos) {
+                log.info("Line value out of range");
+                return 0;
+            }
+            startOfLine = nextNewLine + 1;
+        }
+        return startOfLine;
+        // size_t n = 0;
+        // while (content[startOfLine + n] != '\n') {
+        //     n++;
+        // }
+        // return content.substr(startOfLine, n);
+    }
+
+    // https://github.com/llvm/llvm-project/blob/b8576086c78a5aebf056a8fc8cc716dfee40b72e/clang-tools-extra/clangd/SourceCode.cpp#L171
+    size_t positionToOffset(string_view content, lsPosition p) {
+        if (p.line < 0) {
+            log.info("Negative line value");
+            return string_view::npos;
+        }
+        if (p.character < 0) {
+            log.info("Negative character value");
+            return string_view::npos;
+        }
+        return findStartOfLne(content, p.line) + p.character;
+    }
+
+    // https://github.com/llvm/llvm-project/blob/b8576086c78a5aebf056a8fc8cc716dfee40b72e/clang-tools-extra/clangd/SourceCode.cpp#L1099
+    void applyContentChange(string& content,
+                            lsTextDocumentContentChangeEvent change) {
+        log.info("Here's the change: " + change.text);
+        if (!change.range) {
+            content = change.text;
+            return;
+        }
+
+        auto startIndex = positionToOffset(content, change.range->start);
+        auto endIndex = positionToOffset(content, change.range->end);
+
+        // todo: Add range length comparison to ensure the documents in sync
+        // like clangd
+        content.replace(startIndex, endIndex - startIndex, change.text);
+    }
+
     std::optional<Analysis> getExprPath(
         lsDocumentUri uri,
         optional<pair<uint32_t, uint32_t>> position) {
@@ -147,10 +198,8 @@ class NixLanguageServer {
 
         nix::Pos pos;
         if (position) {
-            log.info("Given a position");
             pos = {path, nix::foFile, position->first, position->second};
         } else {
-            log.info("Not given a position");
             pos = {path, nix::foFile, 1, 1};
         }
 
@@ -177,7 +226,7 @@ class NixLanguageServer {
                 .triggerCharacters = {{".", "${"}},
             }};
             res.result.capabilities.textDocumentSync = {
-                {lsTextDocumentSyncKind::Full}, {}};
+                {lsTextDocumentSyncKind::Incremental}, {}};
             res.result.capabilities.documentLinkProvider = {
                 .resolveProvider = false,
             };
@@ -212,13 +261,16 @@ class NixLanguageServer {
             [&](Notify_TextDocumentDidChange::notify& notify) {
                 auto uri = notify.params.textDocument.uri;
                 log.info("didChange: " + uri.raw_uri_);
-                documents[uri.raw_uri_].text =
-                    notify.params.contentChanges[0].text;
-                auto analysis = getExprPath(uri, {});
-                if (!analysis) {
-                    return;
+                string& content = documents[uri.raw_uri_].text;
+                for (auto contentChange : notify.params.contentChanges) {
+                    applyContentChange(content, contentChange);
                 }
-                publishDiagnostics(uri, analysis->parseErrors);
+                // This is toooo slooow
+                // auto analysis = getExprPath(uri, {});
+                // if (!analysis) {
+                //     return;
+                // }
+                // publishDiagnostics(uri, analysis->parseErrors);
             });
 
         remoteEndPoint.registerHandler(
