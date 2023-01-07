@@ -84,7 +84,7 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         return result;
     }
 
-    log.info("Completing "s + exprTypeName(exprPath.front()));
+    log.info("Completing ", exprTypeName(exprPath.front()));
 
     vector<optional<Value*>> lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
@@ -98,17 +98,9 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
             prefix.eval(*state, *env, v);
             state->forceValue(v, select->pos);
         } catch (Error& e) {
-            log.info("Caught error: " + e.info().msg.str());
+            log.info("Caught error: ", e.info().msg.str());
             return {};
         }
-        // stringstream ss;
-        // ss << "prefix == ";
-        // prefix.show(state->symbols, ss);
-        // ss << "\n";
-        // ss << "v == ";
-        // v.print(state->symbols, ss);
-        // ss << "\n";
-        // log.info(ss.str());
 
         if (v.type() != nAttrs) {
             return {};
@@ -210,7 +202,7 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
             try {
                 state->forceAttrs(*arg, noPos);
             } catch (Error& e) {
-                log.info("Caught error: " + e.info().msg.str());
+                log.info("Caught error: ", e.info().msg.str());
                 for (uint32_t i = 0; i < lambda->formals->formals.size(); i++) {
                     Value* val = state->allocValue();
                     val->mkNull();
@@ -234,7 +226,7 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
                         try {
                             val = i.def->maybeThunk(*state, *env2);
                         } catch (Error& e) {
-                            log.info("Caught error: " + e.info().msg.str());
+                            log.info("Caught error: ", e.info().msg.str());
                             val = state->allocValue();
                             val->mkNull();
                         }
@@ -308,7 +300,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
                 state->callFunction(fun, arg, *v, noPos);
                 result[i] = v;
             } catch (Error& e) {
-                log.info("Caught error: " + e.info().msg.str());
+                log.info("Caught error: ", e.info().msg.str());
             }
         }
         firstLambda = false;

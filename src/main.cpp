@@ -87,7 +87,7 @@ struct Document {
 class NixLanguageServer {
    public:
     RemoteEndPoint remoteEndPoint;
-    lsp::Log& log;
+    Logger& log;
     unique_ptr<NixAnalyzer> analyzer;
     // map from uri to document content
     unordered_map<string, Document> documents;
@@ -111,7 +111,7 @@ class NixLanguageServer {
 
     void publishDiagnostics(lsDocumentUri uri,
                             const vector<nix::ParseError> parseErrors) {
-        log.info("Publishing diagnostics to " + uri.raw_uri_);
+        log.info("Publishing diagnostics to ", uri.raw_uri_);
         TextDocumentPublishDiagnostics::Params params;
         params.uri = uri;
         for (const auto& error : parseErrors) {
@@ -163,7 +163,6 @@ class NixLanguageServer {
     // https://github.com/llvm/llvm-project/blob/b8576086c78a5aebf056a8fc8cc716dfee40b72e/clang-tools-extra/clangd/SourceCode.cpp#L1099
     void applyContentChange(string& content,
                             lsTextDocumentContentChangeEvent change) {
-        log.info("Here's the change: " + change.text);
         if (!change.range) {
             content = change.text;
             return;
@@ -182,7 +181,7 @@ class NixLanguageServer {
         optional<pair<uint32_t, uint32_t>> position) {
         auto it = documents.find(uri.raw_uri_);
         if (it == documents.end()) {
-            log.info("Document " + uri.raw_uri_ + " does not exist");
+            log.info("Document ", uri.raw_uri_, " does not exist");
             return {};
         }
         string source = it->second.text;
@@ -190,7 +189,7 @@ class NixLanguageServer {
         string path = uri.GetAbsolutePath().path;
         string basePath;
         if (path.empty() || lsp::StartsWith(path, "file://")) {
-            log.info("Path does not have a base path: " + uri.raw_uri_);
+            log.info("Path does not have a base path: ", uri.raw_uri_);
             basePath = nix::absPath(".");
         } else {
             basePath = nix::dirOf(path);
@@ -203,8 +202,7 @@ class NixLanguageServer {
             pos = {path, nix::foFile, 1, 1};
         }
 
-        log.info("Position for analysis: " +
-                 nix::filterANSIEscapes(stringify(pos), true));
+        log.info("Position for analysis: ", pos);
 
         return analyzer->getExprPath(source, path, basePath, pos);
     }
@@ -239,7 +237,7 @@ class NixLanguageServer {
             });
 
         remoteEndPoint.registerHandler([&](Notify_Exit::notify& notify) {
-            log.info("exit: " + notify.jsonrpc);
+            log.info("exit: ", notify.jsonrpc);
             remoteEndPoint.stop();
             esc_event.notify(make_unique<bool>(true));
         });
@@ -247,7 +245,7 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidOpen::notify& notify) {
                 auto uri = notify.params.textDocument.uri;
-                log.info("didOpen: " + uri.raw_uri_);
+                log.info("didOpen: ", uri.raw_uri_);
                 documents[uri.raw_uri_].text = {
                     notify.params.textDocument.text};
                 auto analysis = getExprPath(uri, {});
@@ -260,7 +258,7 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidChange::notify& notify) {
                 auto uri = notify.params.textDocument.uri;
-                log.info("didChange: " + uri.raw_uri_);
+                log.info("didChange: ", uri.raw_uri_);
                 string& content = documents[uri.raw_uri_].text;
                 for (auto contentChange : notify.params.contentChanges) {
                     applyContentChange(content, contentChange);
@@ -276,7 +274,7 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidClose::notify& notify) {
                 string uri = notify.params.textDocument.uri.raw_uri_;
-                log.info("didClose: " + uri);
+                log.info("didClose: ", uri);
                 documents.erase(uri);
             });
 
