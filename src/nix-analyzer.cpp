@@ -138,9 +138,41 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
                 // underscore
                 continue;
             }
-            result.push_back({string(sym), NACompletionItem::Type::Field});
+            result.push_back({string(sym), NACompletionItem::Type::Variable});
         }
         se = se->up;
+    }
+    while (1) {
+        if (env->type == Env::HasWithExpr) {
+            Value* v = state->allocValue();
+            Expr* e = (Expr*)env->values[0];
+            stringstream ss;
+            e->show(state->symbols, ss);
+            try {
+                e->eval(*state, *env->up, *v);
+                if (v->type() != nAttrs) {
+                    // value is %1% while a set was expected
+                    v->mkAttrs(state->allocBindings(0));
+                }
+            } catch (Error& e) {
+                log.info("Caught error: ", e.info().msg.str());
+                v->mkAttrs(state->allocBindings(0));
+            }
+            env->values[0] = v;
+            env->type = Env::HasWithAttrs;
+        }
+        if (env->type == Env::HasWithAttrs) {
+            for (auto binding : *env->values[0]->attrs) {
+                log.info("Binding ", state->symbols[binding.name]);
+                result.push_back({state->symbols[binding.name],
+                                  NACompletionItem::Type::Variable});
+            }
+        }
+        if (!env->prevWith) {
+            break;
+        }
+        for (size_t l = env->prevWith; l; --l, env = env->up)
+            ;
     }
     return result;
 }
@@ -268,6 +300,17 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
             }
             env2->values[displ++] = vAttr;
         }
+        return env2;
+    }
+    if (auto with = dynamic_cast<ExprWith*>(parent)) {
+        if (child != with->body) {
+            return up;
+        }
+        Env* env2 = &state->allocEnv(1);
+        env2->up = up;
+        env2->prevWith = with->prevWith;
+        env2->type = Env::HasWithExpr;
+        env2->values[0] = (Value*)with->attrs;
         return env2;
     }
     return up;

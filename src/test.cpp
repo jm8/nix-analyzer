@@ -301,7 +301,7 @@ int main(int argc, char** argv) {
         },
         {
             .beforeCursor = "with {a = 2; b = 3;}; ",
-            .expectedCompletions = builtinIDs,
+            .expectedCompletions = builtinIDsPlus({"a", "b"}),
             .expectedErrors = {"syntax error, unexpected end of file"},
         },
         {
@@ -876,11 +876,6 @@ int main(int argc, char** argv) {
             .expectedCompletions = {"b"},
         },
         {
-            .beforeCursor = "with { aaa = 2; bbb = 3; }; x",
-            .expectedCompletions = builtinIDs,
-            // .expectedCompletions = builtinIDsPlus({"aaa", "bbb"}),
-        },
-        {
             .beforeCursor =
                 "let x = { aaa = { bbb = 2; }; }; in { inherit (x.aaa.",
             .afterCursor = ") whatever; }",
@@ -893,6 +888,14 @@ int main(int argc, char** argv) {
             .afterCursor = "); }",
             .expectedErrors = {"syntax error, unexpected ')', expecting ID or "
                                "OR_KW or DOLLAR_CURLY or '\"'"},
+        },
+        {
+            .beforeCursor = "with { a = {b = 1; }; }; a.que",
+            .expectedCompletions = {"b"},
+        },
+        {
+            .beforeCursor = "with null; x",
+            .expectedCompletions = builtinIDs,
         },
     };
 
