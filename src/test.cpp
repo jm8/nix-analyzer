@@ -51,6 +51,7 @@ struct CompletionTest {
             }
             pos = {source, foString, line, col};
         }
+        cout << pos.file << "\n";
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
         vector<string> actualCompletions;
@@ -85,9 +86,11 @@ struct CompletionTest {
             cout << "\n";
         }
         if (good) {
-            cout << "PASS: " << pos.file << "\n\n";
+            cout << "PASS"
+                 << "\n\n";
         } else {
-            cout << "FAIL: " << pos.file << "\n\n";
+            cout << "FAIL"
+                 << "\n\n";
         }
         return good;
     }
@@ -897,7 +900,12 @@ int main(int argc, char** argv) {
             .beforeCursor = "with null; x",
             .expectedCompletions = builtinIDs,
         },
-    };
+        {
+            .beforeCursor = "let a = 1; in { A = with ",
+            .afterCursor = "; B = 2 }",
+            .expectedCompletions = builtinIDsPlus({"a"}),
+            .expectedErrors = {"syntax error, unexpected ';'"},
+        }};
 
     bool good = true;
     for (auto& test : completionTests) {
