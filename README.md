@@ -8,7 +8,7 @@ Install using the flake:
 
 ```nix
 {
-    inputs.nix-analyzer.url = github:jm8/nix-analyzer
+    inputs.nix-analyzer.url = github:jm8/nix-analyzer;
     # ...
     home.packages = [
         nix-analyzer.packages.x86_64-linux.default
