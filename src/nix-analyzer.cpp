@@ -4,12 +4,14 @@
 #include "debug.h"
 
 #include "error.hh"
+#include "flake/flake.hh"
 #include "globals.hh"
 #include "nixexpr.hh"
 #include "url.hh"
 
 using namespace std;
 using namespace nix;
+using namespace nix::flake;
 
 NixAnalyzer::NixAnalyzer(const Strings& searchPath,
                          nix::ref<Store> store,
@@ -347,6 +349,31 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
             }
         }
         firstLambda = false;
+    }
+
+    if (file.type == FileType::Flake) {
+        Value vInfo;
+        try {
+            exprPath.back()->eval(*state, state->baseEnv, vInfo);
+        } catch (Error& e) {
+            log.info("Caught error: ", e.info().msg.str());
+            vInfo.mkNull();
+        }
+
+        auto sInputs = state->symbols.create("inputs");
+        vInfo.print(state->symbols, cerr);
+        cerr << endl;
+        if (vInfo.type() == nAttrs) {
+            if (auto inputsAttr = vInfo.attrs->get(sInputs)) {
+                state->forceValue(*inputsAttr->value, noPos);
+                inputsAttr->value->print(state->symbols, cerr);
+                cerr << endl;
+                auto inputs = parseFlakeInputs(*state, inputsAttr->value,
+                                               inputsAttr->pos, file.path, {});
+                for (auto& [flakeId, input] : inputs) {
+                }
+            }
+        }
     }
 
     return result;

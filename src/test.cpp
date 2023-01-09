@@ -905,7 +905,14 @@ int main(int argc, char** argv) {
             .afterCursor = "; B = 2 }",
             .expectedCompletions = builtinIDsPlus({"a"}),
             .expectedErrors = {"syntax error, unexpected ';'"},
-        }};
+        },
+        {
+            .beforeCursor = readFile("./flake.nix"),
+            .position = {{51, 22}},
+            .path = absPath("./flake.nix"),
+            .ftype = FileType::Flake,
+        },
+    };
 
     bool good = true;
     for (auto& test : completionTests) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include "config.h"
 
 #if HAVE_BOEHMGC
@@ -14,6 +15,7 @@
 #include "LibLsp/lsp/lsp_completion.h"
 #include "eval-inline.hh"
 #include "eval.hh"
+#include "flake/flake.hh"
 #include "get-drvs.hh"
 #include "globals.hh"
 #include "local-fs-store.hh"
@@ -27,6 +29,7 @@
 enum class FileType {
     None,
     Package,
+    Flake,
 };
 
 struct FileInfo {
@@ -114,6 +117,10 @@ struct NixAnalyzer
 
     // returns what attributes are expected to be on a direct child of parent
     std::optional<Schema> getSchema(nix::Expr* parent, nix::Expr* child);
+
+    std::pair<std::optional<nix::flake::Flake>,
+              std::vector<std::unique_ptr<nix::Error>>>
+    getFlake(nix::Expr* root);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);
