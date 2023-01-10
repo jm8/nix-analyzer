@@ -905,6 +905,11 @@ int main(int argc, char** argv) {
             .afterCursor = "; B = 2 }",
             .expectedCompletions = builtinIDsPlus({"a"}),
             .expectedErrors = {"syntax error, unexpected ';'"},
+        },
+        {
+            .beforeCursor = "({a, b}: a) { ",
+            .afterCursor = "}",
+            .expectedCompletions = {"a", "b"},
         }};
 
     bool good = true;
