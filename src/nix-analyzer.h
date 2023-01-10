@@ -113,7 +113,9 @@ struct NixAnalyzer
         FileInfo file);
 
     // returns what attributes are expected to be on a direct child of parent
-    std::optional<Schema> getSchema(nix::Expr* parent, nix::Expr* child);
+    std::optional<Schema> getSchema(nix::Env& env,
+                                    nix::Expr* parent,
+                                    nix::Expr* child);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);

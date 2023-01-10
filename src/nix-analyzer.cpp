@@ -90,7 +90,6 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
-        log.info("Completing ExprSelect FOR REAL");
         AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
         ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
@@ -117,7 +116,7 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         if (exprPath.size() == 1) {
             return {};
         }
-        if (auto schema = getSchema(exprPath[1], attrs)) {
+        if (auto schema = getSchema(*env, exprPath[1], attrs)) {
             vector<NACompletionItem> result;
             for (auto item : schema->items) {
                 result.push_back(
@@ -125,6 +124,7 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
             }
             return result;
         }
+        return {};
     }
 
     log.info("Defaulting to variable completion");
@@ -352,7 +352,8 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
     return result;
 }
 
-optional<Schema> NixAnalyzer::getSchema(Expr* parent, Expr* child) {
+optional<Schema> NixAnalyzer::getSchema(Env& env, Expr* parent, Expr* child) {
+    log.info("YO");
     if (auto call = dynamic_cast<ExprCall*>(parent)) {
         if (child == call->fun) {
             return {};
@@ -364,6 +365,24 @@ optional<Schema> NixAnalyzer::getSchema(Expr* parent, Expr* child) {
             (var && state->symbols[var->name] == "mkDerivation")) {
             log.info("Completing with schemaMkDerivation");
             return schemaMkDerivation;
+        }
+        Value v;
+        try {
+            call->fun->eval(*state, env, v);
+        } catch (Error& e) {
+            log.info("Caught error: ", e.info().msg.str());
+            return {};
+        }
+        if (!v.isLambda()) {
+            log.info("Trying to getSchema something that's not a lambda");
+            return {};
+        }
+        if (v.lambda.fun->hasFormals()) {
+            Schema schema;
+            for (auto formal : v.lambda.fun->formals->formals) {
+                schema.items.push_back({state->symbols[formal.name], ""});
+            }
+            return schema;
         }
     }
     return {};
