@@ -7,6 +7,7 @@
 #include "globals.hh"
 #include "nixexpr.hh"
 #include "url.hh"
+#include "value.hh"
 
 using namespace std;
 using namespace nix;
@@ -175,6 +176,32 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
             ;
     }
     return result;
+}
+
+optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
+    if (exprPath.empty()) {
+        return {};
+    };
+    log.info("Getting pos of ", exprTypeName(exprPath.front()));
+    auto lambdaArgs = calculateLambdaArgs(exprPath, file);
+    Env* env = calculateEnv(exprPath, lambdaArgs, file);
+    if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
+        Value v;
+        var->eval(*state, *env, v);
+        stringstream ss;
+        v.print(state->symbols, ss);
+        log.info("Determining pos from value ", ss.str());
+        PosIdx posIdx = v.determinePos(noPos);
+        if (v.type() == nAttrs) {
+            posIdx = v.attrs->pos;
+        }
+        if (posIdx) {
+            return {state->positions[posIdx]};
+        } else {
+            log.info("Pos doesn't exist.");
+        }
+    }
+    return {};
 }
 
 Env* NixAnalyzer::calculateEnv(vector<Expr*> exprPath,
@@ -353,7 +380,6 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
 }
 
 optional<Schema> NixAnalyzer::getSchema(Env& env, Expr* parent, Expr* child) {
-    log.info("YO");
     if (auto call = dynamic_cast<ExprCall*>(parent)) {
         if (child == call->fun) {
             return {};
