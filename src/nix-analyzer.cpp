@@ -187,7 +187,12 @@ optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
     if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
         Value v;
-        var->eval(*state, *env, v);
+        try {
+            var->eval(*state, *env, v);
+        } catch (Error& e) {
+            log.info("Caught error: ", e.info().msg.str());
+            v.mkNull();
+        }
         stringstream ss;
         v.print(state->symbols, ss);
         log.info("Determining pos from value ", ss.str());

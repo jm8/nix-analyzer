@@ -96,6 +96,72 @@ struct CompletionTest {
     }
 };
 
+struct GetPosTest {
+    string beforeCursor;
+    string afterCursor;
+    // position overrides before cursor and after cursor
+    optional<pair<uint32_t, uint32_t>> position;
+    string path;
+    FileType ftype;
+    optional<Pos> expectedPos;
+
+    bool run(NixAnalyzer& analyzer) {
+        string source = beforeCursor + afterCursor;
+        Pos pos;
+        if (position) {
+            pos = {path, foFile, position->first, position->second};
+        } else {
+            uint32_t line = 1;
+            uint32_t col = 1;
+            for (char c : beforeCursor) {
+                if (c == '\n') {
+                    line++;
+                    col = 1;
+                } else {
+                    col++;
+                }
+            }
+            pos = {source, foString, line, col};
+        }
+        cout << pos.file << "\n";
+        Path basePath = path.empty() ? absPath(".") : dirOf(path);
+        auto analysis = analyzer.getExprPath(source, path, basePath, pos);
+        optional<Pos> actualPos =
+            analyzer.getPos(analysis.exprPath, {path, ftype});
+
+        bool good = true;
+        if (actualPos.has_value() != expectedPos.has_value()) {
+            good = false;
+        }
+        if (expectedPos && actualPos) {
+            if (expectedPos->line != actualPos->line)
+                good = false;
+            if (expectedPos->column != actualPos->column)
+                good = false;
+            if (expectedPos->file != actualPos->file)
+                good = false;
+        }
+        if (good) {
+            cout << "PASS"
+                 << "\n\n";
+        } else {
+            if (expectedPos) {
+                cout << "EXPECTED: " << *expectedPos << "\n";
+            } else {
+                cout << "EXPECTED: none\n";
+            }
+            if (actualPos) {
+                cout << "ACTUAL: " << *actualPos << "\n";
+            } else {
+                cout << "ACTUAL: none\n";
+            }
+            cout << "FAIL"
+                 << "\n\n";
+        }
+        return good;
+    }
+};
+
 const vector<string> builtinIDs{
     "abort",      "baseNameOf",       "break",        "builtins",
     "derivation", "derivationStrict", "dirOf",        "false",
@@ -910,10 +976,24 @@ int main(int argc, char** argv) {
             .beforeCursor = "({a, b}: a) { ",
             .afterCursor = "}",
             .expectedCompletions = {"a", "b"},
-        }};
+        },
+    };
+
+    vector<GetPosTest> getPosTests{
+        {
+            .beforeCursor = "{pkgs}: with pkgs; graph",
+            .afterCursor = "viz",
+            .ftype = FileType::Package,
+            .expectedPos = {},
+        },
+    };
 
     bool good = true;
     for (auto& test : completionTests) {
+        if (!test.run(*analyzer))
+            good = false;
+    }
+    for (auto& test : getPosTests) {
         if (!test.run(*analyzer))
             good = false;
     }
