@@ -29,6 +29,7 @@
 #include "LibLsp/lsp/general/lsServerCapabilities.h"
 #include "LibLsp/lsp/general/lsTextDocumentClientCapabilities.h"
 #include "LibLsp/lsp/general/shutdown.h"
+#include "LibLsp/lsp/location_type.h"
 #include "LibLsp/lsp/lsAny.h"
 #include "LibLsp/lsp/lsDocumentUri.h"
 #include "LibLsp/lsp/lsMarkedString.h"
@@ -129,7 +130,7 @@ class NixLanguageServer {
         remoteEndPoint.sendNotification(notify);
     }
 
-    size_t findStartOfLne(string_view content, size_t line0indexed) {
+    size_t findStartOfLine(string_view content, size_t line0indexed) {
         size_t startOfLine = 0;
         for (size_t i = 0; i < line0indexed; i++) {
             size_t nextNewLine = content.find('\n', startOfLine);
@@ -157,7 +158,7 @@ class NixLanguageServer {
             log.info("Negative character value");
             return string_view::npos;
         }
-        return findStartOfLne(content, p.line) + p.character;
+        return findStartOfLine(content, p.line) + p.character;
     }
 
     // https://github.com/llvm/llvm-project/blob/b8576086c78a5aebf056a8fc8cc716dfee40b72e/clang-tools-extra/clangd/SourceCode.cpp#L1099
@@ -228,6 +229,7 @@ class NixLanguageServer {
             res.result.capabilities.documentLinkProvider = {
                 .resolveProvider = false,
             };
+            res.result.capabilities.definitionProvider = {{{true}, {}}};
             return res;
         });
 
@@ -263,12 +265,11 @@ class NixLanguageServer {
                 for (auto contentChange : notify.params.contentChanges) {
                     applyContentChange(content, contentChange);
                 }
-                // This is toooo slooow
-                // auto analysis = getExprPath(uri, {});
-                // if (!analysis) {
-                //     return;
-                // }
-                // publishDiagnostics(uri, analysis->parseErrors);
+                auto analysis = getExprPath(uri, {});
+                if (!analysis) {
+                    return;
+                }
+                publishDiagnostics(uri, analysis->parseErrors);
             });
 
         remoteEndPoint.registerHandler(
@@ -282,6 +283,31 @@ class NixLanguageServer {
             log.info("hover");
             td_hover::response res;
             res.result.contents = hoverMarkdown("Yoo **wassup**");
+            return res;
+        });
+
+        remoteEndPoint.registerHandler([&](const td_definition::request& req) {
+            log.info("goto definition");
+            td_definition::response res;
+            res.result.first = {vector<lsLocation>{}};
+            auto analysis = getExprPath(req.params.textDocument.uri,
+                                        {{req.params.position.line + 1,
+                                          req.params.position.character + 1}});
+            if (!analysis)
+                return res;
+
+            auto pos = analyzer->getPos(analysis->exprPath,
+                                        {analysis->path, FileType::Package});
+            if (!pos)
+                return res;
+
+            lsLocation location;
+            location.uri = lsDocumentUri{AbsolutePath{pos->file}};
+            log.info(location.uri.raw_uri_);
+            location.range.start = {static_cast<int>(pos->line - 1),
+                                    static_cast<int>(pos->column - 1)};
+            location.range.end = location.range.start;
+            res.result.first->push_back(location);
             return res;
         });
 

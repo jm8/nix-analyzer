@@ -93,6 +93,9 @@ struct NixAnalyzer
     std::vector<NACompletionItem> complete(std::vector<nix::Expr*> exprPath,
                                            FileInfo file);
 
+    std::optional<nix::Pos> getPos(std::vector<nix::Expr*> exprPath,
+                                   FileInfo file);
+
     nix::Env* calculateEnv(std::vector<nix::Expr*> exprPath,
                            std::vector<std::optional<nix::Value*>>,
                            FileInfo file);
