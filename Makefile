@@ -28,4 +28,3 @@ clean:
 	rm -rf build
 	rm -f nix-analyzer nix-analyzer-test
 	rm -f src/mkderivation-schema.h
-	$(MAKE) -C nix clean

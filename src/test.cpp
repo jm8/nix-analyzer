@@ -984,7 +984,8 @@ int main(int argc, char** argv) {
             .beforeCursor = "{pkgs}: with pkgs; graph",
             .afterCursor = "viz",
             .ftype = FileType::Package,
-            .expectedPos = {},
+            .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
+                               foFile, 7643, 3},
         },
     };
 
