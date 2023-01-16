@@ -52,6 +52,7 @@
 
 #include "error.hh"
 #include "eval.hh"
+#include "logging.hh"
 #include "nix-analyzer.h"
 #include "nixexpr.hh"
 #include "store-api.hh"
@@ -203,7 +204,18 @@ class NixLanguageServer {
             pos = {path, nix::foFile, 1, 1};
         }
 
-        log.info("Position for analysis: ", pos);
+        auto startOfLine = findStartOfLine(source, pos.line - 1);
+
+        size_t n = 0;
+        while (startOfLine + n < source.size() &&
+               source[startOfLine + n] != '\n' && n < 80) {
+            n++;
+        }
+        auto line = source.substr(startOfLine, n);
+
+        log.info("Analyzing ", uri.raw_uri_, ":", pos.line, ":", pos.column);
+        log.info(line);
+        log.info(string(pos.column - 1, ' ') + '^');
 
         return analyzer->getExprPath(source, path, basePath, pos);
     }
@@ -298,6 +310,7 @@ class NixLanguageServer {
 
             auto pos = analyzer->getPos(analysis->exprPath,
                                         {analysis->path, FileType::Package});
+
             if (!pos)
                 return res;
 
@@ -312,9 +325,9 @@ class NixLanguageServer {
         });
 
         remoteEndPoint.registerHandler([&](const td_links::request& req) {
-            log.info("documentLinks");
             td_links::response res;
             auto uri = req.params.textDocument.uri;
+            log.info("documentLinks: ", uri.raw_uri_);
             auto analysis = getExprPath(uri, {});
             if (!analysis) {
                 return res;
@@ -386,6 +399,7 @@ class NixLanguageServer {
 int main() {
     nix::initNix();
     nix::initGC();
+    nix::verbosity = nix::lvlVomit;
     nix::Strings searchPath;
     string cacheDir = nix::getHome() + "/.cache/nix-analyzer"s;
     boost::filesystem::create_directories(cacheDir);

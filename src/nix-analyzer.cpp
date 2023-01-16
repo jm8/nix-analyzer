@@ -43,6 +43,7 @@ Analysis NixAnalyzer::getExprPath(string source,
     vector<Expr*> exprPath;
     vector<Spanned<ExprPath*>> paths;
     vector<ParseError> errors;
+    log.info("P1");
     state->parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state->staticBaseEnv,
@@ -64,6 +65,7 @@ Analysis NixAnalyzer::getExprPath(string source,
             exprPath.push_back(e);
         },
         [&errors](ParseError error) { errors.push_back(error); });
+    log.info("P2");
     return {exprPath, errors, path, basePath, paths};
 }
 
