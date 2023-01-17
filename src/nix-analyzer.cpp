@@ -202,6 +202,22 @@ optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
             log.info("Pos doesn't exist.");
         }
     }
+    if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
+        Value v;
+        try {
+            // TODO: Evaluate up to the one that is selected.
+            select->eval(*state, *env, v);
+        } catch (Error& e) {
+            log.info("Caught error: ", e.info().msg.str());
+            v.mkNull();
+        }
+        PosIdx posIdx = v.definitionPos;
+        if (posIdx) {
+            return {state->positions[posIdx]};
+        } else {
+            log.info("Pos doesn't exist.");
+        }
+    }
     return {};
 }
 

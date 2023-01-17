@@ -138,7 +138,10 @@ struct GetPosTest {
                 good = false;
             if (expectedPos->column != actualPos->column)
                 good = false;
-            if (expectedPos->file != actualPos->file)
+            if (expectedPos->origin != actualPos->origin)
+                good = false;
+            if (expectedPos->origin == foFile &&
+                (expectedPos->file != actualPos->file))
                 good = false;
         }
         if (good) {
@@ -982,6 +985,18 @@ int main(int argc, char** argv) {
     vector<GetPosTest> getPosTests{
         {
             .beforeCursor = "{pkgs}: with pkgs; graph",
+            .afterCursor = "viz",
+            .ftype = FileType::Package,
+            .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
+                               foFile, 7643, 3},
+        },
+        {
+            .beforeCursor = "let apple = { banana = 2; }; in apple.ba",
+            .afterCursor = "nana",
+            .expectedPos = Pos{"", foString, 1, 15},
+        },
+        {
+            .beforeCursor = "{pkgs}: pkgs.graph",
             .afterCursor = "viz",
             .ftype = FileType::Package,
             .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
