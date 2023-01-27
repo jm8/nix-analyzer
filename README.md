@@ -1,5 +1,7 @@
 # nix-analyzer
 
+[![test](https://github.com/jm8/nix-analyzer/actions/workflows/test.yml/badge.svg)](https://github.com/jm8/nix-analyzer/actions/workflows/test.yml)
+
 A Nix language server that uses Nix to evaluate expressions.
 
 ## Installation
