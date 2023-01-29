@@ -324,8 +324,9 @@ class NixLanguageServer {
             auto analysis =
                 getExprPath(uri, {{req.params.position.line + 1,
                                    req.params.position.character + 1}});
+
             auto completions = analyzer->complete(
-                analysis->exprPath, {analysis->path, FileType::Package});
+                analysis->exprPath, {analysis->path, FileType::Flake});
 
             for (auto completion : completions) {
                 res.result.items.push_back({
