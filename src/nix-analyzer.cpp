@@ -68,6 +68,9 @@ Analysis NixAnalyzer::getExprPath(string source,
             exprPath.push_back(e);
         },
         [&errors](ParseError error) { errors.push_back(error); });
+    for (auto e : exprPath) {
+        log.info(exprTypeName(e));
+    }
     return {exprPath, errors, path, basePath, paths};
 }
 
@@ -455,33 +458,27 @@ in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.roo
             log.info("Caught error: ", e.info().msg.str());
             return result;
         }
-        vRes->print(state->symbols, cerr);
 
-        // log.info("reading flake inputs");
-        // Value vInfo;
-        // try {
-        //     exprPath.back()->eval(*state, state->baseEnv, vInfo);
-        // } catch (Error& e) {
-        //     log.info("Caught error: ", e.info().msg.str());
-        //     vInfo.mkNull();
-        // }
+        stringstream ss;
+        vRes->print(state->symbols, ss);
+        log.info("Flake inputs: ", ss.str());
 
-        // auto sInputs = state->symbols.create("inputs");
-        // vInfo.print(state->symbols, cerr);
-        // cerr << endl;
-        // if (vInfo.type() == nAttrs) {
-        //     if (auto inputsAttr = vInfo.attrs->get(sInputs)) {
-        //         state->forceValue(*inputsAttr->value, noPos);
-        //         inputsAttr->value->print(state->symbols, cerr);
-        //         cerr << endl;
-        //         auto inputs = parseFlakeInputs(*state, inputsAttr->value,
-        //                                        inputsAttr->pos, file.path,
-        //                                        {});
-        //         for (auto& [flakeId, input] : inputs) {
-        //             log.info("input: ", flakeId);
-        //         }
-        //     }
-        // }
+        auto root = dynamic_cast<ExprAttrs*>(exprPath.back());
+        if (!root) {
+            log.info("Flake does not start with attrs", ss.str());
+            return result;
+        }
+
+        auto outputs = root->attrs.find(state->sOutputs);
+        if (outputs == root->attrs.end()) {
+            log.info("Flake does not contain `outputs`");
+            return result;
+        }
+
+        if (exprPath.size() >= 2 &&
+            exprPath[exprPath.size() - 2] == outputs->second.e) {
+            result[exprPath.size() - 2] = vRes;
+        }
     }
 
     return result;

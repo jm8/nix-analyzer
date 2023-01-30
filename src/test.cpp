@@ -907,9 +907,15 @@ int main(int argc, char** argv) {
         },
         {
             .beforeCursor = readFile("./flake.nix"),
-            .position = {{51, 22}},
+            .position = {{21, 39}},
             .path = absPath("./flake.nix"),
             .ftype = FileType::Flake,
+            .expectedCompletions = {{"aarch64-darwin", "aarch64-linux",
+                                     "armv5tel-linux", "armv6l-linux",
+                                     "armv7l-linux", "i686-linux",
+                                     "mipsel-linux", "powerpc64le-linux",
+                                     "riscv64-linux", "x86_64-darwin",
+                                     "x86_64-linux"}},
         },
     };
 
