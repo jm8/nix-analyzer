@@ -124,8 +124,7 @@ int main(int argc, char** argv) {
 
     Strings searchPath;
     ::Logger log{"log.txt"};
-    auto analyzer =
-        make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"), log);
+    auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore(), log);
 
     Path allpackages{nixpkgs + "/pkgs/top-level/all-packages.nix"s};
     string allpackagesContent{readFile(allpackages)};

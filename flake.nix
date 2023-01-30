@@ -68,11 +68,7 @@
             '';
             installPhase = ''
               mkdir -p $out/{bin,lib}
-              cp nix-analyzer $out/bin
-            '';
-            doCheck = true;
-            checkPhase = ''
-              ./nix-analyzer-test ${nixpkgs}
+              cp {nix-analyzer,nix-analyzer-test} $out/bin
             '';
           };
           default = nix-analyzer;

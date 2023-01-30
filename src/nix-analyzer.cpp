@@ -379,6 +379,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
         state->eval(state->parseExprFromString(
                         // #include "flake/call-flake.nix.gen.hh"
                         R"(
+# Modified from call-flake.nix
 lockFileStr:
 
 let
@@ -391,9 +392,8 @@ let
         let
 
           sourceInfo =
-            if key == lockFile.root
-            then rootSrc
-            else fetchTree (node.info or {} // removeAttrs node.locked ["dir"]);
+            assert key != lockFile.root;
+            fetchTree (node.info or {} // removeAttrs node.locked ["dir"]);
 
           subdir = if key == lockFile.root then rootSubdir else node.locked.dir or "";
 
@@ -434,7 +434,7 @@ let
       )
       (builtins.removeAttrs lockFile.nodes [ lockFile.root ]);
 
-in lockFile
+in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.root}.inputs
                             )",
                         "/"),
                     **getFlakeInputs);
@@ -453,7 +453,7 @@ in lockFile
             state->callFunction(**getFlakeInputs, *vLocks, *vRes, noPos);
         } catch (Error& e) {
             log.info("Caught error: ", e.info().msg.str());
-            return {};
+            return result;
         }
         vRes->print(state->symbols, cerr);
 
