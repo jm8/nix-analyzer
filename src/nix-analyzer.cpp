@@ -1,9 +1,13 @@
 #include "nix-analyzer.h"
 #include <iostream>
+#include <memory>
 #include <sstream>
+#include <variant>
 #include "debug.h"
 
 #include "error.hh"
+#include "flake/flake.hh"
+#include "flake/lockfile.hh"
 #include "globals.hh"
 #include "nixexpr.hh"
 #include "url.hh"
@@ -11,6 +15,7 @@
 
 using namespace std;
 using namespace nix;
+using namespace nix::flake;
 
 NixAnalyzer::NixAnalyzer(const Strings& searchPath,
                          nix::ref<Store> store,
@@ -43,7 +48,6 @@ Analysis NixAnalyzer::getExprPath(string source,
     vector<Expr*> exprPath;
     vector<Spanned<ExprPath*>> paths;
     vector<ParseError> errors;
-    log.info("P1");
     state->parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state->staticBaseEnv,
@@ -65,7 +69,6 @@ Analysis NixAnalyzer::getExprPath(string source,
             exprPath.push_back(e);
         },
         [&errors](ParseError error) { errors.push_back(error); });
-    log.info("P2");
     return {exprPath, errors, path, basePath, paths};
 }
 
@@ -391,6 +394,130 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
             }
         }
         firstLambda = false;
+    }
+
+    if (file.type == FileType::Flake) {
+        auto flakeDotNixPos = file.path.find("/flake.nix");
+        if (flakeDotNixPos == std::string::npos) {
+            return result;
+        }
+        auto flakeDir = file.path.substr(0, flakeDotNixPos);
+        auto lockFilePath = flakeDir + "/flake.lock";
+        log.info("lockFilePath: ", lockFilePath);
+        auto lockFile = LockFile::read(lockFilePath);
+
+        // for (auto& [key, node] : lockFile.getAllInputs()) {
+        //     if (holds_alternative<shared_ptr<LockedNode>>(node)) {
+        //         auto lockedNode = get<shared_ptr<LockedNode>>(node);
+        //         for (const auto& s : key) {
+        //             cerr << s << " ";
+        //         }
+        //         log.info(
+        //             lockedNode->computeStorePath(*state->store).to_string());
+        //     }
+        // }
+
+        auto getFlakeInputs = allocRootValue(state->allocValue());
+        state->eval(state->parseExprFromString(
+                        // #include "flake/call-flake.nix.gen.hh"
+                        R"(
+# Modified from call-flake.nix
+lockFileStr:
+
+let
+
+  lockFile = builtins.fromJSON lockFileStr;
+
+  allNodes =
+    builtins.mapAttrs
+      (key: node:
+        let
+
+          sourceInfo =
+            assert key != lockFile.root;
+            fetchTree (node.info or {} // removeAttrs node.locked ["dir"]);
+
+          subdir = if key == lockFile.root then rootSubdir else node.locked.dir or "";
+
+          flake = import (sourceInfo + (if subdir != "" then "/" else "") + subdir + "/flake.nix");
+
+          inputs = builtins.mapAttrs
+            (inputName: inputSpec: allNodes.${resolveInput inputSpec})
+            (node.inputs or {});
+
+          # Resolve a input spec into a node name. An input spec is
+          # either a node name, or a 'follows' path from the root
+          # node.
+          resolveInput = inputSpec:
+              if builtins.isList inputSpec
+              then getInputByPath lockFile.root inputSpec
+              else inputSpec;
+
+          # Follow an input path (e.g. ["dwarffs" "nixpkgs"]) from the
+          # root node, returning the final node.
+          getInputByPath = nodeName: path:
+            if path == []
+            then nodeName
+            else
+              getInputByPath
+                # Since this could be a 'follows' input, call resolveInput.
+                (resolveInput lockFile.nodes.${nodeName}.inputs.${builtins.head path})
+                (builtins.tail path);
+
+          outputs = flake.outputs (inputs // { self = result; });
+
+          result = outputs // sourceInfo // { inherit inputs; inherit outputs; inherit sourceInfo; _type = "flake"; };
+        in
+          if node.flake or true then
+            assert builtins.isFunction flake.outputs;
+            result
+          else
+            sourceInfo
+      )
+      (builtins.removeAttrs lockFile.nodes [ lockFile.root ]);
+
+in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.root}.inputs
+                            )",
+                        "/"),
+                    **getFlakeInputs);
+
+        auto vLocks = state->allocValue();
+        auto vRootSrc = state->allocValue();
+        auto vRootSubdir = state->allocValue();
+        auto vRes = state->allocValue();
+
+        vLocks->mkString(lockFile.to_string());
+        vRootSrc->mkAttrs(0);
+        vRootSubdir->mkString("");
+
+        try {
+            log.info("Point A");
+            state->callFunction(**getFlakeInputs, *vLocks, *vRes, noPos);
+        } catch (Error& e) {
+            log.info("Caught error: ", e.info().msg.str());
+            return result;
+        }
+
+        stringstream ss;
+        vRes->print(state->symbols, ss);
+        log.info("Flake inputs: ", ss.str());
+
+        auto root = dynamic_cast<ExprAttrs*>(exprPath.back());
+        if (!root) {
+            log.info("Flake does not start with attrs", ss.str());
+            return result;
+        }
+
+        auto outputs = root->attrs.find(state->sOutputs);
+        if (outputs == root->attrs.end()) {
+            log.info("Flake does not contain `outputs`");
+            return result;
+        }
+
+        if (exprPath.size() >= 2 &&
+            exprPath[exprPath.size() - 2] == outputs->second.e) {
+            result[exprPath.size() - 2] = vRes;
+        }
     }
 
     return result;

@@ -193,8 +193,7 @@ int main(int argc, char** argv) {
 
     Strings searchPath;
     ::Logger log{"log.txt"};
-    auto analyzer =
-        make_unique<NixAnalyzer>(searchPath, openStore("file:dummy"), log);
+    auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore(), log);
 
     Path allpackages{nixpkgs + "/pkgs/top-level/all-packages.nix"s};
     string allpackagesContent{readFile(allpackages)};
@@ -979,6 +978,18 @@ int main(int argc, char** argv) {
             .beforeCursor = "({a, b}: a) { ",
             .afterCursor = "}",
             .expectedCompletions = {"a", "b"},
+        },
+        {
+            .beforeCursor = readFile("./flake.nix"),
+            .position = {{21, 39}},
+            .path = absPath("./flake.nix"),
+            .ftype = FileType::Flake,
+            .expectedCompletions = {"aarch64-darwin", "aarch64-linux",
+                                    "armv5tel-linux", "armv6l-linux",
+                                    "armv7l-linux", "i686-linux",
+                                    "mipsel-linux", "powerpc64le-linux",
+                                    "riscv64-linux", "x86_64-darwin",
+                                    "x86_64-linux"},
         },
     };
 

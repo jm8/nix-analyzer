@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include "config.h"
 
 #if HAVE_BOEHMGC
@@ -14,6 +15,7 @@
 #include "LibLsp/lsp/lsp_completion.h"
 #include "eval-inline.hh"
 #include "eval.hh"
+#include "flake/flake.hh"
 #include "get-drvs.hh"
 #include "globals.hh"
 #include "local-fs-store.hh"
@@ -27,6 +29,7 @@
 enum class FileType {
     None,
     Package,
+    Flake,
 };
 
 struct FileInfo {
