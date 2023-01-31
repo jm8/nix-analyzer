@@ -100,13 +100,14 @@ optional<string> derivationString(EvalState& state, Value& v) {
         return {};
     }
     stringstream ss;
-    ss << "«derivation ";
-    Bindings::iterator i = v.attrs->find(state.sDrvPath);
-    PathSet context;
-    Path drvPath = i != v.attrs->end()
-                       ? state.coerceToPath(i->pos, *i->value, context)
-                       : "???";
-    ss << drvPath << "»";
+    ss << "«derivation»";
+    // getting the derivation path is too slow because it has to instantiate
+    // Bindings::iterator i = v.attrs->find(state.sDrvPath);
+    // PathSet context;
+    // Path drvPath = i != v.attrs->end()
+    //                    ? state.coerceToPath(i->pos, *i->value, context)
+    //                    : "???";
+    // ss << drvPath << "»";
     return {ss.str()};
 }
 
