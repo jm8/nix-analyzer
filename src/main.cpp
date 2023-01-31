@@ -2,6 +2,7 @@
 #include <boost/algorithm/string/find.hpp>
 #include <boost/filesystem.hpp>
 #include <cstddef>
+#include <mutex>
 #include <network/uri.hpp>
 
 #include <fstream>
@@ -91,6 +92,9 @@ class NixLanguageServer {
     RemoteEndPoint remoteEndPoint;
     Logger& log;
     unique_ptr<NixAnalyzer> analyzer;
+    // prevent other things from happening while contentChange is happening.
+    // guh
+    mutex contentChangeMutex;
     // map from uri to document content
     unordered_map<string, Document> documents;
 
@@ -113,22 +117,7 @@ class NixLanguageServer {
 
     void publishDiagnostics(lsDocumentUri uri,
                             const vector<nix::ParseError> parseErrors) {
-        log.info("Publishing diagnostics to ", uri.raw_uri_);
-        TextDocumentPublishDiagnostics::Params params;
-        params.uri = uri;
-        for (const auto& error : parseErrors) {
-            lsDiagnostic diagnostic;
-            if (auto pos = error.info().errPos) {
-                diagnostic.range.start = {pos->line - 1, pos->column - 1};
-                diagnostic.range.end = {pos->line - 1, pos->column + 5};
-                diagnostic.message =
-                    nix::filterANSIEscapes(error.info().msg.str(), true);
-                params.diagnostics.push_back(diagnostic);
-            }
-        }
-        Notify_TextDocumentPublishDiagnostics::notify notify;
-        notify.params = params;
-        remoteEndPoint.sendNotification(notify);
+        // stop publishing parse errors cause they're not very good
     }
 
     size_t findStartOfLine(string_view content, size_t line0indexed) {
@@ -165,6 +154,9 @@ class NixLanguageServer {
     // https://github.com/llvm/llvm-project/blob/b8576086c78a5aebf056a8fc8cc716dfee40b72e/clang-tools-extra/clangd/SourceCode.cpp#L1099
     void applyContentChange(string& content,
                             lsTextDocumentContentChangeEvent change) {
+        log.info("Applying content change: ''");
+        log.info(change.text);
+        log.info("''");
         if (!change.range) {
             content = change.text;
             return;
@@ -262,26 +254,17 @@ class NixLanguageServer {
                 log.info("didOpen: ", uri.raw_uri_);
                 documents[uri.raw_uri_].text = {
                     notify.params.textDocument.text};
-                auto analysis = getExprPath(uri, {});
-                if (!analysis) {
-                    return;
-                }
-                publishDiagnostics(uri, analysis->parseErrors);
             });
 
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidChange::notify& notify) {
+                lock_guard<mutex> lock(contentChangeMutex);
                 auto uri = notify.params.textDocument.uri;
                 log.info("didChange: ", uri.raw_uri_);
                 string& content = documents[uri.raw_uri_].text;
                 for (auto contentChange : notify.params.contentChanges) {
                     applyContentChange(content, contentChange);
                 }
-                auto analysis = getExprPath(uri, {});
-                if (!analysis) {
-                    return;
-                }
-                publishDiagnostics(uri, analysis->parseErrors);
             });
 
         remoteEndPoint.registerHandler(
@@ -292,6 +275,7 @@ class NixLanguageServer {
             });
 
         remoteEndPoint.registerHandler([&](const td_hover::request& req) {
+            lock_guard<mutex> lock(contentChangeMutex);
             log.info("hover");
             td_hover::response res;
             auto analysis = getExprPath(req.params.textDocument.uri,
@@ -312,6 +296,7 @@ class NixLanguageServer {
         });
 
         remoteEndPoint.registerHandler([&](const td_definition::request& req) {
+            lock_guard<mutex> lock(contentChangeMutex);
             log.info("goto definition");
             td_definition::response res;
             res.result.first = {vector<lsLocation>{}};
@@ -340,6 +325,7 @@ class NixLanguageServer {
         });
 
         remoteEndPoint.registerHandler([&](const td_completion::request& req) {
+            lock_guard<mutex> lock(contentChangeMutex);
             log.info("completion");
             td_completion::response res;
             auto uri = req.params.textDocument.uri;
