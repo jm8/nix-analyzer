@@ -55,8 +55,9 @@ struct CompletionTest {
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
         vector<string> actualCompletions;
-        for (auto completionItem :
-             analyzer.complete(analysis.exprPath, {path, ftype})) {
+        auto [completionType, completionItems] =
+            analyzer.complete(analysis.exprPath, {path, ftype});
+        for (auto completionItem : completionItems) {
             actualCompletions.push_back(completionItem.text);
         }
         sort(expectedCompletions.begin(), expectedCompletions.end());

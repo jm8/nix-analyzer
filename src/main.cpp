@@ -332,18 +332,24 @@ class NixLanguageServer {
                 getExprPath(uri, {{req.params.position.line + 1,
                                    req.params.position.character + 1}});
 
-            auto completions = analyzer->complete(
+            auto [completionType, completions] = analyzer->complete(
                 analysis->exprPath, {analysis->path, FileType::Flake});
-
+            if (req.params.context->triggerCharacter == "." &&
+                completionType == NACompletionType::Variable) {
+                log.info(
+                    "Completion was triggered with `.` but the completion kind "
+                    "is not Variable. Ignoring");
+                return res;
+            }
             for (auto completion : completions) {
                 res.result.items.push_back({
                     .label = completion.text,
-                    .kind = {completion.type},
+                    .kind = {completionType},
                     .documentation =
                         completion.documentation
                             ? docMarkdown(*completion.documentation)
                             : std::nullopt,
-                    .commitCharacters = {{".", "/"}},
+                    .commitCharacters = {{"."}},
                 });
             }
             return res;

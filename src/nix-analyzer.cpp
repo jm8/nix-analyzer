@@ -73,8 +73,9 @@ Analysis NixAnalyzer::getExprPath(string source,
     return {exprPath, errors, path, basePath, paths};
 }
 
-vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
-                                               FileInfo file) {
+pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
+    vector<Expr*> exprPath,
+    FileInfo file) {
     if (exprPath.empty()) {
         log.info("Completing empty exprPath");
         vector<NACompletionItem> result;
@@ -85,10 +86,9 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
                 // underscore
                 continue;
             }
-            result.push_back(NACompletionItem{
-                string(sym), NACompletionItem::Type::Variable});
+            result.push_back(NACompletionItem{string(sym)});
         }
-        return result;
+        return {NACompletionType::Variable, result};
     }
 
     log.info("Completing ", exprTypeName(exprPath.front()));
@@ -113,10 +113,9 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         }
         vector<NACompletionItem> result;
         for (auto attr : *v.attrs) {
-            result.push_back(
-                {state->symbols[attr.name], NACompletionItem::Type::Property});
+            result.push_back({state->symbols[attr.name]});
         }
-        return result;
+        return {NACompletionType::Property, result};
     }
 
     if (auto attrs = dynamic_cast<ExprAttrs*>(exprPath.front())) {
@@ -126,10 +125,9 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         if (auto schema = getSchema(*env, exprPath[1], attrs)) {
             vector<NACompletionItem> result;
             for (auto item : schema->items) {
-                result.push_back(
-                    {item.name, NACompletionItem::Type::Field, item.doc});
+                result.push_back({item.name, item.doc});
             }
-            return result;
+            return {NACompletionType::Field, result};
         }
         return {};
     }
@@ -145,7 +143,7 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
                 // underscore
                 continue;
             }
-            result.push_back({string(sym), NACompletionItem::Type::Variable});
+            result.push_back({string(sym)});
         }
         se = se->up;
     }
@@ -171,8 +169,7 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         if (env->type == Env::HasWithAttrs) {
             for (auto binding : *env->values[0]->attrs) {
                 log.info("Binding ", state->symbols[binding.name]);
-                result.push_back({state->symbols[binding.name],
-                                  NACompletionItem::Type::Variable});
+                result.push_back({state->symbols[binding.name]});
             }
         }
         if (!env->prevWith) {
@@ -181,7 +178,7 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
         for (size_t l = env->prevWith; l; --l, env = env->up)
             ;
     }
-    return result;
+    return {NACompletionType::Variable, result};
 }
 
 optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
