@@ -6,6 +6,7 @@
 #include "debug.h"
 
 #include "error.hh"
+#include "eval.hh"
 #include "flake/flake.hh"
 #include "flake/lockfile.hh"
 #include "globals.hh"
@@ -220,6 +221,14 @@ optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
         } else {
             log.info("Pos doesn't exist.");
         }
+    }
+    if (auto path = dynamic_cast<ExprPath*>(exprPath.front())) {
+        Path resolved = path->s;
+        try {
+            resolved = nix::resolveExprPath(resolved);
+        } catch (Error& e) {
+        }
+        return {{resolved, foFile, 1, 1}};
     }
     return {};
 }

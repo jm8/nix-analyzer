@@ -324,38 +324,6 @@ class NixLanguageServer {
             return res;
         });
 
-        remoteEndPoint.registerHandler([&](const td_links::request& req) {
-            td_links::response res;
-            auto uri = req.params.textDocument.uri;
-            log.info("documentLinks: ", uri.raw_uri_);
-            auto analysis = getExprPath(uri, {});
-            if (!analysis) {
-                return res;
-            }
-            if (analysis->paths.empty()) {
-                log.info("No paths");
-                return res;
-            }
-
-            for (auto spannedExprPath : analysis->paths) {
-                lsDocumentLink link;
-                link.range = {
-                    {static_cast<int>(spannedExprPath.start.line - 1),
-                     static_cast<int>(spannedExprPath.start.column - 1)},
-                    {static_cast<int>(spannedExprPath.end.line - 1),
-                     static_cast<int>(spannedExprPath.end.column - 1)}};
-                string path = spannedExprPath.value->s;
-                try {
-                    path = nix::resolveExprPath(path);
-                } catch (nix::Error& e) {
-                }
-                link.target = lsDocumentUri{};
-                link.target->SetPath(path);
-                res.result.push_back(link);
-            }
-            return res;
-        });
-
         remoteEndPoint.registerHandler([&](const td_completion::request& req) {
             log.info("completion");
             td_completion::response res;
