@@ -34,9 +34,16 @@ enum class FileType {
 
 struct FileInfo {
     nix::Path path;
+
+    FileInfo();
+    explicit FileInfo(nix::Path);
+    FileInfo(nix::Path, FileType);
+
     FileType type;
     nix::Path nixpkgs();
 };
+
+nix::Path getDefaultNixpkgs();
 
 template <typename T>
 struct Spanned {

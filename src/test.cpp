@@ -57,7 +57,7 @@ struct CompletionTest {
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
         vector<string> actualCompletions;
         auto [completionType, completionItems] =
-            analyzer.complete(analysis.exprPath, {path, ftype});
+            analyzer.complete(analysis.exprPath, FileInfo{path});
         for (auto completionItem : completionItems) {
             actualCompletions.push_back(completionItem.text);
         }

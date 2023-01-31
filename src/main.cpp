@@ -85,6 +85,7 @@ string stringify(T x) {
 
 struct Document {
     string text;
+    FileInfo fileinfo;
 };
 
 class NixLanguageServer {
@@ -212,6 +213,15 @@ class NixLanguageServer {
         return analyzer->getExprPath(source, path, basePath, pos);
     }
 
+    FileInfo getDocumentFileInfo(lsDocumentUri uri) {
+        auto it = documents.find(uri.raw_uri_);
+        if (it != documents.end()) {
+            return it->second.fileinfo;
+        } else {
+            return FileInfo{uri.GetAbsolutePath().path};
+        }
+    }
+
     NixLanguageServer(nix::Strings searchPath,
                       nix::ref<nix::Store> store,
                       Logger& log)
@@ -252,8 +262,9 @@ class NixLanguageServer {
             [&](Notify_TextDocumentDidOpen::notify& notify) {
                 auto uri = notify.params.textDocument.uri;
                 log.info("didOpen: ", uri.raw_uri_);
-                documents[uri.raw_uri_].text = {
-                    notify.params.textDocument.text};
+                documents[uri.raw_uri_] = {
+                    notify.params.textDocument.text,
+                    FileInfo{uri.GetAbsolutePath().path}};
             });
 
         remoteEndPoint.registerHandler(
@@ -285,7 +296,8 @@ class NixLanguageServer {
                 return res;
 
             auto hoverResult = analyzer->hover(
-                analysis->exprPath, {analysis->path, FileType::Package});
+                analysis->exprPath,
+                getDocumentFileInfo(req.params.textDocument.uri));
 
             if (!hoverResult.text)
                 return res;
@@ -307,7 +319,8 @@ class NixLanguageServer {
                 return res;
 
             auto hoverResult = analyzer->hover(
-                analysis->exprPath, {analysis->path, FileType::Package});
+                analysis->exprPath,
+                getDocumentFileInfo(req.params.textDocument.uri));
 
             if (!hoverResult.pos)
                 return res;
@@ -334,7 +347,8 @@ class NixLanguageServer {
                                    req.params.position.character + 1}});
 
             auto [completionType, completions] = analyzer->complete(
-                analysis->exprPath, {analysis->path, FileType::Flake});
+                analysis->exprPath,
+                getDocumentFileInfo(req.params.textDocument.uri));
             if (req.params.context->triggerCharacter == "." &&
                 completionType == NACompletionType::Variable) {
                 log.info(

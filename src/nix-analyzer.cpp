@@ -566,6 +566,24 @@ optional<Schema> NixAnalyzer::getSchema(Env& env, Expr* parent, Expr* child) {
     return {};
 }
 
-Path FileInfo::nixpkgs() {
+FileInfo::FileInfo() : path(""), type(FileType::None) {
+}
+
+FileInfo::FileInfo(Path path) : path(path) {
+    if (path.find("flake.nix") != string::npos) {
+        type = FileType::Flake;
+    } else {
+        type = FileType::Package;
+    }
+}
+
+FileInfo::FileInfo(Path path, FileType ftype) : path(path), type(ftype) {
+}
+
+Path getDefaultNixpkgs() {
     return "/nix/store/xif4dbqvi7bmcwfxiqqhq0nr7ax07liw-source";
+}
+
+Path FileInfo::nixpkgs() {
+    return getDefaultNixpkgs();
 }
