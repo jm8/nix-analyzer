@@ -585,5 +585,11 @@ Path getDefaultNixpkgs() {
 }
 
 Path FileInfo::nixpkgs() {
+    auto it = path.find("/pkgs/");
+    if (it != string::npos) {
+        auto prefix = path.substr(0, it);
+        // todo: check if it's sensible
+        return prefix;
+    }
     return getDefaultNixpkgs();
 }
