@@ -991,6 +991,10 @@ int main(int argc, char** argv) {
                                     "riscv64-linux", "x86_64-darwin",
                                     "x86_64-linux"},
         },
+        {
+            .beforeCursor = " let a = undefinedvariable; in aaa",
+            .expectedCompletions = builtinIDsPlus({"a"}),
+        },
     };
 
     vector<GetPosTest> getPosTests{

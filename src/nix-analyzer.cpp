@@ -186,9 +186,10 @@ vector<NACompletionItem> NixAnalyzer::complete(vector<Expr*> exprPath,
 
 optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
     if (exprPath.empty()) {
+        log.info("getPos of empty exprPath");
         return {};
     };
-    log.info("Getting pos of ", exprTypeName(exprPath.front()));
+    log.info("getPos of ", exprTypeName(exprPath.front()));
     auto lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
     if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
@@ -236,12 +237,14 @@ optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
 Env* NixAnalyzer::calculateEnv(vector<Expr*> exprPath,
                                vector<optional<Value*>> lambdaArgs,
                                FileInfo file) {
+    log.info("Entering calculateEnv");
     Env* env = &state->baseEnv;
     for (size_t i = exprPath.size() - 1; i >= 1; i--) {
         Expr* child = exprPath[i - 1];
         Expr* parent = exprPath[i];
         env = updateEnv(parent, child, env, lambdaArgs[i]);
     }
+    log.info("Leaving calculateEnv");
     return env;
 }
 
@@ -260,8 +263,14 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
         bool useSuperEnv = false;
 
         for (auto& [symbol, attrDef] : let->attrs->attrs) {
-            env2->values[displ++] =
-                attrDef.e->maybeThunk(*state, attrDef.inherited ? *up : *env2);
+            try {
+                env2->values[displ] = attrDef.e->maybeThunk(
+                    *state, attrDef.inherited ? *up : *env2);
+            } catch (Error& e) {
+                env2->values[displ] = state->allocValue();
+                env2->values[displ]->mkNull();
+            }
+            displ++;
             if (attrDef.e == child && attrDef.inherited)
                 useSuperEnv = true;
         }
@@ -378,6 +387,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
     if (exprPath.empty()) {
         return {};
     }
+    log.info("Entering calculateLambdaArgs");
     vector<optional<Value*>> result(exprPath.size());
 
     bool firstLambda = true;
@@ -414,17 +424,6 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
         auto lockFilePath = flakeDir + "/flake.lock";
         log.info("lockFilePath: ", lockFilePath);
         auto lockFile = LockFile::read(lockFilePath);
-
-        // for (auto& [key, node] : lockFile.getAllInputs()) {
-        //     if (holds_alternative<shared_ptr<LockedNode>>(node)) {
-        //         auto lockedNode = get<shared_ptr<LockedNode>>(node);
-        //         for (const auto& s : key) {
-        //             cerr << s << " ";
-        //         }
-        //         log.info(
-        //             lockedNode->computeStorePath(*state->store).to_string());
-        //     }
-        // }
 
         auto getFlakeInputs = allocRootValue(state->allocValue());
         state->eval(state->parseExprFromString(
@@ -500,7 +499,6 @@ in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.roo
         vRootSubdir->mkString("");
 
         try {
-            log.info("Point A");
             state->callFunction(**getFlakeInputs, *vLocks, *vRes, noPos);
         } catch (Error& e) {
             log.info("Caught error: ", e.info().msg.str());
@@ -528,6 +526,8 @@ in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.roo
             result[exprPath.size() - 2] = vRes;
         }
     }
+
+    log.info("Leaving calculateLambdaArgs");
 
     return result;
 }
