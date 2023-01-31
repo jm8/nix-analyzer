@@ -1,6 +1,7 @@
 #include "debug.h"
 #include <sstream>
 #include "eval.hh"
+#include "value.hh"
 
 using namespace std;
 using namespace nix;
@@ -84,8 +85,37 @@ const char* exprTypeName(nix::Expr* e) {
     return "???";
 }
 
+optional<string> derivationString(EvalState& state, Value& v) {
+    if (v.type() != nAttrs) {
+        return {};
+    }
+    auto it = v.attrs->find(state.sType);
+    if (it == v.attrs->end()) {
+        return {};
+    }
+    if (it->value->type() != nString) {
+        return {};
+    }
+    if (string_view{it->value->string.s} != "derivation") {
+        return {};
+    }
+    stringstream ss;
+    ss << "«derivation ";
+    Bindings::iterator i = v.attrs->find(state.sDrvPath);
+    PathSet context;
+    Path drvPath = i != v.attrs->end()
+                       ? state.coerceToPath(i->pos, *i->value, context)
+                       : "???";
+    ss << drvPath << "»";
+    return {ss.str()};
+}
+
 string stringifyValue(EvalState& state, Value& v) {
     stringstream ss;
-    v.print(state.symbols, ss);
+    if (auto drvstring = derivationString(state, v)) {
+        return *drvstring;
+    } else {
+        v.print(state.symbols, ss);
+    }
     return ss.str();
 }

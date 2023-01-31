@@ -76,8 +76,8 @@ struct NACompletionItem {
 };
 
 struct NAHoverResult {
-    std::string text;
-    nix::Pos pos;
+    std::optional<std::string> text;
+    std::optional<nix::Pos> pos;
 };
 
 struct NixAnalyzer
@@ -101,8 +101,7 @@ struct NixAnalyzer
         std::vector<nix::Expr*> exprPath,
         FileInfo file);
 
-    std::optional<NAHoverResult> hover(std::vector<nix::Expr*> exprPath,
-                                       FileInfo file);
+    NAHoverResult hover(std::vector<nix::Expr*> exprPath, FileInfo file);
 
     nix::Env* calculateEnv(std::vector<nix::Expr*> exprPath,
                            std::vector<std::optional<nix::Value*>>,

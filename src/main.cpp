@@ -303,11 +303,11 @@ class NixLanguageServer {
             auto hoverResult = analyzer->hover(
                 analysis->exprPath, {analysis->path, FileType::Package});
 
-            if (!hoverResult)
+            if (!hoverResult.text)
                 return res;
 
             res.result.contents =
-                hoverMarkdown("```nix\n" + hoverResult->text + "\n```");
+                hoverMarkdown("```nix\n" + *hoverResult.text + "\n```");
             return res;
         });
 
@@ -324,10 +324,10 @@ class NixLanguageServer {
             auto hoverResult = analyzer->hover(
                 analysis->exprPath, {analysis->path, FileType::Package});
 
-            if (!hoverResult)
+            if (!hoverResult.pos)
                 return res;
 
-            auto pos = hoverResult->pos;
+            auto pos = *hoverResult.pos;
 
             lsLocation location;
             location.uri = lsDocumentUri{AbsolutePath{pos.file}};

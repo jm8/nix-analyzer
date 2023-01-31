@@ -181,13 +181,12 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     return {NACompletionType::Variable, result};
 }
 
-optional<NAHoverResult> NixAnalyzer::hover(vector<Expr*> exprPath,
-                                           FileInfo file) {
+NAHoverResult NixAnalyzer::hover(vector<Expr*> exprPath, FileInfo file) {
     if (exprPath.empty()) {
-        log.info("getPos of empty exprPath");
+        log.info("hover of empty exprPath");
         return {};
     };
-    log.info("getPos of ", exprTypeName(exprPath.front()));
+    log.info("hover of ", exprTypeName(exprPath.front()));
     auto lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
     if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
@@ -200,9 +199,10 @@ optional<NAHoverResult> NixAnalyzer::hover(vector<Expr*> exprPath,
         }
         PosIdx posIdx = v.definitionPos;
         if (posIdx) {
-            return {{stringifyValue(*state, v), state->positions[posIdx]}};
+            return {{stringifyValue(*state, v)}, {state->positions[posIdx]}};
         } else {
             log.info("Pos doesn't exist.");
+            return {{stringifyValue(*state, v)}, {}};
         }
     }
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
@@ -216,9 +216,10 @@ optional<NAHoverResult> NixAnalyzer::hover(vector<Expr*> exprPath,
         }
         PosIdx posIdx = v.definitionPos;
         if (posIdx) {
-            return {{stringifyValue(*state, v), state->positions[posIdx]}};
+            return {{stringifyValue(*state, v)}, {state->positions[posIdx]}};
         } else {
             log.info("Pos doesn't exist.");
+            return {{stringifyValue(*state, v)}, {}};
         }
     }
     if (auto path = dynamic_cast<ExprPath*>(exprPath.front())) {
@@ -227,7 +228,7 @@ optional<NAHoverResult> NixAnalyzer::hover(vector<Expr*> exprPath,
             resolved = nix::resolveExprPath(resolved);
         } catch (Error& e) {
         }
-        return {{resolved, {resolved, foFile, 1, 1}}};
+        return {{resolved}, {{resolved, foFile, 1, 1}}};
     }
     return {};
 }

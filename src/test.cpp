@@ -129,8 +129,7 @@ struct GetPosTest {
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
         auto hoverResult = analyzer.hover(analysis.exprPath, {path, ftype});
-        auto actualPos =
-            hoverResult ? optional<Pos>{hoverResult->pos} : nullopt;
+        auto actualPos = hoverResult.pos;
 
         bool good = true;
         if (actualPos.has_value() != expectedPos.has_value()) {
