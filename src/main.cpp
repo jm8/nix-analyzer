@@ -294,7 +294,20 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler([&](const td_hover::request& req) {
             log.info("hover");
             td_hover::response res;
-            res.result.contents = hoverMarkdown("Yoo **wassup**");
+            auto analysis = getExprPath(req.params.textDocument.uri,
+                                        {{req.params.position.line + 1,
+                                          req.params.position.character + 1}});
+            if (!analysis)
+                return res;
+
+            auto hoverResult = analyzer->hover(
+                analysis->exprPath, {analysis->path, FileType::Package});
+
+            if (!hoverResult)
+                return res;
+
+            res.result.contents =
+                hoverMarkdown("```nix\n" + hoverResult->text + "\n```");
             return res;
         });
 
@@ -308,17 +321,19 @@ class NixLanguageServer {
             if (!analysis)
                 return res;
 
-            auto pos = analyzer->getPos(analysis->exprPath,
-                                        {analysis->path, FileType::Package});
+            auto hoverResult = analyzer->hover(
+                analysis->exprPath, {analysis->path, FileType::Package});
 
-            if (!pos)
+            if (!hoverResult)
                 return res;
 
+            auto pos = hoverResult->pos;
+
             lsLocation location;
-            location.uri = lsDocumentUri{AbsolutePath{pos->file}};
+            location.uri = lsDocumentUri{AbsolutePath{pos.file}};
             log.info(location.uri.raw_uri_);
-            location.range.start = {static_cast<int>(pos->line - 1),
-                                    static_cast<int>(pos->column - 1)};
+            location.range.start = {static_cast<int>(pos.line - 1),
+                                    static_cast<int>(pos.column - 1)};
             location.range.end = location.range.start;
             res.result.first->push_back(location);
             return res;

@@ -181,7 +181,8 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     return {NACompletionType::Variable, result};
 }
 
-optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
+optional<NAHoverResult> NixAnalyzer::hover(vector<Expr*> exprPath,
+                                           FileInfo file) {
     if (exprPath.empty()) {
         log.info("getPos of empty exprPath");
         return {};
@@ -199,7 +200,7 @@ optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
         }
         PosIdx posIdx = v.definitionPos;
         if (posIdx) {
-            return {state->positions[posIdx]};
+            return {{stringifyValue(*state, v), state->positions[posIdx]}};
         } else {
             log.info("Pos doesn't exist.");
         }
@@ -215,7 +216,7 @@ optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
         }
         PosIdx posIdx = v.definitionPos;
         if (posIdx) {
-            return {state->positions[posIdx]};
+            return {{stringifyValue(*state, v), state->positions[posIdx]}};
         } else {
             log.info("Pos doesn't exist.");
         }
@@ -226,7 +227,7 @@ optional<Pos> NixAnalyzer::getPos(vector<Expr*> exprPath, FileInfo file) {
             resolved = nix::resolveExprPath(resolved);
         } catch (Error& e) {
         }
-        return {{resolved, foFile, 1, 1}};
+        return {{resolved, {resolved, foFile, 1, 1}}};
     }
     return {};
 }

@@ -1,6 +1,7 @@
 #include <bits/ranges_algo.h>
 #include <algorithm>
 #include <iostream>
+#include <optional>
 #include "debug.h"
 #include "error.hh"
 #include "logger.h"
@@ -127,8 +128,9 @@ struct GetPosTest {
         cout << pos.file << "\n";
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
-        optional<Pos> actualPos =
-            analyzer.getPos(analysis.exprPath, {path, ftype});
+        auto hoverResult = analyzer.hover(analysis.exprPath, {path, ftype});
+        auto actualPos =
+            hoverResult ? optional<Pos>{hoverResult->pos} : nullopt;
 
         bool good = true;
         if (actualPos.has_value() != expectedPos.has_value()) {

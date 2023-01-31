@@ -75,6 +75,11 @@ struct NACompletionItem {
     std::optional<std::string> documentation;
 };
 
+struct NAHoverResult {
+    std::string text;
+    nix::Pos pos;
+};
+
 struct NixAnalyzer
 #if HAVE_BOEHMGC
     : gc
@@ -96,8 +101,8 @@ struct NixAnalyzer
         std::vector<nix::Expr*> exprPath,
         FileInfo file);
 
-    std::optional<nix::Pos> getPos(std::vector<nix::Expr*> exprPath,
-                                   FileInfo file);
+    std::optional<NAHoverResult> hover(std::vector<nix::Expr*> exprPath,
+                                       FileInfo file);
 
     nix::Env* calculateEnv(std::vector<nix::Expr*> exprPath,
                            std::vector<std::optional<nix::Value*>>,

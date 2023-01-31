@@ -1,5 +1,7 @@
+#include <iostream>
 #include "eval.hh"
 #include "nixexpr.hh"
-#include <iostream>
 
-const char *exprTypeName(nix::Expr *e);
+const char* exprTypeName(nix::Expr* e);
+
+std::string stringifyValue(nix::EvalState& state, nix::Value& v);
