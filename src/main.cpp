@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <boost/algorithm/string/find.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/process.hpp>
 #include <cstddef>
 #include <mutex>
 #include <network/uri.hpp>
@@ -43,6 +44,7 @@
 #include "LibLsp/lsp/textDocument/did_open.h"
 #include "LibLsp/lsp/textDocument/document_link.h"
 #include "LibLsp/lsp/textDocument/document_symbol.h"
+#include "LibLsp/lsp/textDocument/formatting.h"
 #include "LibLsp/lsp/textDocument/hover.h"
 #include "LibLsp/lsp/textDocument/publishDiagnostics.h"
 #include "LibLsp/lsp/textDocument/resolveCompletionItem.h"
@@ -240,9 +242,7 @@ class NixLanguageServer {
             }};
             res.result.capabilities.textDocumentSync = {
                 {lsTextDocumentSyncKind::Incremental}, {}};
-            res.result.capabilities.documentLinkProvider = {
-                .resolveProvider = false,
-            };
+            res.result.capabilities.documentFormattingProvider = {{{true}, {}}};
             res.result.capabilities.definitionProvider = {{{true}, {}}};
             return res;
         });
@@ -367,6 +367,32 @@ class NixLanguageServer {
                     .commitCharacters = {{"."}},
                 });
             }
+            return res;
+        });
+
+        remoteEndPoint.registerHandler([&](const td_formatting::request& req) {
+            namespace bp = boost::process;
+            td_formatting::response res;
+
+            boost::asio::io_service ios;
+            std::future<std::string> data;
+            bp::child c(
+                bp::search_path("alejandra"), "-qq",
+                (bp::std_in <
+                 bp::buffer(
+                     documents[req.params.textDocument.uri.raw_uri_].text)),
+                (bp::std_out > data), ios);
+            ios.run();
+            auto output = data.get();
+
+            res.result.push_back(lsTextEdit{
+                lsRange{
+                    {0, 0},
+                    {999999, 999999},
+                },
+                output,
+            });
+
             return res;
         });
 
