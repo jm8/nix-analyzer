@@ -997,6 +997,12 @@ int main(int argc, char** argv) {
             .beforeCursor = " let a = undefinedvariable; in aaa",
             .expectedCompletions = builtinIDsPlus({"a"}),
         },
+        // parser changes required
+        // {
+        //     .beforeCursor = "let a = {b = 2;}; c = a.",
+        //     .afterCursor = " in a",
+        //     .expectedCompletions = {"b"},
+        // },
     };
 
     vector<GetPosTest> getPosTests{

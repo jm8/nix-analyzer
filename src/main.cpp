@@ -157,9 +157,6 @@ class NixLanguageServer {
     // https://github.com/llvm/llvm-project/blob/b8576086c78a5aebf056a8fc8cc716dfee40b72e/clang-tools-extra/clangd/SourceCode.cpp#L1099
     void applyContentChange(string& content,
                             lsTextDocumentContentChangeEvent change) {
-        log.info("Applying content change: ''");
-        log.info(change.text);
-        log.info("''");
         if (!change.range) {
             content = change.text;
             return;
@@ -183,14 +180,16 @@ class NixLanguageServer {
         }
         string source = it->second.text;
 
-        string path = uri.GetAbsolutePath().path;
-        string basePath;
-        if (path.empty() || lsp::StartsWith(path, "file://")) {
+        nix::Path path{uri.raw_uri_};
+        nix::Path basePath;
+        if (lsp::StartsWith(path, "file://")) {
+            path = path.substr(7);
+            basePath = nix::dirOf(path);
+        } else {
             log.info("Path does not have a base path: ", uri.raw_uri_);
             basePath = nix::absPath(".");
-        } else {
-            basePath = nix::dirOf(path);
         }
+        log.info("Base path of ", uri.raw_uri_, " is ", basePath);
 
         nix::Pos pos;
         if (position) {
