@@ -374,16 +374,23 @@ class NixLanguageServer {
             namespace bp = boost::process;
             td_formatting::response res;
 
-            boost::asio::io_service ios;
-            std::future<std::string> data;
-            bp::child c(
-                bp::search_path("alejandra"), "-qq",
-                (bp::std_in <
-                 bp::buffer(
-                     documents[req.params.textDocument.uri.raw_uri_].text)),
-                (bp::std_out > data), ios);
-            ios.run();
-            auto output = data.get();
+            string output;
+            try {
+                boost::asio::io_service ios;
+                std::future<std::string> data;
+                bp::child c(
+                    // todo: make configurable
+                    bp::search_path("alejandra"), "-qq",
+                    (bp::std_in <
+                     bp::buffer(
+                         documents[req.params.textDocument.uri.raw_uri_].text)),
+                    (bp::std_out > data), ios);
+                ios.run();
+                output = data.get();
+            } catch (bp::process_error& e) {
+                log.info("error running alejandra: ", e.what());
+                return res;
+            }
 
             res.result.push_back(lsTextEdit{
                 lsRange{
