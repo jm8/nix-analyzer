@@ -182,13 +182,33 @@ vector<string> builtinIDsPlus(const vector<string>& additional) {
     return result;
 }
 
+enum class TestOption {
+    All,
+    LastCompletion,
+    LastGetPos,
+};
+
 int main(int argc, char** argv) {
     initNix();
     initGC();
 
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " [path to nixpkgs]\n";
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0]
+                  << " [path to nixpkgs] [lastcompletion|lastgetpos]?\n";
         return 1;
+    }
+
+    auto testOption = TestOption::All;
+    if (argc == 3) {
+        if (string_view(argv[2]) == "lastcompletion") {
+            testOption = TestOption::LastCompletion;
+        } else if (string_view(argv[2]) == "lastgetpos") {
+            testOption = TestOption::LastGetPos;
+        } else {
+            std::cerr << "Usage: " << argv[0]
+                      << " [path to nixpkgs] [lastcompletion|lastgetpos]?\n";
+            return 1;
+        }
     }
 
     Path nixpkgs{argv[1]};
@@ -1003,6 +1023,39 @@ int main(int argc, char** argv) {
             .afterCursor = "d.e",
             .expectedCompletions = {"c", "d"},
         },
+        {
+            .beforeCursor = "{graphviz}: graphviz.override { ",
+            .afterCursor = " }",
+            .ftype = FileType::Package,
+            .expectedCompletions =
+                {
+                    "ApplicationServices",
+                    "autoreconfHook",
+                    "bash",
+                    "bison",
+                    "cairo",
+                    "exiv2",
+                    "expat",
+                    "fetchFromGitLab",
+                    "fetchpatch",
+                    "flex",
+                    "fltk",
+                    "fontconfig",
+                    "gd",
+                    "gts",
+                    "lib",
+                    "libdevil",
+                    "libjpeg",
+                    "libpng",
+                    "libtool",
+                    "pango",
+                    "pkg-config",
+                    "python3",
+                    "stdenv",
+                    "withXorg",
+                    "xorg",
+                },
+        },
         // parser changes required
         // {
         //     .beforeCursor = "let a = {b = 2;}; c = a.",
@@ -1044,14 +1097,21 @@ int main(int argc, char** argv) {
                                foFile, 7643, 3},
         },
     };
-
     bool good = true;
-    for (auto& test : completionTests) {
-        if (!test.run(*analyzer))
+    if (testOption == TestOption::All) {
+        for (auto& test : completionTests) {
+            if (!test.run(*analyzer))
+                good = false;
+        }
+        for (auto& test : getPosTests) {
+            if (!test.run(*analyzer))
+                good = false;
+        }
+    } else if (testOption == TestOption::LastCompletion) {
+        if (!completionTests.back().run(*analyzer))
             good = false;
-    }
-    for (auto& test : getPosTests) {
-        if (!test.run(*analyzer))
+    } else if (testOption == TestOption::LastGetPos) {
+        if (!getPosTests.back().run(*analyzer))
             good = false;
     }
 

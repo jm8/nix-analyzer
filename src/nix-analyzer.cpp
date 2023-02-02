@@ -649,16 +649,35 @@ optional<Schema> NixAnalyzer::getSchema(Env& env, Expr* parent, Expr* child) {
             log.info("Caught error: ", e.info().msg.str());
             return {};
         }
-        if (!v.isLambda()) {
-            log.info("Trying to getSchema something that's not a lambda");
-            return {};
-        }
-        if (v.lambda.fun->hasFormals()) {
+        if (v.isLambda()) {
+            if (v.lambda.fun->hasFormals()) {
+                Schema schema;
+                for (auto formal : v.lambda.fun->formals->formals) {
+                    schema.items.push_back({state->symbols[formal.name], ""});
+                }
+                return schema;
+            }
+        } else if (v.type() == nAttrs) {
+            auto it = v.attrs->find(state->symbols.create("__functionArgs"));
+            if (it == v.attrs->end()) {
+                log.info("tried to getSchema something thats not a function");
+                return {};
+            }
+            try {
+                state->forceAttrs(*it->value, noPos);
+            } catch (Error& e) {
+                log.info("Caught error: ", e.info().msg.str());
+                log.info("for some reason __functionArgs isn't a set");
+                return {};
+            }
             Schema schema;
-            for (auto formal : v.lambda.fun->formals->formals) {
-                schema.items.push_back({state->symbols[formal.name], ""});
+            for (auto attr : *it->value->attrs) {
+                schema.items.push_back({state->symbols[attr.name], ""});
             }
             return schema;
+        } else {
+            log.info("tried to getSchema something thats not a function");
+            return {};
         }
     }
     return {};
