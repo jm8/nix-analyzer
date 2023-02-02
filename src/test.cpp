@@ -1036,6 +1036,13 @@ int main(int argc, char** argv) {
             .afterCursor = ".c",
             .expectedPos = Pos{"", foString, 1, 11},
         },
+        {
+            .beforeCursor = "{graph",
+            .afterCursor = "viz}:",
+            .ftype = FileType::Package,
+            .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
+                               foFile, 7643, 3},
+        },
     };
 
     bool good = true;

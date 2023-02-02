@@ -12,6 +12,7 @@
 #include "flake/lockfile.hh"
 #include "globals.hh"
 #include "nixexpr.hh"
+#include "pos.hh"
 #include "url.hh"
 #include "value.hh"
 
@@ -51,6 +52,7 @@ Analysis NixAnalyzer::getExprPath(string source,
     vector<Spanned<ExprPath*>> paths;
     vector<ParseError> errors;
     optional<pair<size_t, AttrName>> attr;
+    optional<Formal> formal;
     state->parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state->staticBaseEnv,
@@ -84,10 +86,16 @@ Analysis NixAnalyzer::getExprPath(string source,
                     log.warning("overwriting attr of exprpath");
                 }
                 attr.emplace(index, attrName);
+            } else if (holds_alternative<Formal>(x)) {
+                if (formal) {
+                    log.warning("overwriting formal of exprpath");
+                }
+                formal = get<Formal>(x);
+                cerr << "formal " << state->symbols[formal->name] << "\n";
             }
         },
         [&errors](ParseError error) { errors.push_back(error); });
-    return {exprPath, errors, path, basePath, paths, attr};
+    return {exprPath, errors, path, basePath, paths, attr, formal};
 }
 
 pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
@@ -156,6 +164,23 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
             return {NACompletionType::Field, result};
         }
         return {};
+    }
+
+    if (auto lambda = dynamic_cast<ExprLambda*>(exprPath.front())) {
+        if (!lambdaArgs.front()) {
+            log.info("completion of unknown lambda arg");
+            return {};
+        }
+        Value* lambdaArg = *lambdaArgs.front();
+        if (lambdaArg->type() != nAttrs) {
+            log.info("completion of lambda arg that is not attrs");
+            return {};
+        }
+        vector<NACompletionItem> result;
+        for (auto attr : *lambdaArg->attrs) {
+            result.push_back({state->symbols[attr.name]});
+        }
+        return {NACompletionType::Variable, result};
     }
 
     log.info("Defaulting to variable completion");
@@ -266,6 +291,42 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         } catch (Error& e) {
         }
         return {{resolved}, {{resolved, foFile, 1, 1}}};
+    }
+    if (auto lambda = dynamic_cast<ExprLambda*>(exprPath.front())) {
+        if (analysis.formal) {
+            if (!lambdaArgs.front()) {
+                log.info("hover of lambda with unknown args");
+                return {};
+            }
+            Value* lambdaArg = *lambdaArgs.front();
+            if (lambdaArg->type() != nAttrs) {
+                log.info("lambda arg is not an attrset");
+                return {};
+            }
+            auto it = lambdaArg->attrs->find(analysis.formal->name);
+            Value* v;
+            if (it == lambdaArg->attrs->end()) {
+                log.info("lambda arg does not contain this attr");
+                v = state->allocValue();
+                v->mkNull();
+            } else {
+                v = it->value;
+            }
+            try {
+                state->forceValue(*v, noPos);
+            } catch (Error& e) {
+                log.info("Caught error: ", e.info().msg.str());
+                v->mkNull();
+            }
+            PosIdx posIdx = v->definitionPos;
+            if (posIdx) {
+                return {{stringifyValue(*state, *v)},
+                        {state->positions[posIdx]}};
+            } else {
+                log.info("Pos doesn't exist.");
+                return {{stringifyValue(*state, *v)}, {}};
+            }
+        }
     }
     return {};
 }
