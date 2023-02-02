@@ -57,7 +57,7 @@ struct CompletionTest {
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
         vector<string> actualCompletions;
         auto [completionType, completionItems] =
-            analyzer.complete(analysis.exprPath, FileInfo{path});
+            analyzer.complete(analysis, FileInfo{path});
         for (auto completionItem : completionItems) {
             actualCompletions.push_back(completionItem.text);
         }
@@ -128,7 +128,7 @@ struct GetPosTest {
         cout << pos.file << "\n";
         Path basePath = path.empty() ? absPath(".") : dirOf(path);
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
-        auto hoverResult = analyzer.hover(analysis.exprPath, {path, ftype});
+        auto hoverResult = analyzer.hover(analysis, {path, ftype});
         auto actualPos = hoverResult.pos;
 
         bool good = true;
@@ -997,6 +997,12 @@ int main(int argc, char** argv) {
             .beforeCursor = " let a = undefinedvariable; in aaa",
             .expectedCompletions = builtinIDsPlus({"a"}),
         },
+        {
+            .beforeCursor =
+                R"(let a = {b = {c = 2; d = { e = 2; }; }; }; in a.${"" + "b"}.)",
+            .afterCursor = "d.e",
+            .expectedCompletions = {"c", "d"},
+        },
         // parser changes required
         // {
         //     .beforeCursor = "let a = {b = 2;}; c = a.",
@@ -1024,6 +1030,11 @@ int main(int argc, char** argv) {
             .ftype = FileType::Package,
             .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
                                foFile, 7643, 3},
+        },
+        {
+            .beforeCursor = "let a = { b = { c = 2; }; }; in a.b",
+            .afterCursor = ".c",
+            .expectedPos = Pos{"", foString, 1, 11},
         },
     };
 

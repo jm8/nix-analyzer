@@ -295,8 +295,7 @@ class NixLanguageServer {
                 return res;
 
             auto hoverResult = analyzer->hover(
-                analysis->exprPath,
-                getDocumentFileInfo(req.params.textDocument.uri));
+                *analysis, getDocumentFileInfo(req.params.textDocument.uri));
 
             if (!hoverResult.text)
                 return res;
@@ -318,8 +317,7 @@ class NixLanguageServer {
                 return res;
 
             auto hoverResult = analyzer->hover(
-                analysis->exprPath,
-                getDocumentFileInfo(req.params.textDocument.uri));
+                *analysis, getDocumentFileInfo(req.params.textDocument.uri));
 
             if (!hoverResult.pos)
                 return res;
@@ -346,8 +344,7 @@ class NixLanguageServer {
                                    req.params.position.character + 1}});
 
             auto [completionType, completions] = analyzer->complete(
-                analysis->exprPath,
-                getDocumentFileInfo(req.params.textDocument.uri));
+                *analysis, getDocumentFileInfo(req.params.textDocument.uri));
             if (req.params.context->triggerCharacter == "." &&
                 completionType == NACompletionType::Variable) {
                 log.info(

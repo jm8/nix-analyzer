@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include "attr-set.hh"
 #include "config.h"
 
 #if HAVE_BOEHMGC
@@ -58,6 +59,7 @@ struct Analysis {
     std::string path;
     std::string basePath;
     std::vector<Spanned<nix::ExprPath*>> paths;
+    std::optional<std::pair<size_t, nix::AttrName>> attr;
 };
 
 struct Schema;
@@ -105,10 +107,10 @@ struct NixAnalyzer
                          nix::Pos pos);
 
     std::pair<NACompletionType, std::vector<NACompletionItem>> complete(
-        std::vector<nix::Expr*> exprPath,
+        const Analysis& analysis,
         FileInfo file);
 
-    NAHoverResult hover(std::vector<nix::Expr*> exprPath, FileInfo file);
+    NAHoverResult hover(const Analysis& analysis, FileInfo file);
 
     nix::Env* calculateEnv(std::vector<nix::Expr*> exprPath,
                            std::vector<std::optional<nix::Value*>>,

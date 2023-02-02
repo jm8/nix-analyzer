@@ -1,4 +1,5 @@
 #include "nix-analyzer.h"
+
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -49,17 +50,15 @@ Analysis NixAnalyzer::getExprPath(string source,
     vector<Expr*> exprPath;
     vector<Spanned<ExprPath*>> paths;
     vector<ParseError> errors;
+    optional<pair<size_t, AttrName>> attr;
     state->parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state->staticBaseEnv,
-        [&](Expr* e, Pos start, Pos end) {
+        [&](variant<Expr*, pair<size_t, AttrName>, Formal> x, Pos start,
+            Pos end) {
             if (start.origin != targetPos.origin ||
                 start.file != targetPos.file) {
                 return;
-            }
-
-            if (auto path = dynamic_cast<ExprPath*>(e)) {
-                paths.push_back({path, start, end});
             }
 
             if (!(poscmp(start, targetPos) <= 0 &&
@@ -67,15 +66,34 @@ Analysis NixAnalyzer::getExprPath(string source,
                 return;
             }
 
-            exprPath.push_back(e);
+            if (holds_alternative<Expr*>(x)) {
+                auto e = get<Expr*>(x);
+                if (auto path = dynamic_cast<ExprPath*>(e)) {
+                    paths.push_back({path, start, end});
+                }
+                exprPath.push_back(e);
+            } else if (holds_alternative<pair<size_t, AttrName>>(x)) {
+                auto [index, attrName] = get<pair<size_t, AttrName>>(x);
+                cerr << "attr: " << index << " ";
+                if (attrName.symbol) {
+                    cerr << state->symbols[attrName.symbol] << "\n";
+                } else {
+                    cerr << "[expr]\n";
+                }
+                if (attr) {
+                    log.warning("overwriting attr of exprpath");
+                }
+                attr.emplace(index, attrName);
+            }
         },
         [&errors](ParseError error) { errors.push_back(error); });
-    return {exprPath, errors, path, basePath, paths};
+    return {exprPath, errors, path, basePath, paths, attr};
 }
 
 pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
-    vector<Expr*> exprPath,
+    const Analysis& analysis,
     FileInfo file) {
+    const auto& exprPath = analysis.exprPath;
     if (exprPath.empty()) {
         log.info("Completing empty exprPath");
         vector<NACompletionItem> result;
@@ -97,7 +115,15 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
-        AttrPath path(select->attrPath.begin(), select->attrPath.end() - 1);
+        size_t howManyAttrsToKeep;
+        if (analysis.attr) {
+            howManyAttrsToKeep = analysis.attr->first;
+        } else {
+            log.warning("no attr in analysis when completing ExprSelect");
+            return {};
+        }
+        AttrPath path(select->attrPath.begin(),
+                      select->attrPath.begin() + howManyAttrsToKeep);
         ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
         try {
@@ -181,7 +207,8 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     return {NACompletionType::Variable, result};
 }
 
-NAHoverResult NixAnalyzer::hover(vector<Expr*> exprPath, FileInfo file) {
+NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
+    const auto& exprPath = analysis.exprPath;
     if (exprPath.empty()) {
         log.info("hover of empty exprPath");
         return {};
@@ -206,10 +233,20 @@ NAHoverResult NixAnalyzer::hover(vector<Expr*> exprPath, FileInfo file) {
         }
     }
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
+        size_t howManyAttrsToKeep;
+        if (analysis.attr) {
+            howManyAttrsToKeep = analysis.attr->first + 1;
+        } else {
+            log.warning("no attr in analysis when completing ExprSelect");
+            return {};
+        }
+        AttrPath path(select->attrPath.begin(),
+                      select->attrPath.begin() + howManyAttrsToKeep);
+        ExprSelect prefix(select->pos, select->e, path, select->def);
         Value v;
+        cerr << "\n";
         try {
-            // TODO: Evaluate up to the one that is selected.
-            select->eval(*state, *env, v);
+            prefix.eval(*state, *env, v);
         } catch (Error& e) {
             log.info("Caught error: ", e.info().msg.str());
             v.mkNull();
