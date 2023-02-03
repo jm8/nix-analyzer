@@ -69,25 +69,16 @@ Analysis NixAnalyzer::getExprPath(string source,
                     analysis.paths.push_back({path, start, end});
                 }
                 analysis.exprPath.push_back(e);
-            } else if (holds_alternative<pair<size_t, AttrName>>(x)) {
-                auto [index, attrName] = get<pair<size_t, AttrName>>(x);
-                cerr << "attr: " << index << " ";
-                if (attrName.symbol) {
-                    cerr << state->symbols[attrName.symbol] << "\n";
-                } else {
-                    cerr << "[expr]\n";
-                }
+            } else if (holds_alternative<pair<size_t, AttrPath*>>(x)) {
                 if (analysis.attr) {
                     log.warning("overwriting attr of exprpath");
                 }
-                analysis.attr.emplace(index, attrName);
+                analysis.attr = {get<pair<size_t, AttrPath*>>(x)};
             } else if (holds_alternative<Formal>(x)) {
                 if (analysis.formal) {
                     log.warning("overwriting formal of exprpath");
                 }
                 analysis.formal = get<Formal>(x);
-                cerr << "formal " << state->symbols[analysis.formal->name]
-                     << "\n";
             } else if (holds_alternative<CallbackInherit>(x)) {
                 analysis.inherit = {get<CallbackInherit>(x).expr};
             }
@@ -188,7 +179,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
         }
     }
 
-    if (auto lambda = dynamic_cast<ExprLambda*>(exprPath.front())) {
+    if (dynamic_cast<ExprLambda*>(exprPath.front())) {
         if (!lambdaArgs.front()) {
             log.info("completion of unknown lambda arg");
             return {};
@@ -314,7 +305,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         }
         return {{resolved}, {{resolved, foFile, 1, 1}}};
     }
-    if (auto lambda = dynamic_cast<ExprLambda*>(exprPath.front())) {
+    if (dynamic_cast<ExprLambda*>(exprPath.front())) {
         if (analysis.formal) {
             if (!lambdaArgs.front()) {
                 log.info("hover of lambda with unknown args");
@@ -354,7 +345,8 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
     if (analysis.inherit.has_value()) {
         if (!analysis.attr)
             return {};
-        auto [index, name] = *analysis.attr;
+        auto [index, attrPath] = *analysis.attr;
+        auto name = (*attrPath)[index];
         if (!name.symbol) {
             log.info("dynamic attribute in inherit is not allowed");
             return {};
@@ -376,6 +368,44 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
             return {{stringifyValue(*state, v)}, {}};
         }
     }
+    // these are attrpaths that are not inherited
+    if (analysis.attr) {
+        const auto& attrPath = analysis.attr->second;
+        if (auto let = dynamic_cast<ExprLet*>(exprPath.front())) {
+            if (attrPath->size() != 1) {
+                log.info("didn't know you could do let a.b.c = ...;");
+                return {};
+            }
+            auto name = attrPath->back();
+            if (!name.symbol) {
+                log.info("didn't know you could do let ${x} = ...;");
+                return {};
+            }
+            auto it = let->attrs->attrs.find(name.symbol);
+            if (it == let->attrs->attrs.end()) {
+                log.warning("can't find the let binding that you made");
+                return {};
+            }
+            auto child = it->second.e;
+            auto subEnv = updateEnv(let, child, env, {});
+            Value v;
+            try {
+                it->second.e->eval(*state, *subEnv, v);
+            } catch (Error& e) {
+                log.info("Caught error: ", e.info().msg.str());
+                return {};
+            }
+            PosIdx posIdx = v.definitionPos;
+            if (posIdx) {
+                return {{stringifyValue(*state, v)},
+                        {state->positions[posIdx]}};
+            } else {
+                log.info("Pos doesn't exist.");
+                return {{stringifyValue(*state, v)}, {}};
+            }
+        }
+    }
+
     return {};
 }
 

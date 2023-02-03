@@ -1118,7 +1118,13 @@ int main(int argc, char** argv) {
             .ftype = FileType::Package,
             .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
                                foFile, 7643, 3},
-        }};
+        },
+        {
+            .beforeCursor = "let app",
+            .afterCursor = "le = 2; in null",
+            .expectedPos = Pos{"", foString, 1, 5},
+        },
+    };
     bool good = true;
     if (testOption == TestOption::All) {
         for (auto& test : completionTests) {
