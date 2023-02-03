@@ -61,6 +61,8 @@ struct Analysis {
     std::vector<Spanned<nix::ExprPath*>> paths;
     std::optional<std::pair<size_t, nix::AttrName>> attr;
     std::optional<nix::Formal> formal;
+    // {} is no inherit. {{}} is inherit ...; {{expr}} is inherit (expr) ...;
+    std::optional<std::optional<nix::Expr*>> inherit;
 };
 
 struct Schema;

@@ -1056,6 +1056,22 @@ int main(int argc, char** argv) {
                     "xorg",
                 },
         },
+        {
+            .beforeCursor = "let aaa = 2; in { inherit a",
+            .afterCursor = "; }",
+            .expectedCompletions = builtinIDsPlus({"aaa"}),
+        },
+        {
+            .beforeCursor = "let a = { b = 3; }; in { inherit (a) x",
+            .afterCursor = "; }",
+            .expectedCompletions = {"b"},
+        },
+        // I don't know why this doesn't work
+        // {
+        //     .beforeCursor = "let a = { b = 3; }; in { inherit (a) ",
+        //     .afterCursor = "; }",
+        //     .expectedCompletions = {"b"},
+        // },
         // parser changes required
         // {
         //     .beforeCursor = "let a = {b = 2;}; c = a.",
@@ -1096,7 +1112,13 @@ int main(int argc, char** argv) {
             .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
                                foFile, 7643, 3},
         },
-    };
+        {
+            .beforeCursor = "{graphviz}: { inherit graph",
+            .afterCursor = "viz; }",
+            .ftype = FileType::Package,
+            .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
+                               foFile, 7643, 3},
+        }};
     bool good = true;
     if (testOption == TestOption::All) {
         for (auto& test : completionTests) {

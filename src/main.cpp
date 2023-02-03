@@ -325,7 +325,11 @@ class NixLanguageServer {
             auto pos = *hoverResult.pos;
 
             lsLocation location;
-            location.uri = lsDocumentUri{AbsolutePath{pos.file}};
+            if (pos.file.find("untitled:") != string::npos) {
+                location.uri.raw_uri_ = pos.file;
+            } else {
+                location.uri = lsDocumentUri{AbsolutePath{pos.file}};
+            }
             log.info(location.uri.raw_uri_);
             location.range.start = {static_cast<int>(pos.line - 1),
                                     static_cast<int>(pos.column - 1)};

@@ -48,16 +48,11 @@ Analysis NixAnalyzer::getExprPath(string source,
                                   Path path,
                                   Path basePath,
                                   Pos targetPos) {
-    vector<Expr*> exprPath;
-    vector<Spanned<ExprPath*>> paths;
-    vector<ParseError> errors;
-    optional<pair<size_t, AttrName>> attr;
-    optional<Formal> formal;
+    Analysis analysis;
     state->parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state->staticBaseEnv,
-        [&](variant<Expr*, pair<size_t, AttrName>, Formal> x, Pos start,
-            Pos end) {
+        [&](auto x, Pos start, Pos end) {
             if (start.origin != targetPos.origin ||
                 start.file != targetPos.file) {
                 return;
@@ -71,9 +66,9 @@ Analysis NixAnalyzer::getExprPath(string source,
             if (holds_alternative<Expr*>(x)) {
                 auto e = get<Expr*>(x);
                 if (auto path = dynamic_cast<ExprPath*>(e)) {
-                    paths.push_back({path, start, end});
+                    analysis.paths.push_back({path, start, end});
                 }
-                exprPath.push_back(e);
+                analysis.exprPath.push_back(e);
             } else if (holds_alternative<pair<size_t, AttrName>>(x)) {
                 auto [index, attrName] = get<pair<size_t, AttrName>>(x);
                 cerr << "attr: " << index << " ";
@@ -82,20 +77,25 @@ Analysis NixAnalyzer::getExprPath(string source,
                 } else {
                     cerr << "[expr]\n";
                 }
-                if (attr) {
+                if (analysis.attr) {
                     log.warning("overwriting attr of exprpath");
                 }
-                attr.emplace(index, attrName);
+                analysis.attr.emplace(index, attrName);
             } else if (holds_alternative<Formal>(x)) {
-                if (formal) {
+                if (analysis.formal) {
                     log.warning("overwriting formal of exprpath");
                 }
-                formal = get<Formal>(x);
-                cerr << "formal " << state->symbols[formal->name] << "\n";
+                analysis.formal = get<Formal>(x);
+                cerr << "formal " << state->symbols[analysis.formal->name]
+                     << "\n";
+            } else if (holds_alternative<CallbackInherit>(x)) {
+                analysis.inherit = {get<CallbackInherit>(x).expr};
             }
         },
-        [&errors](ParseError error) { errors.push_back(error); });
-    return {exprPath, errors, path, basePath, paths, attr, formal};
+        [&analysis](ParseError error) {
+            analysis.parseErrors.push_back(error);
+        });
+    return analysis;
 }
 
 pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
@@ -153,17 +153,39 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     }
 
     if (auto attrs = dynamic_cast<ExprAttrs*>(exprPath.front())) {
-        if (exprPath.size() == 1) {
+        // if cursor is inside inherit we want to fall back to variable
+        // completion
+        if (!analysis.inherit) {
+            if (exprPath.size() == 1) {
+                return {};
+            }
+            if (auto schema = getSchema(*env, exprPath[1], attrs)) {
+                vector<NACompletionItem> result;
+                for (auto item : schema->items) {
+                    result.push_back({item.name, item.doc});
+                }
+                return {NACompletionType::Field, result};
+            }
             return {};
         }
-        if (auto schema = getSchema(*env, exprPath[1], attrs)) {
-            vector<NACompletionItem> result;
-            for (auto item : schema->items) {
-                result.push_back({item.name, item.doc});
+        // this is an inherit (expr) ...;
+        if (analysis.inherit.has_value() &&
+            analysis.inherit.value().has_value()) {
+            Expr* e = analysis.inherit->value();
+            Value v;
+            try {
+                e->eval(*state, *env, v);
+                state->forceAttrs(v, noPos);
+            } catch (Error& e) {
+                log.info("Caught error: ", e.info().msg.str());
+                v.mkAttrs(state->allocBindings(0));
             }
-            return {NACompletionType::Field, result};
+            vector<NACompletionItem> result;
+            for (auto attr : *v.attrs) {
+                result.push_back({state->symbols[attr.name]});
+            }
+            return {NACompletionType::Property, result};
         }
-        return {};
     }
 
     if (auto lambda = dynamic_cast<ExprLambda*>(exprPath.front())) {
@@ -328,6 +350,32 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
             }
         }
     }
+    // inherit x; or inherit (expr) x;. just look up the value on the attrset xd
+    if (analysis.inherit.has_value()) {
+        if (!analysis.attr)
+            return {};
+        auto [index, name] = *analysis.attr;
+        if (!name.symbol) {
+            log.info("dynamic attribute in inherit is not allowed");
+            return {};
+        }
+        Value v;
+
+        ExprSelect select(noPos, exprPath.front(), name.symbol);
+        try {
+            select.eval(*state, *env, v);
+        } catch (Error& e) {
+            log.info("Caught error: ", e.info().msg.str());
+            v.mkNull();
+        }
+        PosIdx posIdx = v.definitionPos;
+        if (posIdx) {
+            return {{stringifyValue(*state, v)}, {state->positions[posIdx]}};
+        } else {
+            log.info("Pos doesn't exist.");
+            return {{stringifyValue(*state, v)}, {}};
+        }
+    }
     return {};
 }
 
@@ -364,9 +412,11 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
                 env2->values[displ] = attrDef.e->maybeThunk(
                     *state, attrDef.inherited ? *up : *env2);
             } catch (Error& e) {
+                log.info("Caught error: ", e.info().msg.str());
                 env2->values[displ] = state->allocValue();
                 env2->values[displ]->mkNull();
             }
+            env2->values[displ]->definitionPos = attrDef.pos;
             displ++;
             if (attrDef.e == child && attrDef.inherited)
                 useSuperEnv = true;
@@ -460,7 +510,9 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
                 vAttr = state->allocValue();
                 vAttr->mkNull();
             }
-            env2->values[displ++] = vAttr;
+            env2->values[displ] = vAttr;
+            env2->values[displ]->definitionPos = i.second.pos;
+            displ++;
         }
         return env2;
     }
