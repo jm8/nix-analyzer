@@ -53,6 +53,11 @@ Analysis NixAnalyzer::getExprPath(string source,
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state->staticBaseEnv,
         [&](auto x, Pos start, Pos end) {
+            // fix
+            // a.[cursor]b.c
+            if (holds_alternative<pair<size_t, AttrPath*>>(x)) {
+                start.column -= 1;
+            }
             if (start.origin != targetPos.origin ||
                 start.file != targetPos.file) {
                 return;

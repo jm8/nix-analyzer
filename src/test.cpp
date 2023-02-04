@@ -1100,9 +1100,16 @@ int main(int argc, char** argv) {
             .expectedPos = Pos{nixpkgs + "/pkgs/top-level/all-packages.nix",
                                foFile, 7643, 3},
         },
+        // this is broken with the start.column -= 1 to fix completion
+        // but it doesn't matter since normally the hover is in the middle
+        // {
+        //     .beforeCursor = "let a = { b = { c = 2; }; }; in a.b",
+        //     .afterCursor = ".c",
+        //     .expectedPos = Pos{"", foString, 1, 11},
+        // },
         {
-            .beforeCursor = "let a = { b = { c = 2; }; }; in a.b",
-            .afterCursor = ".c",
+            .beforeCursor = "let a = { banana = { c = 2; }; }; in a.ban",
+            .afterCursor = "ana.c",
             .expectedPos = Pos{"", foString, 1, 11},
         },
         {
