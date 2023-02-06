@@ -67,9 +67,16 @@ struct Analysis {
     std::optional<std::optional<nix::Expr*>> inherit;
 };
 
-using Schema = std::variant<nix::Value*,              // module
-                            std::vector<std::string>  // function argument list
+struct SchemaItem {
+    std::string name;
+    std::string doc;
+};
+
+using Schema = std::variant<nix::Value*,             // module
+                            std::vector<SchemaItem>  // function argument list
                             >;
+
+#include "mkderivation-schema.h"
 
 using NACompletionType = lsCompletionItemKind;
 

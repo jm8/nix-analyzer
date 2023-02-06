@@ -1127,6 +1127,18 @@ int main(int argc, char** argv) {
                     "zramSwap",
                 },
         },
+        {
+            .beforeCursor = " { xdg = { ",
+            .afterCursor = " }; }",
+            .ftype = FileType::NixosModule,
+            .expectedCompletions = {"autostart", "icons", "menus", "mime",
+                                    "portal", "sounds"},
+        },
+        {
+            .beforeCursor = "{ xdg.autostart = { ",
+            .afterCursor = " }; }",
+            .ftype = FileType::NixosModule,
+        },
         // make it so lets work without the last semicolon
         // {
         //     .beforeCursor = "let a = {b = 2;}; c = a.",
