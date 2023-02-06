@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <variant>
 #include "attr-set.hh"
 #include "config.h"
 
@@ -31,6 +32,7 @@ enum class FileType {
     None,
     Package,
     Flake,
+    NixosModule,
 };
 
 struct FileInfo {
@@ -65,20 +67,9 @@ struct Analysis {
     std::optional<std::optional<nix::Expr*>> inherit;
 };
 
-struct Schema;
-
-struct SchemaItem {
-    std::string name;
-    std::string doc;
-};
-
-// a Schema represents the possible attributes a
-// attrset can have
-struct Schema {
-    std::vector<SchemaItem> items;
-};
-
-#include "mkderivation-schema.h"
+using Schema = std::variant<nix::Value*,              // module
+                            std::vector<std::string>  // function argument list
+                            >;
 
 using NACompletionType = lsCompletionItemKind;
 
@@ -134,10 +125,13 @@ struct NixAnalyzer
         std::vector<nix::Expr*> exprPath,
         FileInfo file);
 
-    // returns what attributes are expected to be on a direct child of parent
+    // it's a type for that expr (like lib/types.nix)
+    // we take env for evaluating the function if ExprPath is like
+    // [ExprAttrs|ExprList, ..., ExprAttrs|ExprList, ExprCall]
+    // (we have to do env.up for as many of the attrs are recursive.)
     std::optional<Schema> getSchema(nix::Env& env,
-                                    nix::Expr* parent,
-                                    nix::Expr* child);
+                                    std::vector<nix::Expr*> exprPath,
+                                    FileInfo file);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);

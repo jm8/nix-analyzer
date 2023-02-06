@@ -57,7 +57,7 @@ struct CompletionTest {
         auto analysis = analyzer.getExprPath(source, path, basePath, pos);
         vector<string> actualCompletions;
         auto [completionType, completionItems] =
-            analyzer.complete(analysis, FileInfo{path});
+            analyzer.complete(analysis, {path, ftype});
         for (auto completionItem : completionItems) {
             actualCompletions.push_back(completionItem.text);
         }
@@ -1066,6 +1066,73 @@ int main(int argc, char** argv) {
             .afterCursor = "; }",
             .expectedCompletions = {"b"},
         },
+        {
+            .beforeCursor = "let a = {b = x: x; }; in a.",
+            .afterCursor = " null",
+            .expectedCompletions = {"b"},
+        },
+        {
+            .beforeCursor = "{ ",
+            .afterCursor = "}",
+            .ftype = FileType::NixosModule,
+            .expectedCompletions =
+                {
+                    "appstream",
+                    "assertions",
+                    "boot",
+                    "console",
+                    "containers",
+                    "docker-containers",
+                    "documentation",
+                    "dysnomia",
+                    "ec2",
+                    "environment",
+                    "fileSystems",
+                    "fonts",
+                    "gnu",
+                    "gtk",
+                    "hardware",
+                    "i18n",
+                    "ids",
+                    "jobs",
+                    "krb5",
+                    "lib",
+                    "location",
+                    "meta",
+                    "nesting",
+                    "networking",
+                    "nix",
+                    "nixops",
+                    "nixpkgs",
+                    "openstack",
+                    "passthru",
+                    "power",
+                    "powerManagement",
+                    "programs",
+                    "qt5",
+                    "security",
+                    "services",
+                    "snapraid",
+                    "sound",
+                    "specialisation",
+                    "stubby",
+                    "swapDevices",
+                    "system",
+                    "systemd",
+                    "time",
+                    "users",
+                    "virtualisation",
+                    "warnings",
+                    "xdg",
+                    "zramSwap",
+                },
+        },
+        // make it so lets work without the last semicolon
+        // {
+        //     .beforeCursor = "let a = {b = 2;}; c = a.",
+        //     .afterCursor = " in a",
+        //     .expectedCompletions = {"b"},
+        // },
         // I don't know why this doesn't work
         // {
         //     .beforeCursor = "let a = { b = 3; }; in { inherit (a) ",
@@ -1073,11 +1140,7 @@ int main(int argc, char** argv) {
         //     .expectedCompletions = {"b"},
         // },
         // parser changes required
-        // {
-        //     .beforeCursor = "let a = {b = 2;}; c = a.",
-        //     .afterCursor = " in a",
-        //     .expectedCompletions = {"b"},
-        // },
+
     };
 
     vector<GetPosTest> getPosTests{

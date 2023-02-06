@@ -1,5 +1,6 @@
 #include "nix-analyzer.h"
 
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -117,6 +118,8 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
 
     vector<optional<Value*>> lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
+    log.info("file.type: ", (int)file.type);
+    optional<Schema> schema = getSchema(*env, exprPath, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
         size_t howManyAttrsToKeep;
@@ -152,17 +155,35 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
         // if cursor is inside inherit we want to fall back to variable
         // completion
         if (!analysis.inherit) {
-            if (exprPath.size() == 1) {
+            if (!schema) {
+                log.info("Don't know the schema of this attrs.");
                 return {};
             }
-            if (auto schema = getSchema(*env, exprPath[1], attrs)) {
+            if (holds_alternative<Value*>(*schema)) {
+                auto module = get<Value*>(*schema);
+                auto it = module->attrs->get(state->symbols.create("options"));
+                if (!it) {
+                    log.info("This module has no options");
+                    return {};
+                }
+                auto options = it->value;
+                try {
+                    state->forceAttrs(*options, noPos);
+                } catch (Error& e) {
+                    log.info("Caught error: ", e.info().msg.str());
+                    return {};
+                }
+
                 vector<NACompletionItem> result;
-                for (auto item : schema->items) {
-                    result.push_back({item.name, item.doc});
+                for (auto [symbol, pos, value] : *options->attrs) {
+                    auto str = string(state->symbols[symbol]);
+                    if (str.empty() || str[0] == '_') {
+                        continue;
+                    }
+                    result.push_back({str});
                 }
                 return {NACompletionType::Field, result};
             }
-            return {};
         }
         // this is an inherit (expr) ...;
         if (analysis.inherit.has_value() &&
@@ -716,58 +737,127 @@ in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.roo
     return result;
 }
 
-optional<Schema> NixAnalyzer::getSchema(Env& env, Expr* parent, Expr* child) {
-    if (auto call = dynamic_cast<ExprCall*>(parent)) {
-        if (child == call->fun) {
+// optional<Schema> NixAnalyzer::getSchema(Env& env, Expr* parent, Expr* child)
+// {
+//     if (auto call = dynamic_cast<ExprCall*>(parent)) {
+//         if (child == call->fun) {
+//             return {};
+//         }
+//         ExprSelect* select = dynamic_cast<ExprSelect*>(call->fun);
+//         ExprVar* var = dynamic_cast<ExprVar*>(call->fun);
+//         if ((select && state->symbols[select->attrPath.back().symbol] ==
+//                            "mkDerivation") ||
+//             (var && state->symbols[var->name] == "mkDerivation")) {
+//             log.info("Completing with schemaMkDerivation");
+//             return schemaMkDerivation;
+//         }
+//         Value v;
+//         try {
+//             call->fun->eval(*state, env, v);
+//         } catch (Error& e) {
+//             log.info("Caught error: ", e.info().msg.str());
+//             return {};
+//         }
+//         if (v.isLambda()) {
+//             if (v.lambda.fun->hasFormals()) {
+//                 Schema schema;
+//                 for (auto formal : v.lambda.fun->formals->formals) {
+//                     schema.items.push_back({state->symbols[formal.name],
+//                     ""});
+//                 }
+//                 return schema;
+//             }
+//         } else if (v.type() == nAttrs) {
+//             auto it = v.attrs->find(state->symbols.create("__functionArgs"));
+//             if (it == v.attrs->end()) {
+//                 log.info("tried to getSchema something thats not a
+//                 function"); return {};
+//             }
+//             try {
+//                 state->forceAttrs(*it->value, noPos);
+//             } catch (Error& e) {
+//                 log.info("Caught error: ", e.info().msg.str());
+//                 log.info("for some reason __functionArgs isn't a set");
+//                 return {};
+//             }
+//             Schema schema;
+//             for (auto attr : *it->value->attrs) {
+//                 schema.items.push_back({state->symbols[attr.name], ""});
+//             }
+//             return schema;
+//         } else {
+//             log.info("tried to getSchema something thats not a function");
+//             return {};
+//         }
+//     }
+//     return {};
+// }
+
+optional<Schema> NixAnalyzer::getSchema(Env& env,
+                                        vector<Expr*> exprPath,
+                                        FileInfo file) {
+    if (exprPath.empty()) {
+        return {};
+    }
+    optional<Value*> rootType;
+    size_t rootIndex;
+
+    if (file.type == FileType::NixosModule) {
+        try {
+            Value* evalConfigFunction = state->allocValue();
+            Value* evalConfigArg = state->allocValue();
+            Value* system = state->allocValue();
+            system->mkString(settings.thisSystem.get());
+            Value* modules = state->allocValue();
+            modules->mkList(0);
+            state->evalFile(file.nixpkgs() + "/nixos/lib/eval-config.nix",
+                            *evalConfigFunction);
+            evalConfigArg->mkAttrs(state->allocBindings(2));
+            Attr x;
+            evalConfigArg->attrs->push_back(Attr(state->sSystem, system));
+            evalConfigArg->attrs->push_back(
+                Attr(state->symbols.create("modules"), modules));
+            Value* res = state->allocValue();
+            state->callFunction(*evalConfigFunction, *evalConfigArg, *res,
+                                noPos);
+            state->forceAttrs(*res, noPos);
+            rootType = res;
+            rootIndex = exprPath.size() - 1;
+        } catch (nix::Error& e) {
+            log.info("Caught error: ", e.info().msg.str());
             return {};
         }
-        ExprSelect* select = dynamic_cast<ExprSelect*>(call->fun);
-        ExprVar* var = dynamic_cast<ExprVar*>(call->fun);
-        if ((select && state->symbols[select->attrPath.back().symbol] ==
-                           "mkDerivation") ||
-            (var && state->symbols[var->name] == "mkDerivation")) {
-            log.info("Completing with schemaMkDerivation");
-            return schemaMkDerivation;
-        }
-        Value v;
+    }
+    if (!rootType) {
+        return {};
+    }
+    Value* typeOfParent = rootType.value();
+    for (size_t i = rootIndex; i > 1; i--) {
         try {
-            call->fun->eval(*state, env, v);
+            state->forceAttrs(*typeOfParent, noPos);
         } catch (Error& e) {
             log.info("Caught error: ", e.info().msg.str());
             return {};
         }
-        if (v.isLambda()) {
-            if (v.lambda.fun->hasFormals()) {
-                Schema schema;
-                for (auto formal : v.lambda.fun->formals->formals) {
-                    schema.items.push_back({state->symbols[formal.name], ""});
-                }
-                return schema;
-            }
-        } else if (v.type() == nAttrs) {
-            auto it = v.attrs->find(state->symbols.create("__functionArgs"));
-            if (it == v.attrs->end()) {
-                log.info("tried to getSchema something thats not a function");
-                return {};
-            }
-            try {
-                state->forceAttrs(*it->value, noPos);
-            } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
-                log.info("for some reason __functionArgs isn't a set");
-                return {};
-            }
-            Schema schema;
-            for (auto attr : *it->value->attrs) {
-                schema.items.push_back({state->symbols[attr.name], ""});
-            }
-            return schema;
-        } else {
-            log.info("tried to getSchema something thats not a function");
-            return {};
-        }
+        log.info("Type of exprPath[", i,
+                 "]: ", stringifyValue(*state, *typeOfParent));
+        // if (typeOfParent->attrs->find(s->s))
+        Expr* parent = exprPath[i];
+        Expr* child = exprPath[i - 1];
+        // typeOfParent = typeOfChild;
     }
-    return {};
+    try {
+        state->forceAttrs(*typeOfParent, noPos);
+    } catch (Error& e) {
+        log.info("Caught error: ", e.info().msg.str());
+        return {};
+    }
+    // typeOfParent =
+    // typeOfParent->attrs->get(state->symbols.create("options"))->value;
+    state->forceValue(*typeOfParent, noPos);
+    log.info("Final type: ", stringifyValue(*state, *typeOfParent));
+    return typeOfParent;
+    log.info("Leaving calculateTypes");
 }
 
 FileInfo::FileInfo() : path(""), type(FileType::None) {
@@ -776,6 +866,8 @@ FileInfo::FileInfo() : path(""), type(FileType::None) {
 FileInfo::FileInfo(Path path) : path(path) {
     if (path.find("flake.nix") != string::npos) {
         type = FileType::Flake;
+    } else if (path.find("configuration.nix") != string::npos) {
+        type = FileType::NixosModule;
     } else {
         type = FileType::Package;
     }
