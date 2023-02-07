@@ -1,4 +1,6 @@
 #include "schema.h"
+#include <variant>
+#include "logger.h"
 #include "nix-analyzer.h"
 
 using namespace std;
@@ -33,4 +35,22 @@ Schema::Schema(vector<NACompletionItem> items) : rep(items) {
 }
 
 Schema::Schema(Value* options) : rep(options) {
+}
+
+optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
+    if (holds_alternative<vector<NACompletionItem>>(rep)) {
+        return {};
+    }
+    auto options = get<Value*>(rep);
+    try {
+        state.forceAttrs(*options, noPos);
+    } catch (Error& e) {
+        // log.info("Caught error: ", e.info().msg.str());
+        return {};
+    }
+    auto suboptionAttr = options->attrs->get(symbol);
+    if (!suboptionAttr) {
+        return {};
+    }
+    return suboptionAttr->value;
 }

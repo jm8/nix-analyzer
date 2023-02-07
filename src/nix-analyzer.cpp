@@ -15,6 +15,7 @@
 #include "nixexpr.hh"
 #include "pos.hh"
 #include "schema.h"
+#include "symbol-table.hh"
 #include "url.hh"
 #include "value.hh"
 
@@ -151,7 +152,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
         return {NACompletionType::Property, result};
     }
 
-    if (auto attrs = dynamic_cast<ExprAttrs*>(exprPath.front())) {
+    if (dynamic_cast<ExprAttrs*>(exprPath.front())) {
         optional<Schema> schema = getSchema(*env, exprPath, file);
         // if cursor is inside inherit we want to fall back to variable
         // completion
@@ -415,14 +416,12 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
 Env* NixAnalyzer::calculateEnv(vector<Expr*> exprPath,
                                vector<optional<Value*>> lambdaArgs,
                                FileInfo file) {
-    log.info("Entering calculateEnv");
     Env* env = &state->baseEnv;
     for (size_t i = exprPath.size() - 1; i >= 1; i--) {
         Expr* child = exprPath[i - 1];
         Expr* parent = exprPath[i];
         env = updateEnv(parent, child, env, lambdaArgs[i]);
     }
-    log.info("Leaving calculateEnv");
     return env;
 }
 
@@ -569,7 +568,6 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
     if (exprPath.empty()) {
         return {};
     }
-    log.info("Entering calculateLambdaArgs");
     vector<optional<Value*>> result(exprPath.size());
 
     bool firstLambda = true;
@@ -709,14 +707,11 @@ in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.roo
         }
     }
 
-    log.info("Leaving calculateLambdaArgs");
-
     return result;
 }
 
-optional<Schema> NixAnalyzer::getSchema(Env& env,
-                                        vector<Expr*> exprPath,
-                                        FileInfo file) {
+optional<pair<size_t, Schema>>
+NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
     if (exprPath.empty()) {
         return {};
     }
@@ -737,10 +732,8 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
                                "mkDerivation") ||
                 (var && state->symbols[var->name] == "mkDerivation")) {
                 log.info("Completing with schemaMkDerivation");
-                return schemaMkDerivation;
+                return {{i - 1, schemaMkDerivation}};
             }
-            call->fun->show(state->symbols, cerr);
-            log.info(" is trying to evaluate");
             Value v;
             try {
                 call->fun->eval(*state, *functionEnv, v);
@@ -755,7 +748,7 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
                     for (auto formal : v.lambda.fun->formals->formals) {
                         schema.push_back({state->symbols[formal.name], ""});
                     }
-                    return schema;
+                    return {{i - 1, schema}};
                 }
             } else if (v.type() == nAttrs) {
                 auto it =
@@ -776,7 +769,7 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
                 for (auto attr : *it->value->attrs) {
                     schema.push_back({state->symbols[attr.name], ""});
                 }
-                return schema;
+                return {{i - 1, schema}};
             } else {
                 log.info("tried to getSchema something thats not a function");
                 return {};
@@ -789,8 +782,6 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
         }
     }
 
-    optional<Value*> rootType;
-    size_t rootIndex;
     if (file.type == FileType::NixosModule) {
         try {
             Value* evalConfigFunction = state->allocValue();
@@ -806,49 +797,42 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
             evalConfigArg->attrs->push_back(Attr(state->sSystem, system));
             evalConfigArg->attrs->push_back(
                 Attr(state->symbols.create("modules"), modules));
-            Value* res = state->allocValue();
-            state->callFunction(*evalConfigFunction, *evalConfigArg, *res,
+            Value* module = state->allocValue();
+            state->callFunction(*evalConfigFunction, *evalConfigArg, *module,
                                 noPos);
-            state->forceAttrs(*res, noPos);
-            rootType = res;
-            rootIndex = exprPath.size() - 1;
+            state->forceAttrs(*module, noPos);
+            auto optionsAttr =
+                module->attrs->get(state->symbols.create("options"));
+            if (!optionsAttr) {
+                log.warning(
+                    "eval-config.nix did not give something with 'options'");
+                return {};
+            }
+            return {{exprPath.size() - 1, optionsAttr->value}};
         } catch (nix::Error& e) {
             log.info("Caught error: ", e.info().msg.str());
             return {};
         }
     }
-    if (!rootType) {
+    return {};
+}
+
+optional<Schema> NixAnalyzer::getSchema(Env& env,
+                                        vector<Expr*> exprPath,
+                                        FileInfo file) {
+    auto optRootSchema = getSchemaRoot(env, exprPath, file);
+    if (!optRootSchema) {
         return {};
     }
-    // typeOfParent is either
-    // 1) a module with an options attribute
-    // 2) a
-    Value* module = rootType.value();
-    if (module->type() != nAttrs) {
-        log.warning("<nixpkgs>/nixos/lib/eval-config.nix did not return attrs");
-        return {};
-    }
-    auto optionsAttr = module->attrs->get(state->symbols.create("options"));
-    if (!optionsAttr) {
-        log.warning(
-            "<nixpkgs>/nixos/lib/eval-config.nix return attrs without "
-            "`options`");
-        return {};
-    }
-    Value* currentOptions = optionsAttr->value;
+    auto [rootIndex, rootSchema] = *optRootSchema;
+
+    Schema currentSchema = move(rootSchema);
+
     for (size_t i = rootIndex; i >= 1; i--) {
-        try {
-            state->forceAttrs(*currentOptions, noPos);
-        } catch (Error& e) {
-            log.info("Caught error: ", e.info().msg.str());
-            return {};
-        }
         Expr* parent = exprPath[i];
         Expr* child = exprPath[i - 1];
-        optional<Value*> childOptions;
-        // log.info("current options (i=", i, ") ",
-        //          stringifyValue(*state, *currentOptions));
         if (auto attrs = dynamic_cast<ExprAttrs*>(parent)) {
+            // todo: store the symbol as part of the exprpath
             optional<Symbol> subname;
             for (auto [symbol, attrDef] : attrs->attrs) {
                 if (!attrDef.inherited && attrDef.e == child) {
@@ -856,34 +840,22 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
                 }
             }
             if (!subname) {
-                log.info("didn't find child as an attr of parent");
+                log.info(
+                    "Failed to find the child in the parent attrs so don't "
+                    "know the symbol");
                 return {};
             }
-            auto suboptionAttr = currentOptions->attrs->get(*subname);
-            if (!suboptionAttr) {
-                log.info("parent options does not contain ",
-                         state->symbols[*subname]);
+            auto subschema = currentSchema.subschema(*state, *subname);
+            if (!subschema) {
+                log.info("No subschema");
                 return {};
             }
-            childOptions = suboptionAttr->value;
-        }
-        if (!childOptions) {
-            log.info("failed to find childOptions");
+            currentSchema = *subschema;
+        } else {
             return {};
         }
-        currentOptions = *childOptions;
     }
-    try {
-        state->forceAttrs(*currentOptions, noPos);
-    } catch (Error& e) {
-        log.info("Caught error: ", e.info().msg.str());
-        return {};
-    }
-
-    state->forceValue(*currentOptions, noPos);
-    // log.info("Final type: ", stringifyValue(*state, *currentOptions));
-    return currentOptions;
-    log.info("Leaving calculateTypes");
+    return currentSchema;
 }
 
 FileInfo::FileInfo() : path(""), type(FileType::None) {

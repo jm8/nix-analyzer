@@ -1,10 +1,13 @@
 #pragma once
 
-#include <LibLsp/lsp/lsp_completion.h>
-#include "value.hh"
-
 #include <string>
 #include <variant>
+
+#include "eval.hh"
+#include "symbol-table.hh"
+#include "value.hh"
+
+#include <LibLsp/lsp/lsp_completion.h>
 
 using NACompletionType = lsCompletionItemKind;
 
@@ -26,6 +29,8 @@ struct Schema {
     Schema(std::vector<NACompletionItem> items);
 
     std::vector<NACompletionItem> getItems(nix::EvalState& state);
+
+    std::optional<Schema> subschema(nix::EvalState& state, nix::Symbol symbol);
 };
 
 #include "mkderivation-schema.h"
