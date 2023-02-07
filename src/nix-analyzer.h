@@ -27,6 +27,7 @@
 #include "util.hh"
 
 #include "logger.h"
+#include "schema.h"
 
 enum class FileType {
     None,
@@ -65,24 +66,6 @@ struct Analysis {
     std::optional<nix::Formal> formal;
     // {} is no inherit. {{}} is inherit ...; {{expr}} is inherit (expr) ...;
     std::optional<std::optional<nix::Expr*>> inherit;
-};
-
-struct SchemaItem {
-    std::string name;
-    std::string doc;
-};
-
-using Schema = std::variant<nix::Value*,             // module
-                            std::vector<SchemaItem>  // function argument list
-                            >;
-
-#include "mkderivation-schema.h"
-
-using NACompletionType = lsCompletionItemKind;
-
-struct NACompletionItem {
-    std::string text;
-    std::optional<std::string> documentation;
 };
 
 struct NAHoverResult {
@@ -132,10 +115,14 @@ struct NixAnalyzer
         std::vector<nix::Expr*> exprPath,
         FileInfo file);
 
-    // it's a type for that expr (like lib/types.nix)
-    // we take env for evaluating the function if ExprPath is like
-    // [ExprAttrs|ExprList, ..., ExprAttrs|ExprList, ExprCall]
-    // (we have to do env.up for as many of the attrs are recursive.)
+    // returns the index into ExprPath of the expr containing the root of the
+    // schema. then getSchema walks down to get the schema of the current
+    // expression
+    std::optional<std::pair<size_t, Schema>> getSchemaRoot(
+        nix::Env& env,
+        std::vector<nix::Expr*> exprPath,
+        FileInfo file);
+
     std::optional<Schema> getSchema(nix::Env& env,
                                     std::vector<nix::Expr*> exprPath,
                                     FileInfo file);

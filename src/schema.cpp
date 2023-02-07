@@ -1,0 +1,36 @@
+#include "schema.h"
+#include "nix-analyzer.h"
+
+using namespace std;
+using namespace nix;
+
+vector<NACompletionItem> Schema::getItems(nix::EvalState& state) {
+    if (holds_alternative<Value*>(rep)) {
+        auto options = get<Value*>(rep);
+        try {
+            state.forceAttrs(*options, noPos);
+        } catch (Error& e) {
+            return {};
+        }
+
+        vector<NACompletionItem> result;
+        for (auto [symbol, pos, value] : *options->attrs) {
+            auto str = string(state.symbols[symbol]);
+            if (str.empty() || str[0] == '_') {
+                continue;
+            }
+            result.push_back({str});
+        }
+        return result;
+    } else if (holds_alternative<vector<NACompletionItem>>(rep)) {
+        return get<vector<NACompletionItem>>(rep);
+    } else {
+        return {};
+    }
+}
+
+Schema::Schema(vector<NACompletionItem> items) : rep(items) {
+}
+
+Schema::Schema(Value* options) : rep(options) {
+}

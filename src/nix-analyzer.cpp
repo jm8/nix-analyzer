@@ -14,6 +14,7 @@
 #include "globals.hh"
 #include "nixexpr.hh"
 #include "pos.hh"
+#include "schema.h"
 #include "url.hh"
 #include "value.hh"
 
@@ -119,7 +120,6 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     vector<optional<Value*>> lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
     log.info("file.type: ", (int)file.type);
-    optional<Schema> schema = getSchema(*env, exprPath, file);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
         size_t howManyAttrsToKeep;
@@ -152,6 +152,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     }
 
     if (auto attrs = dynamic_cast<ExprAttrs*>(exprPath.front())) {
+        optional<Schema> schema = getSchema(*env, exprPath, file);
         // if cursor is inside inherit we want to fall back to variable
         // completion
         if (!analysis.inherit) {
@@ -159,32 +160,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
                 log.info("Don't know the schema of this attrs.");
                 return {};
             }
-            if (holds_alternative<Value*>(*schema)) {
-                auto options = get<Value*>(*schema);
-                try {
-                    state->forceAttrs(*options, noPos);
-                } catch (Error& e) {
-                    log.info("Caught error: ", e.info().msg.str());
-                    return {};
-                }
-
-                vector<NACompletionItem> result;
-                for (auto [symbol, pos, value] : *options->attrs) {
-                    auto str = string(state->symbols[symbol]);
-                    if (str.empty() || str[0] == '_') {
-                        continue;
-                    }
-                    result.push_back({str});
-                }
-                return {NACompletionType::Field, result};
-            }
-            if (holds_alternative<vector<SchemaItem>>(*schema)) {
-                vector<NACompletionItem> result;
-                for (auto [name, doc] : get<vector<SchemaItem>>(*schema)) {
-                    result.push_back({name});
-                }
-                return {NACompletionType::Field, result};
-            }
+            return {NACompletionType::Field, schema->getItems(*state)};
         }
         // this is an inherit (expr) ...;
         if (analysis.inherit.has_value() &&
@@ -775,7 +751,7 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
 
             if (v.isLambda()) {
                 if (v.lambda.fun->hasFormals()) {
-                    vector<SchemaItem> schema;
+                    vector<NACompletionItem> schema;
                     for (auto formal : v.lambda.fun->formals->formals) {
                         schema.push_back({state->symbols[formal.name], ""});
                     }
@@ -796,7 +772,7 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
                     log.info("for some reason __functionArgs isn't a set");
                     return {};
                 }
-                vector<SchemaItem> schema;
+                vector<NACompletionItem> schema;
                 for (auto attr : *it->value->attrs) {
                     schema.push_back({state->symbols[attr.name], ""});
                 }
