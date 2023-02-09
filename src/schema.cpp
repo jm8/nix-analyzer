@@ -38,10 +38,15 @@ vector<NACompletionItem> Schema::getItems(nix::EvalState& state) {
     }
 }
 
-Schema::Schema(vector<NACompletionItem> items) : rep(items) {
+Schema::Schema(vector<NACompletionItem> items)
+    : rep(items), type(SchemaType::Lambda) {
 }
 
-Schema::Schema(Value* options) : rep(options) {
+Schema::Schema(vector<NACompletionItem> items, SchemaType type)
+    : rep(items), type(type) {
+}
+
+Schema::Schema(Value* options) : rep(options), type(SchemaType::Options) {
 }
 
 optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {

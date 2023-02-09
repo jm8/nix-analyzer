@@ -16,6 +16,12 @@ struct NACompletionItem {
     std::optional<std::string> documentation;
 };
 
+enum class SchemaType {
+    Options,
+    Lambda,
+    MkDerivation,
+};
+
 // a schema is used to provide completion for what attrs an attrsets should have
 // if Schema is constructed from a Value*, it should be an option (_type =
 // "option") or an atterset containing (attrsets that contain)* options.
@@ -25,8 +31,11 @@ struct Schema {
                  std::vector<NACompletionItem>>  // function argument list
         rep;
 
+    SchemaType type;
+
     Schema(nix::Value* options);
     Schema(std::vector<NACompletionItem> items);
+    Schema(std::vector<NACompletionItem> items, SchemaType type);
 
     std::vector<NACompletionItem> getItems(nix::EvalState& state);
 
