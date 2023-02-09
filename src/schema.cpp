@@ -2,6 +2,7 @@
 #include <variant>
 #include "logger.h"
 #include "nix-analyzer.h"
+#include "value.hh"
 
 using namespace std;
 using namespace nix;
@@ -9,9 +10,15 @@ using namespace nix;
 vector<NACompletionItem> Schema::getItems(nix::EvalState& state) {
     if (holds_alternative<Value*>(rep)) {
         auto options = get<Value*>(rep);
+
         try {
             state.forceAttrs(*options, noPos);
         } catch (Error& e) {
+            return {};
+        }
+
+        if (options->attrs->get(state.symbols.create("type"))) {
+            // todo: check if this is `submodule`
             return {};
         }
 

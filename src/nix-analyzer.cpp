@@ -58,7 +58,7 @@ Analysis NixAnalyzer::getExprPath(string source,
         [&](auto x, Pos start, Pos end) {
             // fix
             // a.[cursor]b.c
-            if (holds_alternative<pair<size_t, AttrPath*>>(x)) {
+            if (holds_alternative<CallbackAttrPath>(x)) {
                 start.column -= 1;
             }
             if (start.origin != targetPos.origin ||
@@ -77,16 +77,16 @@ Analysis NixAnalyzer::getExprPath(string source,
                     analysis.paths.push_back({path, start, end});
                 }
                 analysis.exprPath.push_back(e);
-            } else if (holds_alternative<pair<size_t, AttrPath*>>(x)) {
+            } else if (holds_alternative<CallbackAttrPath>(x)) {
                 if (analysis.attr) {
                     log.warning("overwriting attr of exprpath");
                 }
-                analysis.attr = {get<pair<size_t, AttrPath*>>(x)};
-            } else if (holds_alternative<Formal>(x)) {
+                analysis.attr = {get<CallbackAttrPath>(x)};
+            } else if (holds_alternative<CallbackFormal>(x)) {
                 if (analysis.formal) {
                     log.warning("overwriting formal of exprpath");
                 }
-                analysis.formal = get<Formal>(x);
+                analysis.formal = get<CallbackFormal>(x).formal;
             } else if (holds_alternative<CallbackInherit>(x)) {
                 analysis.inherit = {get<CallbackInherit>(x).expr};
             }
@@ -125,7 +125,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
         size_t howManyAttrsToKeep;
         if (analysis.attr) {
-            howManyAttrsToKeep = analysis.attr->first;
+            howManyAttrsToKeep = analysis.attr->index;
         } else {
             log.warning("no attr in analysis when completing ExprSelect");
             return {};
@@ -277,7 +277,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
         size_t howManyAttrsToKeep;
         if (analysis.attr) {
-            howManyAttrsToKeep = analysis.attr->first + 1;
+            howManyAttrsToKeep = analysis.attr->index + 1;
         } else {
             log.warning("no attr in analysis when completing ExprSelect");
             return {};
@@ -374,7 +374,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
     }
     // these are attrpaths that are not inherited
     if (analysis.attr) {
-        const auto& attrPath = analysis.attr->second;
+        const auto& attrPath = analysis.attr->attrPath;
         if (auto let = dynamic_cast<ExprLet*>(exprPath.front())) {
             if (attrPath->size() != 1) {
                 log.info("didn't know you could do let a.b.c = ...;");

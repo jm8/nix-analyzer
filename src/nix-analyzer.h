@@ -62,7 +62,7 @@ struct Analysis {
     std::string path;
     std::string basePath;
     std::vector<Spanned<nix::ExprPath*>> paths;
-    std::optional<std::pair<size_t, nix::AttrPath*>> attr;
+    std::optional<nix::CallbackAttrPath> attr;
     std::optional<nix::Formal> formal;
     // {} is no inherit. {{}} is inherit ...; {{expr}} is inherit (expr) ...;
     std::optional<std::optional<nix::Expr*>> inherit;

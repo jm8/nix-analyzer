@@ -1134,11 +1134,26 @@ int main(int argc, char** argv) {
             .expectedCompletions = {"autostart", "icons", "menus", "mime",
                                     "portal", "sounds"},
         },
-        // {
-        //     .beforeCursor = "{ xdg.autostart = { ",
-        //     .afterCursor = " }; }",
-        //     .ftype = FileType::NixosModule,
-        // },
+        {
+            .beforeCursor = "{ xdg.autostart = { ",
+            .afterCursor = " }; }",
+            .ftype = FileType::NixosModule,
+            .expectedCompletions = {"enable"},
+        },
+        {
+            .beforeCursor = "{ xdg.autostart.",
+            .afterCursor = " = {}; }",
+            .ftype = FileType::NixosModule,
+            .expectedCompletions = {"enable"},
+            .expectedErrors = {"syntax error, unexpected '=', expecting ID or "
+                               "OR_KW or DOLLAR_CURLY or '\"'"},
+        },
+        {
+            .beforeCursor = "{ xdg.autostart.enable = {",
+            .afterCursor = "}; }",
+            .ftype = FileType::NixosModule,
+            .expectedCompletions = {},
+        },
         // make it so lets work without the last semicolon
         // {
         //     .beforeCursor = "let a = {b = 2;}; c = a.",
