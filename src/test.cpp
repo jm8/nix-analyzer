@@ -1154,6 +1154,25 @@ int main(int argc, char** argv) {
             .ftype = FileType::NixosModule,
             .expectedCompletions = {},
         },
+        {
+            .beforeCursor = "{ programs.ssh.knownHosts.myhost.what",
+            .afterCursor = " = null; }",
+            .ftype = FileType::NixosModule,
+            .expectedCompletions = {"certAuthority", "extraHostNames",
+                                    "hostNames", "publicKey", "publicKeyFile"},
+        },
+        {
+            .beforeCursor = "{",
+            .afterCursor = "}",
+            .ftype = FileType::Flake,
+            .expectedCompletions = {"inputs", "outputs", "description"},
+        },
+        {
+            .beforeCursor = "{ inputs.abc = { ",
+            .afterCursor = " }; }",
+            .ftype = FileType::Flake,
+            .expectedCompletions = {"flake", "url"},
+        },
         // make it so lets work without the last semicolon
         // {
         //     .beforeCursor = "let a = {b = 2;}; c = a.",
@@ -1167,7 +1186,6 @@ int main(int argc, char** argv) {
         //     .expectedCompletions = {"b"},
         // },
         // parser changes required
-
     };
 
     vector<GetPosTest> getPosTests{

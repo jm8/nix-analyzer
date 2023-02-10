@@ -30,7 +30,6 @@ struct Schema {
     std::variant<nix::Value*,                    // options
                  std::vector<NACompletionItem>>  // function argument list
         rep;
-
     SchemaType type;
 
     Schema(nix::Value* options);

@@ -128,6 +128,7 @@ struct NixAnalyzer
                                     FileInfo file);
 
     Schema nixosModuleSchema(nix::Path path);
+    Schema flakeSchema();
 };
 
 int poscmp(nix::Pos a, nix::Pos b);

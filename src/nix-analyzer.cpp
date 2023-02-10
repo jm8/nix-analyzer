@@ -179,7 +179,8 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
                 }
                 schema = schema->subschema(*state, attrName.symbol);
                 if (!schema) {
-                    log.info("No subschema");
+                    log.info("No subschema for ",
+                             state->symbols[attrName.symbol]);
                     return {};
                 }
             }
@@ -797,9 +798,9 @@ NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
                 return {};
             }
         } else {
-            log.info(
-                "Encountered something that's not Attrs or Call, so stopping "
-                "the get function schema");
+            log.info("Encountered ", exprTypeName(exprPath[i]),
+                     " (not Attrs or Call), so stopping "
+                     "the get function schema");
             break;
         }
     }
@@ -813,6 +814,10 @@ NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
             log.info("Caught error: ", e.info().msg.str());
             return {};
         }
+    }
+
+    if (file.type == FileType::Flake) {
+        return {{exprPath.size() - 1, flakeSchema()}};
     }
     return {};
 }
@@ -881,6 +886,27 @@ Schema NixAnalyzer::nixosModuleSchema(Path path) {
         return {vector<NACompletionItem>{}};
     }
     return {optionsAttr->value};
+}
+
+Schema NixAnalyzer::flakeSchema() {
+    // clang-format off
+    Expr* e = state->parseExprFromString(R"(
+      let
+        # looks enough likes lib.types.attrsOf to fool Schema::subSchema
+        attrsOf = options: {
+          type.name = "attrsOf";
+          type.nestedTypes.elemType.getSubOptions = a: options;
+        };
+      in {
+        inputs = attrsOf { url = {}; flake = {}; };
+        outputs = {};
+        description = {};
+      }
+    )", "");
+    // clang-format on
+    Value* v = state->allocValue();
+    state->eval(e, *v);
+    return {v};
 }
 
 FileInfo::FileInfo() : path(""), type(FileType::None) {
