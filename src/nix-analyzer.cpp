@@ -5,6 +5,7 @@
 #include <memory>
 #include <sstream>
 #include <variant>
+#include "attr-set.hh"
 #include "debug.h"
 
 #include "error.hh"
@@ -160,6 +161,27 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
             if (!schema) {
                 log.info("Don't know the schema of this attrs.");
                 return {};
+            }
+            AttrPath path;
+            if (analysis.attr) {
+                size_t howManyAttrsToKeep = analysis.attr->index;
+                path = AttrPath(
+                    analysis.attr->attrPath->begin(),
+                    analysis.attr->attrPath->begin() + howManyAttrsToKeep);
+            } else {
+                path = AttrPath();
+            }
+
+            for (auto attrName : path) {
+                if (!attrName.symbol) {
+                    log.info("Encountered a dynamic index");
+                    return {};
+                }
+                schema = schema->subschema(*state, attrName.symbol);
+                if (!schema) {
+                    log.info("No subschema");
+                    return {};
+                }
             }
             return {NACompletionType::Field, schema->getItems(*state)};
         }
