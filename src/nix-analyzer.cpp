@@ -584,31 +584,6 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
     return up;
 }
 
-optional<Schema> nixosModule(EvalState& state, Path path) {
-    Value* evalConfigFunction = state.allocValue();
-    Value* evalConfigArg = state.allocValue();
-    Value* system = state.allocValue();
-    system->mkString(settings.thisSystem.get());
-    Value* modules = state.allocValue();
-    modules->mkList(0);
-    state.evalFile(path, *evalConfigFunction);
-    evalConfigArg->mkAttrs(state.allocBindings(2));
-    Attr x;
-    evalConfigArg->attrs->push_back(Attr(state.sSystem, system));
-    evalConfigArg->attrs->push_back(
-        Attr(state.symbols.create("modules"), modules));
-    Value* module = state.allocValue();
-    state.callFunction(*evalConfigFunction, *evalConfigArg, *module, noPos);
-    state.forceAttrs(*module, noPos);
-    auto optionsAttr = module->attrs->get(state.symbols.create("options"));
-    if (!optionsAttr) {
-        // log.warning(
-        // "eval-config.nix did not give something with 'options'");
-        return {};
-    }
-    return {optionsAttr->value};
-}
-
 vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
     vector<Expr*> exprPath,
     FileInfo file) {
@@ -832,8 +807,8 @@ NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
     if (file.type == FileType::NixosModule) {
         try {
             return {{exprPath.size() - 1,
-                     *nixosModule(*state, file.nixpkgs() +
-                                              "/nixos/lib/eval-config.nix")}};
+                     nixosModuleSchema(file.nixpkgs() +
+                                       "/nixos/lib/eval-config.nix")}};
         } catch (nix::Error& e) {
             log.info("Caught error: ", e.info().msg.str());
             return {};
@@ -881,6 +856,31 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
         }
     }
     return currentSchema;
+}
+
+// I would put this in schema.cpp but then it segfauls...
+Schema NixAnalyzer::nixosModuleSchema(Path path) {
+    Value* evalConfigFunction = state->allocValue();
+    Value* evalConfigArg = state->allocValue();
+    Value* system = state->allocValue();
+    system->mkString(settings.thisSystem.get());
+    Value* modules = state->allocValue();
+    modules->mkList(0);
+    state->evalFile(path, *evalConfigFunction);
+    evalConfigArg->mkAttrs(state->allocBindings(2));
+    Attr x;
+    evalConfigArg->attrs->push_back(Attr(state->sSystem, system));
+    evalConfigArg->attrs->push_back(
+        Attr(state->symbols.create("modules"), modules));
+    Value* module = state->allocValue();
+    state->callFunction(*evalConfigFunction, *evalConfigArg, *module, noPos);
+    state->forceAttrs(*module, noPos);
+    auto optionsAttr = module->attrs->get(state->symbols.create("options"));
+    if (!optionsAttr) {
+        log.warning("eval-config.nix did not give something with 'options'");
+        return {vector<NACompletionItem>{}};
+    }
+    return {optionsAttr->value};
 }
 
 FileInfo::FileInfo() : path(""), type(FileType::None) {

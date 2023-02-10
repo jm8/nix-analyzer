@@ -126,6 +126,8 @@ struct NixAnalyzer
     std::optional<Schema> getSchema(nix::Env& env,
                                     std::vector<nix::Expr*> exprPath,
                                     FileInfo file);
+
+    Schema nixosModuleSchema(nix::Path path);
 };
 
 int poscmp(nix::Pos a, nix::Pos b);
