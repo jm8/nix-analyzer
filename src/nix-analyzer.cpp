@@ -15,7 +15,6 @@
 #include "globals.hh"
 #include "nixexpr.hh"
 #include "pos.hh"
-#include "schema.h"
 #include "symbol-table.hh"
 #include "url.hh"
 #include "value.hh"
@@ -807,9 +806,10 @@ NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
 
     if (file.type == FileType::NixosModule) {
         try {
-            return {{exprPath.size() - 1,
-                     nixosModuleSchema(file.nixpkgs() +
-                                       "/nixos/lib/eval-config.nix")}};
+            return {
+                {exprPath.size() - 1,
+                 Schema::nixosModule(
+                     *state, file.nixpkgs() + "/nixos/lib/eval-config.nix")}};
         } catch (nix::Error& e) {
             log.info("Caught error: ", e.info().msg.str());
             return {};
@@ -817,7 +817,7 @@ NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
     }
 
     if (file.type == FileType::Flake) {
-        return {{exprPath.size() - 1, flakeSchema()}};
+        return {{exprPath.size() - 1, Schema::flake(*state)}};
     }
     return {};
 }
@@ -863,34 +863,145 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
     return currentSchema;
 }
 
-// I would put this in schema.cpp but then it segfauls...
-Schema NixAnalyzer::nixosModuleSchema(Path path) {
-    Value* evalConfigFunction = state->allocValue();
-    Value* evalConfigArg = state->allocValue();
-    Value* system = state->allocValue();
+Schema::Schema(vector<NACompletionItem> items)
+    : rep(items), type(SchemaType::Lambda) {
+}
+
+Schema::Schema(vector<NACompletionItem> items, SchemaType type)
+    : rep(items), type(type) {
+}
+
+Schema::Schema(Value* options) : rep(options), type(SchemaType::Options) {
+}
+
+optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
+    if (holds_alternative<vector<NACompletionItem>>(rep)) {
+        return {};
+    }
+    auto options = get<Value*>(rep);
+    try {
+        state.forceAttrs(*options, noPos);
+    } catch (Error& e) {
+        // log.info("Caught error: ", e.info().msg.str());
+        return {};
+    }
+    if (auto typeAttr = options->attrs->get(state.symbols.create("type"))) {
+        try {
+            state.forceAttrs(*typeAttr->value, noPos);
+        } catch (Error& e) {
+            // log.info("Caught error: ", e.info().msg.str());
+            return {};
+        }
+        if (auto nameAttr =
+                typeAttr->value->attrs->get(state.symbols.create("name"))) {
+            if (nameAttr->value->type() != nString)
+                return {};
+            if (string_view(nameAttr->value->string.s) == "attrsOf") {
+                auto nestedTypesAttr = typeAttr->value->attrs->get(
+                    state.symbols.create("nestedTypes"));
+                if (!nestedTypesAttr)
+                    return {};
+                try {
+                    state.forceAttrs(*nestedTypesAttr->value, noPos);
+                } catch (Error& e) {
+                    return {};
+                }
+                auto elemTypeAttr = nestedTypesAttr->value->attrs->get(
+                    state.symbols.create("elemType"));
+                if (!elemTypeAttr)
+                    return {};
+                try {
+                    state.forceAttrs(*elemTypeAttr->value, noPos);
+                } catch (Error& e) {
+                    return {};
+                }
+                auto getSubOptionsAttr = elemTypeAttr->value->attrs->get(
+                    state.symbols.create("getSubOptions"));
+                if (!getSubOptionsAttr)
+                    return {};
+                try {
+                    state.forceValue(*getSubOptionsAttr->value, noPos);
+                } catch (Error& e) {
+                    return {};
+                }
+                if (getSubOptionsAttr->value->type() != nix::nFunction) {
+                    return {};
+                }
+                Value* arg = state.allocValue();
+                arg->mkAttrs(state.allocBindings(0));
+                Value* res = state.allocValue();
+                state.callFunction(*getSubOptionsAttr->value, *arg, *res,
+                                   noPos);
+                return res;
+                return {};
+            }
+        }
+    }
+    auto suboptionAttr = options->attrs->get(symbol);
+    if (!suboptionAttr) {
+        return {};
+    }
+    return suboptionAttr->value;
+}
+
+vector<NACompletionItem> Schema::getItems(nix::EvalState& state) {
+    if (holds_alternative<Value*>(rep)) {
+        auto options = get<Value*>(rep);
+
+        try {
+            state.forceAttrs(*options, noPos);
+        } catch (Error& e) {
+            return {};
+        }
+
+        if (options->attrs->get(state.symbols.create("type"))) {
+            // todo: check if this is `submodule`
+            return {};
+        }
+
+        vector<NACompletionItem> result;
+        for (auto [symbol, pos, value] : *options->attrs) {
+            auto str = string(state.symbols[symbol]);
+            if (str.empty() || str[0] == '_') {
+                continue;
+            }
+            result.push_back({str});
+        }
+        return result;
+    } else if (holds_alternative<vector<NACompletionItem>>(rep)) {
+        return get<vector<NACompletionItem>>(rep);
+    } else {
+        return {};
+    }
+}
+
+Schema Schema::nixosModule(EvalState& state, Path path) {
+    Value* evalConfigFunction = state.allocValue();
+    Value* evalConfigArg = state.allocValue();
+    Value* system = state.allocValue();
     system->mkString(settings.thisSystem.get());
-    Value* modules = state->allocValue();
+    Value* modules = state.allocValue();
     modules->mkList(0);
-    state->evalFile(path, *evalConfigFunction);
-    evalConfigArg->mkAttrs(state->allocBindings(2));
+    state.evalFile(path, *evalConfigFunction);
+    evalConfigArg->mkAttrs(state.allocBindings(2));
     Attr x;
-    evalConfigArg->attrs->push_back(Attr(state->sSystem, system));
+    evalConfigArg->attrs->push_back(Attr(state.sSystem, system));
     evalConfigArg->attrs->push_back(
-        Attr(state->symbols.create("modules"), modules));
-    Value* module = state->allocValue();
-    state->callFunction(*evalConfigFunction, *evalConfigArg, *module, noPos);
-    state->forceAttrs(*module, noPos);
-    auto optionsAttr = module->attrs->get(state->symbols.create("options"));
+        Attr(state.symbols.create("modules"), modules));
+    Value* module = state.allocValue();
+    state.callFunction(*evalConfigFunction, *evalConfigArg, *module, noPos);
+    state.forceAttrs(*module, noPos);
+    auto optionsAttr = module->attrs->get(state.symbols.create("options"));
     if (!optionsAttr) {
-        log.warning("eval-config.nix did not give something with 'options'");
+        // log.warning("eval-config.nix did not give something with 'options'");
         return {vector<NACompletionItem>{}};
     }
     return {optionsAttr->value};
 }
 
-Schema NixAnalyzer::flakeSchema() {
+Schema Schema::flake(EvalState& state) {
     // clang-format off
-    Expr* e = state->parseExprFromString(R"(
+    Expr* e = state.parseExprFromString(R"(
       let
         # looks enough likes lib.types.attrsOf to fool Schema::subSchema
         attrsOf = options: {
@@ -904,8 +1015,8 @@ Schema NixAnalyzer::flakeSchema() {
       }
     )", "");
     // clang-format on
-    Value* v = state->allocValue();
-    state->eval(e, *v);
+    Value* v = state.allocValue();
+    state.eval(e, *v);
     return {v};
 }
 

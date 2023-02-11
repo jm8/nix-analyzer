@@ -27,7 +27,52 @@
 #include "util.hh"
 
 #include "logger.h"
-#include "schema.h"
+
+#include <string>
+#include <variant>
+
+#include "eval.hh"
+#include "symbol-table.hh"
+#include "value.hh"
+
+#include <LibLsp/lsp/lsp_completion.h>
+
+using NACompletionType = lsCompletionItemKind;
+
+struct NACompletionItem {
+    std::string text;
+    std::optional<std::string> documentation;
+};
+
+enum class SchemaType {
+    Options,
+    Lambda,
+    MkDerivation,
+};
+
+// a schema is used to provide completion for what attrs an attrsets should have
+// if Schema is constructed from a Value*, it should be an option (_type =
+// "option") or an atterset containing (attrsets that contain)* options.
+// schemas can also be manually constructed from a vector of SchemaItem.
+struct Schema {
+    std::variant<nix::Value*,                    // options
+                 std::vector<NACompletionItem>>  // function argument list
+        rep;
+    SchemaType type;
+
+    Schema(nix::Value* options);
+    Schema(std::vector<NACompletionItem> items);
+    Schema(std::vector<NACompletionItem> items, SchemaType type);
+
+    std::vector<NACompletionItem> getItems(nix::EvalState& state);
+
+    std::optional<Schema> subschema(nix::EvalState& state, nix::Symbol symbol);
+
+    static Schema nixosModule(nix::EvalState& state, nix::Path path);
+    static Schema flake(nix::EvalState& state);
+};
+
+#include "mkderivation-schema.h"
 
 enum class FileType {
     None,
@@ -126,9 +171,6 @@ struct NixAnalyzer
     std::optional<Schema> getSchema(nix::Env& env,
                                     std::vector<nix::Expr*> exprPath,
                                     FileInfo file);
-
-    Schema nixosModuleSchema(nix::Path path);
-    Schema flakeSchema();
 };
 
 int poscmp(nix::Pos a, nix::Pos b);
