@@ -875,6 +875,7 @@ Schema::Schema(Value* options) : rep(options), type(SchemaType::Options) {
 }
 
 optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
+    ::Logger log{"/dev/null"};
     if (holds_alternative<vector<NACompletionItem>>(rep)) {
         return {};
     }
@@ -897,43 +898,57 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
             if (nameAttr->value->type() != nString)
                 return {};
             if (string_view(nameAttr->value->string.s) == "attrsOf") {
+                cerr << "Encountered attrsOf\n";
                 auto nestedTypesAttr = typeAttr->value->attrs->get(
                     state.symbols.create("nestedTypes"));
-                if (!nestedTypesAttr)
+                if (!nestedTypesAttr) {
+                    cerr << "No nestedTypes\n";
                     return {};
+                }
                 try {
                     state.forceAttrs(*nestedTypesAttr->value, noPos);
                 } catch (Error& e) {
+                    log.info("Caught error: ", e.info().msg.str());
                     return {};
                 }
                 auto elemTypeAttr = nestedTypesAttr->value->attrs->get(
                     state.symbols.create("elemType"));
-                if (!elemTypeAttr)
+                if (!elemTypeAttr) {
+                    cerr << "No elemType\n";
                     return {};
+                }
                 try {
                     state.forceAttrs(*elemTypeAttr->value, noPos);
                 } catch (Error& e) {
+                    log.info("Caught error: ", e.info().msg.str());
                     return {};
                 }
                 auto getSubOptionsAttr = elemTypeAttr->value->attrs->get(
                     state.symbols.create("getSubOptions"));
-                if (!getSubOptionsAttr)
+                if (!getSubOptionsAttr) {
+                    cerr << "No getSubOptions\n";
                     return {};
+                }
                 try {
                     state.forceValue(*getSubOptionsAttr->value, noPos);
                 } catch (Error& e) {
+                    log.info("Caught error: ", e.info().msg.str());
                     return {};
                 }
                 if (getSubOptionsAttr->value->type() != nix::nFunction) {
                     return {};
                 }
                 Value* arg = state.allocValue();
-                arg->mkAttrs(state.allocBindings(0));
+                arg->mkList(0);
                 Value* res = state.allocValue();
-                state.callFunction(*getSubOptionsAttr->value, *arg, *res,
-                                   noPos);
+                try {
+                    state.callFunction(*getSubOptionsAttr->value, *arg, *res,
+                                       noPos);
+                } catch (Error& e) {
+                    log.info("Caught error: ", e.info().msg.str());
+                    return {};
+                }
                 return res;
-                return {};
             }
         }
     }
@@ -1000,21 +1015,9 @@ Schema Schema::nixosModule(EvalState& state, Path path) {
 }
 
 Schema Schema::flake(EvalState& state) {
-    // clang-format off
-    Expr* e = state.parseExprFromString(R"(
-      let
-        # looks enough likes lib.types.attrsOf to fool Schema::subSchema
-        attrsOf = options: {
-          type.name = "attrsOf";
-          type.nestedTypes.elemType.getSubOptions = a: options;
-        };
-      in {
-        inputs = attrsOf { url = {}; flake = {}; };
-        outputs = {};
-        description = {};
-      }
-    )", "");
-    // clang-format on
+    Expr* e = state.parseExprFromString(
+#include "flakeschema.nix.h"
+        , "");
     Value* v = state.allocValue();
     state.eval(e, *v);
     return {v};
