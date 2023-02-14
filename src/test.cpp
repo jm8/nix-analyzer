@@ -1151,10 +1151,10 @@ int main(int argc, char** argv) {
             .beforeCursor = "{ xdg.",
             .afterCursor = " }",
             .ftype = FileType::NixosModule,
-            // .expectedCompletions = {"enable"},
-            // .expectedErrors = {"syntax error, unexpected '}', expecting ID or
-            // "
-            //                    "OR_KW or DOLLAR_CURLY or '\"'"},
+            .expectedCompletions = {"autostart", "icons", "menus", "mime",
+                                    "portal", "sounds"},
+            .expectedErrors = {"syntax error, unexpected '}', expecting ID "
+                               "or OR_KW or DOLLAR_CURLY or '\"'"},
         },
         {
             .beforeCursor = "{ xdg.autostart.enable = {",

@@ -161,11 +161,6 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
             }
             AttrPath path;
             if (analysis.attr) {
-                na_log.dbg("Attrpath ==");
-                for (auto x : *analysis.attr->attrPath) {
-                    na_log.dbg(state->symbols[x.symbol]);
-                }
-                na_log.dbg("index == ", analysis.attr->index);
                 size_t howManyAttrsToKeep = analysis.attr->index;
                 path = AttrPath(
                     analysis.attr->attrPath->begin(),
@@ -963,10 +958,8 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
     }
     auto suboptionAttr = options->attrs->get(symbol);
     if (!suboptionAttr) {
-        na_log.dbg("schema does NOT have attribute ", state.symbols[symbol]);
+        na_log.dbg("schema doesn't have attribute ", state.symbols[symbol]);
         return {};
-    } else {
-        na_log.dbg("schema does indeed have attribute ", state.symbols[symbol]);
     }
     return suboptionAttr->value;
 }
