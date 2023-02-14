@@ -214,8 +214,7 @@ int main(int argc, char** argv) {
     Path nixpkgs{argv[1]};
 
     Strings searchPath;
-    ::Logger log{"log.txt"};
-    auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore(), log);
+    auto analyzer = make_unique<NixAnalyzer>(searchPath, openStore());
 
     Path allpackages{nixpkgs + "/pkgs/top-level/all-packages.nix"s};
     string allpackagesContent{readFile(allpackages)};
@@ -1147,6 +1146,15 @@ int main(int argc, char** argv) {
             .expectedCompletions = {"enable"},
             .expectedErrors = {"syntax error, unexpected '=', expecting ID or "
                                "OR_KW or DOLLAR_CURLY or '\"'"},
+        },
+        {
+            .beforeCursor = "{ xdg.",
+            .afterCursor = " }",
+            .ftype = FileType::NixosModule,
+            // .expectedCompletions = {"enable"},
+            // .expectedErrors = {"syntax error, unexpected '}', expecting ID or
+            // "
+            //                    "OR_KW or DOLLAR_CURLY or '\"'"},
         },
         {
             .beforeCursor = "{ xdg.autostart.enable = {",

@@ -5,9 +5,10 @@
 #include <memory>
 #include <sstream>
 #include <variant>
-#include "attr-set.hh"
 #include "debug.h"
+#include "logger.h"
 
+#include "attr-set.hh"
 #include "error.hh"
 #include "eval.hh"
 #include "flake/flake.hh"
@@ -23,10 +24,7 @@ using namespace std;
 using namespace nix;
 using namespace nix::flake;
 
-NixAnalyzer::NixAnalyzer(const Strings& searchPath,
-                         nix::ref<Store> store,
-                         ::Logger& log)
-    : log(log) {
+NixAnalyzer::NixAnalyzer(const Strings& searchPath, nix::ref<Store> store) {
     nix::settings.experimentalFeatures.set("flakes", true);
     state = make_unique<EvalState>(searchPath, store);
 }
@@ -79,12 +77,12 @@ Analysis NixAnalyzer::getExprPath(string source,
                 analysis.exprPath.push_back(e);
             } else if (holds_alternative<CallbackAttrPath>(x)) {
                 if (analysis.attr) {
-                    log.warning("overwriting attr of exprpath");
+                    na_log.warning("overwriting attr of exprpath");
                 }
                 analysis.attr = {get<CallbackAttrPath>(x)};
             } else if (holds_alternative<CallbackFormal>(x)) {
                 if (analysis.formal) {
-                    log.warning("overwriting formal of exprpath");
+                    na_log.warning("overwriting formal of exprpath");
                 }
                 analysis.formal = get<CallbackFormal>(x).formal;
             } else if (holds_alternative<CallbackInherit>(x)) {
@@ -102,7 +100,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
     FileInfo file) {
     const auto& exprPath = analysis.exprPath;
     if (exprPath.empty()) {
-        log.info("Completing empty exprPath");
+        na_log.dbg("Completing empty exprPath");
         vector<NACompletionItem> result;
         for (auto [symbol, displ] : state->staticBaseEnv->vars) {
             SymbolStr sym = state->symbols[symbol];
@@ -116,18 +114,18 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
         return {NACompletionType::Variable, result};
     }
 
-    log.info("Completing ", exprTypeName(exprPath.front()));
+    na_log.dbg("Completing ", exprTypeName(exprPath.front()));
 
     vector<optional<Value*>> lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
-    log.info("file.type: ", (int)file.type);
+    na_log.dbg("file.type: ", (int)file.type);
 
     if (auto select = dynamic_cast<ExprSelect*>(exprPath.front())) {
         size_t howManyAttrsToKeep;
         if (analysis.attr) {
             howManyAttrsToKeep = analysis.attr->index;
         } else {
-            log.warning("no attr in analysis when completing ExprSelect");
+            na_log.warning("no attr in analysis when completing ExprSelect");
             return {};
         }
         AttrPath path(select->attrPath.begin(),
@@ -138,7 +136,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
             prefix.eval(*state, *env, v);
             state->forceValue(v, select->pos);
         } catch (Error& e) {
-            log.info("Caught error: ", e.info().msg.str());
+            na_log.dbg("Caught error: ", e.info().msg.str());
             return {};
         }
 
@@ -158,11 +156,16 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
         // completion
         if (!analysis.inherit) {
             if (!schema) {
-                log.info("Don't know the schema of this attrs.");
+                na_log.dbg("Don't know the schema of this attrs.");
                 return {};
             }
             AttrPath path;
             if (analysis.attr) {
+                na_log.dbg("Attrpath ==");
+                for (auto x : *analysis.attr->attrPath) {
+                    na_log.dbg(state->symbols[x.symbol]);
+                }
+                na_log.dbg("index == ", analysis.attr->index);
                 size_t howManyAttrsToKeep = analysis.attr->index;
                 path = AttrPath(
                     analysis.attr->attrPath->begin(),
@@ -173,13 +176,13 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
 
             for (auto attrName : path) {
                 if (!attrName.symbol) {
-                    log.info("Encountered a dynamic index");
+                    na_log.dbg("Encountered a dynamic index");
                     return {};
                 }
                 schema = schema->subschema(*state, attrName.symbol);
                 if (!schema) {
-                    log.info("No subschema for ",
-                             state->symbols[attrName.symbol]);
+                    na_log.dbg("No subschema for ",
+                               state->symbols[attrName.symbol]);
                     return {};
                 }
             }
@@ -194,7 +197,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
                 e->eval(*state, *env, v);
                 state->forceAttrs(v, noPos);
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
                 v.mkAttrs(state->allocBindings(0));
             }
             vector<NACompletionItem> result;
@@ -207,12 +210,12 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
 
     if (dynamic_cast<ExprLambda*>(exprPath.front())) {
         if (!lambdaArgs.front()) {
-            log.info("completion of unknown lambda arg");
+            na_log.dbg("completion of unknown lambda arg");
             return {};
         }
         Value* lambdaArg = *lambdaArgs.front();
         if (lambdaArg->type() != nAttrs) {
-            log.info("completion of lambda arg that is not attrs");
+            na_log.dbg("completion of lambda arg that is not attrs");
             return {};
         }
         vector<NACompletionItem> result;
@@ -222,7 +225,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
         return {NACompletionType::Variable, result};
     }
 
-    log.info("Defaulting to variable completion");
+    na_log.dbg("Defaulting to variable completion");
     vector<NACompletionItem> result;
     const StaticEnv* se = state->getStaticEnv(*exprPath.front()).get();
     while (se) {
@@ -250,7 +253,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
                     v->mkAttrs(state->allocBindings(0));
                 }
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
                 v->mkAttrs(state->allocBindings(0));
             }
             env->values[0] = v;
@@ -258,7 +261,7 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
         }
         if (env->type == Env::HasWithAttrs) {
             for (auto binding : *env->values[0]->attrs) {
-                log.info("Binding ", state->symbols[binding.name]);
+                na_log.dbg("Binding ", state->symbols[binding.name]);
                 result.push_back({state->symbols[binding.name]});
             }
         }
@@ -274,10 +277,10 @@ pair<NACompletionType, vector<NACompletionItem>> NixAnalyzer::complete(
 NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
     const auto& exprPath = analysis.exprPath;
     if (exprPath.empty()) {
-        log.info("hover of empty exprPath");
+        na_log.dbg("hover of empty exprPath");
         return {};
     };
-    log.info("hover of ", exprTypeName(exprPath.front()));
+    na_log.dbg("hover of ", exprTypeName(exprPath.front()));
     auto lambdaArgs = calculateLambdaArgs(exprPath, file);
     Env* env = calculateEnv(exprPath, lambdaArgs, file);
     if (auto var = dynamic_cast<ExprVar*>(exprPath.front())) {
@@ -285,14 +288,14 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         try {
             var->eval(*state, *env, v);
         } catch (Error& e) {
-            log.info("Caught error: ", e.info().msg.str());
+            na_log.dbg("Caught error: ", e.info().msg.str());
             v.mkNull();
         }
         PosIdx posIdx = v.definitionPos;
         if (posIdx) {
             return {{stringifyValue(*state, v)}, {state->positions[posIdx]}};
         } else {
-            log.info("Pos doesn't exist.");
+            na_log.dbg("Pos doesn't exist.");
             return {{stringifyValue(*state, v)}, {}};
         }
     }
@@ -301,7 +304,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         if (analysis.attr) {
             howManyAttrsToKeep = analysis.attr->index + 1;
         } else {
-            log.warning("no attr in analysis when completing ExprSelect");
+            na_log.warning("no attr in analysis when completing ExprSelect");
             return {};
         }
         AttrPath path(select->attrPath.begin(),
@@ -312,14 +315,14 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         try {
             prefix.eval(*state, *env, v);
         } catch (Error& e) {
-            log.info("Caught error: ", e.info().msg.str());
+            na_log.dbg("Caught error: ", e.info().msg.str());
             v.mkNull();
         }
         PosIdx posIdx = v.definitionPos;
         if (posIdx) {
             return {{stringifyValue(*state, v)}, {state->positions[posIdx]}};
         } else {
-            log.info("Pos doesn't exist.");
+            na_log.dbg("Pos doesn't exist.");
             return {{stringifyValue(*state, v)}, {}};
         }
     }
@@ -334,18 +337,18 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
     if (dynamic_cast<ExprLambda*>(exprPath.front())) {
         if (analysis.formal) {
             if (!lambdaArgs.front()) {
-                log.info("hover of lambda with unknown args");
+                na_log.dbg("hover of lambda with unknown args");
                 return {};
             }
             Value* lambdaArg = *lambdaArgs.front();
             if (lambdaArg->type() != nAttrs) {
-                log.info("lambda arg is not an attrset");
+                na_log.dbg("lambda arg is not an attrset");
                 return {};
             }
             auto it = lambdaArg->attrs->find(analysis.formal->name);
             Value* v;
             if (it == lambdaArg->attrs->end()) {
-                log.info("lambda arg does not contain this attr");
+                na_log.dbg("lambda arg does not contain this attr");
                 v = state->allocValue();
                 v->mkNull();
             } else {
@@ -354,7 +357,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
             try {
                 state->forceValue(*v, noPos);
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
                 v->mkNull();
             }
             PosIdx posIdx = v->definitionPos;
@@ -362,7 +365,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
                 return {{stringifyValue(*state, *v)},
                         {state->positions[posIdx]}};
             } else {
-                log.info("Pos doesn't exist.");
+                na_log.dbg("Pos doesn't exist.");
                 return {{stringifyValue(*state, *v)}, {}};
             }
         }
@@ -374,7 +377,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         auto [index, attrPath] = *analysis.attr;
         auto name = (*attrPath)[index];
         if (!name.symbol) {
-            log.info("dynamic attribute in inherit is not allowed");
+            na_log.dbg("dynamic attribute in inherit is not allowed");
             return {};
         }
         Value v;
@@ -383,14 +386,14 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         try {
             select.eval(*state, *env, v);
         } catch (Error& e) {
-            log.info("Caught error: ", e.info().msg.str());
+            na_log.dbg("Caught error: ", e.info().msg.str());
             v.mkNull();
         }
         PosIdx posIdx = v.definitionPos;
         if (posIdx) {
             return {{stringifyValue(*state, v)}, {state->positions[posIdx]}};
         } else {
-            log.info("Pos doesn't exist.");
+            na_log.dbg("Pos doesn't exist.");
             return {{stringifyValue(*state, v)}, {}};
         }
     }
@@ -399,17 +402,17 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
         const auto& attrPath = analysis.attr->attrPath;
         if (auto let = dynamic_cast<ExprLet*>(exprPath.front())) {
             if (attrPath->size() != 1) {
-                log.info("didn't know you could do let a.b.c = ...;");
+                na_log.dbg("didn't know you could do let a.b.c = ...;");
                 return {};
             }
             auto name = attrPath->back();
             if (!name.symbol) {
-                log.info("didn't know you could do let ${x} = ...;");
+                na_log.dbg("didn't know you could do let ${x} = ...;");
                 return {};
             }
             auto it = let->attrs->attrs.find(name.symbol);
             if (it == let->attrs->attrs.end()) {
-                log.warning("can't find the let binding that you made");
+                na_log.warning("can't find the let binding that you made");
                 return {};
             }
             auto child = it->second.e;
@@ -418,7 +421,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
             try {
                 it->second.e->eval(*state, *subEnv, v);
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
                 return {};
             }
             PosIdx posIdx = v.definitionPos;
@@ -426,7 +429,7 @@ NAHoverResult NixAnalyzer::hover(const Analysis& analysis, FileInfo file) {
                 return {{stringifyValue(*state, v)},
                         {state->positions[posIdx]}};
             } else {
-                log.info("Pos doesn't exist.");
+                na_log.dbg("Pos doesn't exist.");
                 return {{stringifyValue(*state, v)}, {}};
             }
         }
@@ -466,7 +469,7 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
                 env2->values[displ] = attrDef.e->maybeThunk(
                     *state, attrDef.inherited ? *up : *env2);
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
                 env2->values[displ] = state->allocValue();
                 env2->values[displ]->mkNull();
             }
@@ -500,7 +503,7 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
             try {
                 state->forceAttrs(*arg, noPos);
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
                 for (uint32_t i = 0; i < lambda->formals->formals.size(); i++) {
                     Value* val = state->allocValue();
                     val->mkNull();
@@ -524,7 +527,7 @@ Env* NixAnalyzer::updateEnv(Expr* parent,
                         try {
                             val = i.def->maybeThunk(*state, *env2);
                         } catch (Error& e) {
-                            log.info("Caught error: ", e.info().msg.str());
+                            na_log.dbg("Caught error: ", e.info().msg.str());
                             val = state->allocValue();
                             val->mkNull();
                         }
@@ -611,7 +614,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
                 state->callFunction(fun, arg, *v, noPos);
                 result[i] = v;
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
             }
         }
         firstLambda = false;
@@ -624,7 +627,7 @@ vector<optional<Value*>> NixAnalyzer::calculateLambdaArgs(
         }
         auto flakeDir = file.path.substr(0, flakeDotNixPos);
         auto lockFilePath = flakeDir + "/flake.lock";
-        log.info("lockFilePath: ", lockFilePath);
+        na_log.dbg("lockFilePath: ", lockFilePath);
         auto lockFile = LockFile::read(lockFilePath);
 
         auto getFlakeInputs = allocRootValue(state->allocValue());
@@ -703,23 +706,23 @@ in builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.roo
         try {
             state->callFunction(**getFlakeInputs, *vLocks, *vRes, noPos);
         } catch (Error& e) {
-            log.info("Caught error: ", e.info().msg.str());
+            na_log.dbg("Caught error: ", e.info().msg.str());
             return result;
         }
 
         stringstream ss;
         vRes->print(state->symbols, ss);
-        log.info("Flake inputs: ", ss.str());
+        na_log.dbg("Flake inputs: ", ss.str());
 
         auto root = dynamic_cast<ExprAttrs*>(exprPath.back());
         if (!root) {
-            log.info("Flake does not start with attrs", ss.str());
+            na_log.dbg("Flake does not start with attrs", ss.str());
             return result;
         }
 
         auto outputs = root->attrs.find(state->sOutputs);
         if (outputs == root->attrs.end()) {
-            log.info("Flake does not contain `outputs`");
+            na_log.dbg("Flake does not contain `outputs`");
             return result;
         }
 
@@ -753,19 +756,20 @@ NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
             if ((select && state->symbols[select->attrPath.back().symbol] ==
                                "mkDerivation") ||
                 (var && state->symbols[var->name] == "mkDerivation")) {
-                log.info("Completing with schemaMkDerivation");
+                na_log.dbg("Completing with schemaMkDerivation");
                 return {{i - 1, schemaMkDerivation}};
             }
             Value v;
             try {
                 call->fun->eval(*state, *functionEnv, v);
             } catch (Error& e) {
-                log.info("Caught error: ", e.info().msg.str());
+                na_log.dbg("Caught error: ", e.info().msg.str());
                 return {};
             }
 
             if (v.isLambda()) {
                 if (v.lambda.fun->hasFormals()) {
+                    na_log.dbg("Schema from lambda");
                     vector<NACompletionItem> schema;
                     for (auto formal : v.lambda.fun->formals->formals) {
                         schema.push_back({state->symbols[formal.name], ""});
@@ -776,42 +780,44 @@ NixAnalyzer::getSchemaRoot(Env& env, vector<Expr*> exprPath, FileInfo file) {
                 auto it =
                     v.attrs->find(state->symbols.create("__functionArgs"));
                 if (it == v.attrs->end()) {
-                    log.info(
+                    na_log.dbg(
                         "tried to getSchema something thats not a function");
                     return {};
                 }
                 try {
                     state->forceAttrs(*it->value, noPos);
                 } catch (Error& e) {
-                    log.info("Caught error: ", e.info().msg.str());
-                    log.info("for some reason __functionArgs isn't a set");
+                    na_log.dbg("Caught error: ", e.info().msg.str());
+                    na_log.dbg("for some reason __functionArgs isn't a set");
                     return {};
                 }
                 vector<NACompletionItem> schema;
+                na_log.dbg("Schema from function with __functionArgs");
                 for (auto attr : *it->value->attrs) {
                     schema.push_back({state->symbols[attr.name], ""});
                 }
                 return {{i - 1, schema}};
             } else {
-                log.info("tried to getSchema something thats not a function");
+                na_log.dbg("tried to getSchema something thats not a function");
                 return {};
             }
         } else {
-            log.info("Encountered ", exprTypeName(exprPath[i]),
-                     " (not Attrs or Call), so stopping "
-                     "the get function schema");
+            na_log.dbg("Encountered ", exprTypeName(exprPath[i]),
+                       " (not Attrs or Call), so stopping "
+                       "the get function schema");
             break;
         }
     }
 
     if (file.type == FileType::NixosModule) {
         try {
+            na_log.dbg("Schema is nixos module");
             return {
                 {exprPath.size() - 1,
                  Schema::nixosModule(
                      *state, file.nixpkgs() + "/nixos/lib/eval-config.nix")}};
         } catch (nix::Error& e) {
-            log.info("Caught error: ", e.info().msg.str());
+            na_log.dbg("Caught error: ", e.info().msg.str());
             return {};
         }
     }
@@ -845,14 +851,14 @@ optional<Schema> NixAnalyzer::getSchema(Env& env,
                 }
             }
             if (!subname) {
-                log.info(
+                na_log.dbg(
                     "Failed to find the child in the parent attrs so don't "
                     "know the symbol");
                 return {};
             }
             auto subschema = currentSchema.subschema(*state, *subname);
             if (!subschema) {
-                log.info("No subschema");
+                na_log.dbg("No subschema");
                 return {};
             }
             currentSchema = *subschema;
@@ -875,7 +881,6 @@ Schema::Schema(Value* options) : rep(options), type(SchemaType::Options) {
 }
 
 optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
-    ::Logger log{"/dev/null"};
     if (holds_alternative<vector<NACompletionItem>>(rep)) {
         return {};
     }
@@ -883,20 +888,22 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
     try {
         state.forceAttrs(*options, noPos);
     } catch (Error& e) {
-        // log.info("Caught error: ", e.info().msg.str());
+        na_log.dbg("Caught error: ", e.info().msg.str());
         return {};
     }
     if (auto typeAttr = options->attrs->get(state.symbols.create("type"))) {
         try {
             state.forceAttrs(*typeAttr->value, noPos);
         } catch (Error& e) {
-            // log.info("Caught error: ", e.info().msg.str());
+            na_log.dbg("Caught error: ", e.info().msg.str());
             return {};
         }
         if (auto nameAttr =
                 typeAttr->value->attrs->get(state.symbols.create("name"))) {
-            if (nameAttr->value->type() != nString)
+            if (nameAttr->value->type() != nString) {
+                na_log.warning("schema has .type but no .type.name");
                 return {};
+            }
             if (string_view(nameAttr->value->string.s) == "attrsOf") {
                 cerr << "Encountered attrsOf\n";
                 auto nestedTypesAttr = typeAttr->value->attrs->get(
@@ -908,7 +915,7 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
                 try {
                     state.forceAttrs(*nestedTypesAttr->value, noPos);
                 } catch (Error& e) {
-                    log.info("Caught error: ", e.info().msg.str());
+                    na_log.dbg("Caught error: ", e.info().msg.str());
                     return {};
                 }
                 auto elemTypeAttr = nestedTypesAttr->value->attrs->get(
@@ -920,7 +927,7 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
                 try {
                     state.forceAttrs(*elemTypeAttr->value, noPos);
                 } catch (Error& e) {
-                    log.info("Caught error: ", e.info().msg.str());
+                    na_log.dbg("Caught error: ", e.info().msg.str());
                     return {};
                 }
                 auto getSubOptionsAttr = elemTypeAttr->value->attrs->get(
@@ -932,10 +939,12 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
                 try {
                     state.forceValue(*getSubOptionsAttr->value, noPos);
                 } catch (Error& e) {
-                    log.info("Caught error: ", e.info().msg.str());
+                    na_log.dbg("Caught error: ", e.info().msg.str());
                     return {};
                 }
                 if (getSubOptionsAttr->value->type() != nix::nFunction) {
+                    na_log.warning(
+                        "getSubOptions exists but is not a function");
                     return {};
                 }
                 Value* arg = state.allocValue();
@@ -945,7 +954,7 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
                     state.callFunction(*getSubOptionsAttr->value, *arg, *res,
                                        noPos);
                 } catch (Error& e) {
-                    log.info("Caught error: ", e.info().msg.str());
+                    na_log.dbg("Caught error: ", e.info().msg.str());
                     return {};
                 }
                 return res;
@@ -954,7 +963,10 @@ optional<Schema> Schema::subschema(EvalState& state, Symbol symbol) {
     }
     auto suboptionAttr = options->attrs->get(symbol);
     if (!suboptionAttr) {
+        na_log.dbg("schema does NOT have attribute ", state.symbols[symbol]);
         return {};
+    } else {
+        na_log.dbg("schema does indeed have attribute ", state.symbols[symbol]);
     }
     return suboptionAttr->value;
 }
@@ -1008,7 +1020,8 @@ Schema Schema::nixosModule(EvalState& state, Path path) {
     state.forceAttrs(*module, noPos);
     auto optionsAttr = module->attrs->get(state.symbols.create("options"));
     if (!optionsAttr) {
-        // log.warning("eval-config.nix did not give something with 'options'");
+        // na_log.warning("eval-config.nix did not give something with
+        // 'options'");
         return {vector<NACompletionItem>{}};
     }
     return {optionsAttr->value};

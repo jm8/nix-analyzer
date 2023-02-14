@@ -85,6 +85,15 @@ string stringify(T x) {
     return ss.str();
 }
 
+struct LspLogIgnore : lsp::Log {
+    void log(Level level, std::wstring&& msg){};
+    void log(Level level, const std::wstring& msg){};
+    void log(Level level, std::string&& msg){};
+    void log(Level level, const std::string& msg){};
+};
+
+LspLogIgnore lsplogignore;
+
 struct Document {
     string text;
     FileInfo fileinfo;
@@ -93,7 +102,6 @@ struct Document {
 class NixLanguageServer {
    public:
     RemoteEndPoint remoteEndPoint;
-    Logger& log;
     unique_ptr<NixAnalyzer> analyzer;
     // prevent other things from happening while contentChange is happening.
     // guh
@@ -128,7 +136,7 @@ class NixLanguageServer {
         for (size_t i = 0; i < line0indexed; i++) {
             size_t nextNewLine = content.find('\n', startOfLine);
             if (nextNewLine == string_view::npos) {
-                log.info("Line value out of range");
+                na_log.dbg("Line value out of range");
                 return 0;
             }
             startOfLine = nextNewLine + 1;
@@ -144,11 +152,11 @@ class NixLanguageServer {
     // https://github.com/llvm/llvm-project/blob/b8576086c78a5aebf056a8fc8cc716dfee40b72e/clang-tools-extra/clangd/SourceCode.cpp#L171
     size_t positionToOffset(string_view content, lsPosition p) {
         if (p.line < 0) {
-            log.info("Negative line value");
+            na_log.dbg("Negative line value");
             return string_view::npos;
         }
         if (p.character < 0) {
-            log.info("Negative character value");
+            na_log.dbg("Negative character value");
             return string_view::npos;
         }
         return findStartOfLine(content, p.line) + p.character;
@@ -175,7 +183,7 @@ class NixLanguageServer {
         optional<pair<uint32_t, uint32_t>> position) {
         auto it = documents.find(uri.raw_uri_);
         if (it == documents.end()) {
-            log.info("Document ", uri.raw_uri_, " does not exist");
+            na_log.dbg("Document ", uri.raw_uri_, " does not exist");
             return {};
         }
         string source = it->second.text;
@@ -186,10 +194,10 @@ class NixLanguageServer {
             path = path.substr(7);
             basePath = nix::dirOf(path);
         } else {
-            log.info("Path does not have a base path: ", uri.raw_uri_);
+            na_log.dbg("Path does not have a base path: ", uri.raw_uri_);
             basePath = nix::absPath(".");
         }
-        log.info("Base path of ", uri.raw_uri_, " is ", basePath);
+        na_log.dbg("Base path of ", uri.raw_uri_, " is ", basePath);
 
         nix::Pos pos;
         if (position) {
@@ -207,9 +215,9 @@ class NixLanguageServer {
         }
         auto line = source.substr(startOfLine, n);
 
-        log.info("Analyzing ", uri.raw_uri_, ":", pos.line, ":", pos.column);
-        log.info(line);
-        log.info(string(pos.column - 1, ' ') + '^');
+        na_log.dbg("Analyzing ", uri.raw_uri_, ":", pos.line, ":", pos.column);
+        na_log.dbg(line);
+        na_log.dbg(string(pos.column - 1, ' ') + '^');
 
         return analyzer->getExprPath(source, path, basePath, pos);
     }
@@ -223,17 +231,14 @@ class NixLanguageServer {
         }
     }
 
-    NixLanguageServer(nix::Strings searchPath,
-                      nix::ref<nix::Store> store,
-                      Logger& log)
+    NixLanguageServer(nix::Strings searchPath, nix::ref<nix::Store> store)
         : remoteEndPoint(make_shared<lsp::ProtocolJsonHandler>(),
-                         make_shared<GenericEndpoint>(log),
-                         log),
-          log(log),
-          analyzer(make_unique<NixAnalyzer>(searchPath, store, log)) {
+                         make_shared<GenericEndpoint>(lsplogignore),
+                         lsplogignore),
+          analyzer(make_unique<NixAnalyzer>(searchPath, store)) {
         remoteEndPoint.registerHandler([&](const td_initialize::request& req) {
             td_initialize::response res;
-            log.info("initialize");
+            na_log.dbg("initialize");
             res.result.capabilities.hoverProvider = true;
             res.result.capabilities.completionProvider = {{
                 .resolveProvider = false,
@@ -248,11 +253,11 @@ class NixLanguageServer {
 
         remoteEndPoint.registerHandler(
             [&](Notify_InitializedNotification::notify& notify) {
-                log.info("initialized");
+                na_log.dbg("initialized");
             });
 
         remoteEndPoint.registerHandler([&](Notify_Exit::notify& notify) {
-            log.info("exit: ", notify.jsonrpc);
+            na_log.dbg("exit: ", notify.jsonrpc);
             remoteEndPoint.stop();
             esc_event.notify(make_unique<bool>(true));
         });
@@ -260,7 +265,7 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidOpen::notify& notify) {
                 auto uri = notify.params.textDocument.uri;
-                log.info("didOpen: ", uri.raw_uri_);
+                na_log.dbg("didOpen: ", uri.raw_uri_);
                 documents[uri.raw_uri_] = {
                     notify.params.textDocument.text,
                     FileInfo{uri.GetAbsolutePath().path}};
@@ -270,7 +275,7 @@ class NixLanguageServer {
             [&](Notify_TextDocumentDidChange::notify& notify) {
                 lock_guard<mutex> lock(contentChangeMutex);
                 auto uri = notify.params.textDocument.uri;
-                log.info("didChange: ", uri.raw_uri_);
+                na_log.dbg("didChange: ", uri.raw_uri_);
                 string& content = documents[uri.raw_uri_].text;
                 for (auto contentChange : notify.params.contentChanges) {
                     applyContentChange(content, contentChange);
@@ -280,13 +285,13 @@ class NixLanguageServer {
         remoteEndPoint.registerHandler(
             [&](Notify_TextDocumentDidClose::notify& notify) {
                 string uri = notify.params.textDocument.uri.raw_uri_;
-                log.info("didClose: ", uri);
+                na_log.dbg("didClose: ", uri);
                 documents.erase(uri);
             });
 
         remoteEndPoint.registerHandler([&](const td_hover::request& req) {
             lock_guard<mutex> lock(contentChangeMutex);
-            log.info("hover");
+            na_log.dbg("hover");
             td_hover::response res;
             auto analysis = getExprPath(req.params.textDocument.uri,
                                         {{req.params.position.line + 1,
@@ -307,7 +312,7 @@ class NixLanguageServer {
 
         remoteEndPoint.registerHandler([&](const td_definition::request& req) {
             lock_guard<mutex> lock(contentChangeMutex);
-            log.info("goto definition");
+            na_log.dbg("goto definition");
             td_definition::response res;
             res.result.first = {vector<lsLocation>{}};
             auto analysis = getExprPath(req.params.textDocument.uri,
@@ -330,7 +335,7 @@ class NixLanguageServer {
             } else {
                 location.uri = lsDocumentUri{AbsolutePath{pos.file}};
             }
-            log.info(location.uri.raw_uri_);
+            na_log.dbg(location.uri.raw_uri_);
             location.range.start = {static_cast<int>(pos.line - 1),
                                     static_cast<int>(pos.column - 1)};
             location.range.end = location.range.start;
@@ -340,7 +345,7 @@ class NixLanguageServer {
 
         remoteEndPoint.registerHandler([&](const td_completion::request& req) {
             lock_guard<mutex> lock(contentChangeMutex);
-            log.info("completion");
+            na_log.dbg("completion");
             td_completion::response res;
             auto uri = req.params.textDocument.uri;
             auto analysis =
@@ -351,7 +356,7 @@ class NixLanguageServer {
                 *analysis, getDocumentFileInfo(req.params.textDocument.uri));
             if (req.params.context->triggerCharacter == "." &&
                 completionType == NACompletionType::Variable) {
-                log.info(
+                na_log.dbg(
                     "Completion was triggered with `.` but the completion kind "
                     "is not Variable. Ignoring");
                 return res;
@@ -388,7 +393,7 @@ class NixLanguageServer {
                 ios.run();
                 output = data.get();
             } catch (bp::process_error& e) {
-                log.info("error running alejandra: ", e.what());
+                na_log.dbg("error running alejandra: ", e.what());
                 return res;
             }
 
@@ -404,7 +409,7 @@ class NixLanguageServer {
         });
 
         remoteEndPoint.registerHandler([&](const td_shutdown::request& req) {
-            log.info("shutdown");
+            na_log.dbg("shutdown");
             td_shutdown::response res;
             return res;
         });
@@ -424,10 +429,7 @@ int main() {
     nix::initGC();
     nix::verbosity = nix::lvlVomit;
     nix::Strings searchPath;
-    string cacheDir = nix::getHome() + "/.cache/nix-analyzer"s;
-    boost::filesystem::create_directories(cacheDir);
-    Logger log{cacheDir + "/nix-analyzer.log"};
-    NixLanguageServer server(searchPath, nix::openStore(), log);
+    NixLanguageServer server(searchPath, nix::openStore());
 
     server.esc_event.wait();
 }

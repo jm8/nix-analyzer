@@ -5,21 +5,28 @@
 #include <sstream>
 #include "LibLsp/JsonRpc/MessageIssue.h"
 
-class Logger : public lsp::Log {
+class Logger {
    public:
     std::ofstream file;
 
     Logger(std::string_view path);
 
-    void log(Level level, const std::wstring& msg);
-    void log(Level level, std::wstring&& msg);
-    void log(Level level, std::string&& msg);
-    void log(Level level, const std::string& msg);
+    // called dbg to not conflict with nix's debug() macro
+    template <typename... T>
+    void dbg(T... args) {
+        ((std::cerr << args), ...);
+        std::cerr << "\n";
+        ((file << args), ...);
+        file << "\n";
+    }
 
     template <typename... T>
-    void info(T... args) {
-        std::stringstream ss;
-        ((ss << args), ...);
-        log(Level::INFO, ss.str());
+    void warning(T... args) {
+        ((std::cerr << args), ...);
+        std::cerr << "\n";
+        ((file << args), ...);
+        file << "\n";
     }
 };
+
+extern Logger na_log;

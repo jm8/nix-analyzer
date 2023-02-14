@@ -26,8 +26,6 @@
 #include "store-api.hh"
 #include "util.hh"
 
-#include "logger.h"
-
 #include <string>
 #include <variant>
 
@@ -124,11 +122,8 @@ struct NixAnalyzer
 #endif
 {
     std::unique_ptr<nix::EvalState> state;
-    Logger& log;
 
-    NixAnalyzer(const nix::Strings& searchPath,
-                nix::ref<nix::Store> store,
-                Logger& log);
+    NixAnalyzer(const nix::Strings& searchPath, nix::ref<nix::Store> store);
 
     Analysis getExprPath(std::string source,
                          nix::Path path,
