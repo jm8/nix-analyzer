@@ -19,6 +19,7 @@
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
+        system = "x86_64-linux";
       in {
         packages = rec {
           lspcpp = pkgs.stdenv.mkDerivation {
@@ -42,33 +43,27 @@
           nix-analyzer = pkgs.stdenv.mkDerivation {
             name = "nix-analyzer";
             src = ./.;
-            # not sure why boost isn't showing up in pkg-config
-            boostInclude = "${pkgs.boost.dev}/include";
-            boostLib = "${pkgs.boost}/lib";
-            inherit lspcpp nixpkgs;
+            CFLAGS = [
+              "--std=c++20"
+              "-isystem${nixfork.packages.${system}.default.dev}/include"
+              "-L${nixfork.packages.${system}.default}/lib"
+              "-lnixmain -lnixexpr -lnixfetchers -lnixmain -lnixstore -lnixutil"
+              "-isystem${pkgs.boost.dev}/include"
+              "-L${pkgs.boost}/lib"
+              "-isystem${pkgs.boehmgc.dev}/include"
+              "-isystem${pkgs.nlohmann_json}/include"
+            ];
+            nixdebug = nixfork.packages.${system}.default.debug;
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
-              pkgconfig
-              python3
             ];
-            buildInputs = with pkgs;
-              [
-                boehmgc
-                boost
-                nlohmann_json
-                flex
-                bison
-              ]
-              ++ [
-                nixfork.packages.${system}.default
-              ];
             enableParalellBuilding = true;
             buildPhase = ''
               make
             '';
             installPhase = ''
               mkdir -p $out/{bin,lib}
-              cp {nix-analyzer,nix-analyzer-test} $out/bin
+              cp nix-analyzer $out/bin
             '';
           };
           default = nix-analyzer;
