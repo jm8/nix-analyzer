@@ -1,4 +1,5 @@
 #include <nix/eval.hh>
+#include "common/analysis.h"
 
 nix::Env* updateEnv(nix::EvalState& state,
                     nix::Expr* parent,
@@ -138,14 +139,14 @@ nix::Env* updateEnv(nix::EvalState& state,
     return up;
 }
 
-nix::Env* calculateEnv(nix::EvalState& state,
-                       std::vector<nix::Expr*> exprPath,
-                       std::vector<std::optional<nix::Value*>> lambdaArgs) {
+void calculateEnvs(nix::EvalState& state, Analysis& analysis) {
     nix::Env* env = &state.baseEnv;
-    for (size_t i = exprPath.size() - 1; i >= 1; i--) {
-        nix::Expr* child = exprPath[i - 1];
-        nix::Expr* parent = exprPath[i];
-        env = updateEnv(state, parent, child, env, lambdaArgs[i]);
+    analysis.exprPath.back().env = env;
+    for (size_t i = analysis.exprPath.size() - 1; i >= 1; i--) {
+        nix::Expr* child = analysis.exprPath[i - 1].e;
+        nix::Expr* parent = analysis.exprPath[i].e;
+        env = updateEnv(state, parent, child, env,
+                        analysis.exprPath[i].lambdaArg);
+        analysis.exprPath[i].env = env;
     }
-    return env;
 }

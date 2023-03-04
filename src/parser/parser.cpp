@@ -17,12 +17,12 @@ int poscmp(nix::Pos a, nix::Pos b) {
     return 0;
 }
 
-ParseResult parse(nix::EvalState& state,
-                  std::string source,
-                  nix::Path path,
-                  nix::Path basePath,
-                  nix::Pos targetPos) {
-    ParseResult analysis;
+Analysis parse(nix::EvalState& state,
+               std::string source,
+               nix::Path path,
+               nix::Path basePath,
+               nix::Pos targetPos) {
+    Analysis analysis;
     state.parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state.staticBaseEnv,

@@ -20,7 +20,7 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         system = "x86_64-linux";
-      in {
+      in rec {
         packages = rec {
           lspcpp = pkgs.stdenv.mkDerivation {
             name = "LspCpp";
@@ -53,7 +53,6 @@
               "-isystem${pkgs.boehmgc.dev}/include"
               "-isystem${pkgs.nlohmann_json}/include"
             ];
-            nixdebug = nixfork.packages.${system}.default.debug;
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
             ];
@@ -67,6 +66,19 @@
             '';
           };
           default = nix-analyzer;
+        };
+        devShells = {
+          default = pkgs.mkShell {
+            nixdebug = nixfork.packages.${system}.default.debug;
+            inherit (packages.default) CFLAGS;
+            nativeBuildInputs = with pkgs; [
+              gdb
+            ];
+            shellHook = ''
+              echo directory ${nixfork} > ./.gdbinit
+              echo set debug-file-directory ${nixfork.packages.${system}.default.debug}/lib/debug >> ./.gdbinit
+            '';
+          };
         };
       }
     );
