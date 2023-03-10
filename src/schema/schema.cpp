@@ -1,4 +1,5 @@
 #include "schema/schema.h"
+#include <gc/gc.h>
 #include <filesystem>
 #include <iostream>
 #include <nix/attr-set.hh>
@@ -8,16 +9,16 @@
 #include <nix/pos.hh>
 #include <nix/symbol-table.hh>
 #include <nix/value.hh>
+#include "common/allocvalue.h"
 #include "common/analysis.h"
 
 Schema::Schema() {}
 
 Schema::Schema(nix::Value* v) : value(v) {}
 
-void functionDescriptionValue(nix::Value& v,
-                              nix::EvalState& state,
-                              nix::Expr* fun,
-                              nix::Env& env) {
+nix::Value* functionDescriptionValue(nix::EvalState& state,
+                                     nix::Expr* fun,
+                                     nix::Env& env) {
     auto sFunction = state.symbols.create("function");
     auto sName = state.symbols.create("name");
     auto bindings = state.allocBindings(2);
@@ -35,52 +36,34 @@ void functionDescriptionValue(nix::Value& v,
     bindings->push_back({sFunction, functionV});
     bindings->push_back({sName, nameV});
 
-    v.mkAttrs(bindings);
+    auto v = state.allocValue();
+    v->mkAttrs(bindings);
+    return v;
 }
 
 Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
     if (analysis.exprPath.empty())
         return {};
-    const std::string getSchemaPath =
-        "/home/josh/dev/nix-analyzer/src/schema/getSchema.nix";
 
-    // auto vGetSchema = state.allocValue();
-    // state.evalFile(getSchemaPath, *vGetSchema);
+    const std::string getFunctionSchemaPath =
+        "/home/josh/dev/nix-analyzer/src/schema/getFunctionSchema.nix";
+    auto vGetFunctionSchema = allocValue(state);
+    state.evalFile(getFunctionSchemaPath, *vGetFunctionSchema);
 
-    auto vPath = state.allocValue();
-    vPath->mkString(analysis.path);
-
-    auto vFunctions = state.allocValue();
-    // vFunctions->mkList(analysis.exprPath.size());
-    state.mkList(*vFunctions, analysis.exprPath.size());
-
-    nix::Value* v0 = state.allocValue();
-    v0->mkNull();
-    vFunctions->listElems()[0] = v0;
-
+    auto vSchema = allocValue(state);
+    vSchema->mkAttrs(state.allocBindings(0));
     for (int i = 1; i < analysis.exprPath.size(); i++) {
-        nix::Value* v = state.allocValue();
-        v->mkNull();
-        if (auto call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) {
-            if (analysis.exprPath[i - 1].e == call->fun) {
-                v->mkNull();
-            } else {
-                functionDescriptionValue(*v, state, call->fun,
-                                         *analysis.exprPath[i].env);
-            }
-        } else {
-            v->mkNull();
+        nix::ExprCall* call;
+        if ((call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) &&
+            analysis.exprPath[i - 1].e != call->fun) {
+            auto vFunctionDescription = functionDescriptionValue(
+                state, call->fun, *analysis.exprPath[i].env);
+            state.callFunction(*vGetFunctionSchema, *vFunctionDescription,
+                               *vSchema, nix::noPos);
+            vSchema->print(state.symbols, std::cout);
+            std::cout << "\n";
         }
-        vFunctions->listElems()[i] = v;
     }
-
-    auto sPath = state.symbols.create("path");
-    auto sFunctions = state.symbols.create("functions");
-    auto bindings = state.allocBindings(2);
-    bindings->push_back({sPath, vPath});
-    bindings->push_back({sFunctions, vFunctions});
-    auto vArg = state.allocValue();
-    vArg->mkAttrs(bindings);
 
     return {};
 }

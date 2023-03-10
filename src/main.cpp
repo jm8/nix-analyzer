@@ -29,9 +29,9 @@ int main() {
 
     getSchema(*state, analysis);
 
-    for (auto e : analysis.exprPath) {
-        e.e->show(state->symbols, std::cout);
-        std::cout << "\n";
-    }
+    // for (auto e : analysis.exprPath) {
+    //     e.e->show(state->symbols, std::cout);
+    //     std::cout << "\n";
+    // }
     std::cout << "\n";
 }
