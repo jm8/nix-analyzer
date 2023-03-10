@@ -1,5 +1,4 @@
-#include "parser.h"
-#include <nix/eval.hh>
+#include "parser/parser.h"
 
 int poscmp(nix::Pos a, nix::Pos b) {
     if (a.line > b.line) {
@@ -23,6 +22,7 @@ Analysis parse(nix::EvalState& state,
                nix::Path basePath,
                nix::Pos targetPos) {
     Analysis analysis;
+
     state.parseWithCallback(
         source, path.empty() ? nix::foString : nix::foFile, path, basePath,
         state.staticBaseEnv,

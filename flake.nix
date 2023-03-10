@@ -50,8 +50,10 @@
               "-lnixmain -lnixexpr -lnixfetchers -lnixmain -lnixstore -lnixutil"
               "-isystem${pkgs.boost.dev}/include"
               "-L${pkgs.boost}/lib"
-              "-isystem${pkgs.boehmgc.dev}/include"
               "-isystem${pkgs.nlohmann_json}/include"
+              "-isystem${pkgs.boehmgc.dev}/include"
+              "-L${pkgs.boehmgc}/lib"
+              "-lgc -lgccpp"
             ];
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook

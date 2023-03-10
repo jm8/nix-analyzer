@@ -140,6 +140,9 @@ nix::Env* updateEnv(nix::EvalState& state,
 }
 
 void calculateEnvs(nix::EvalState& state, Analysis& analysis) {
+    if (analysis.exprPath.empty())
+        return;
+
     nix::Env* env = &state.baseEnv;
     analysis.exprPath.back().env = env;
     for (size_t i = analysis.exprPath.size() - 1; i >= 1; i--) {

@@ -1,3 +1,6 @@
+#include "config.h"
+
+#include <memory>
 #include <nix/nixexpr.hh>
 #include <string>
 #include <vector>

@@ -9,7 +9,6 @@
 #include <nix/pos.hh>
 #include <nix/symbol-table.hh>
 #include <nix/value.hh>
-#include "common/allocvalue.h"
 #include "common/analysis.h"
 
 Schema::Schema() {}
@@ -47,10 +46,10 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
 
     const std::string getFunctionSchemaPath =
         "/home/josh/dev/nix-analyzer/src/schema/getFunctionSchema.nix";
-    auto vGetFunctionSchema = allocValue(state);
+    auto vGetFunctionSchema = state.allocValue();
     state.evalFile(getFunctionSchemaPath, *vGetFunctionSchema);
 
-    auto vSchema = allocValue(state);
+    auto vSchema = state.allocValue();
     vSchema->mkAttrs(state.allocBindings(0));
     for (int i = 1; i < analysis.exprPath.size(); i++) {
         nix::ExprCall* call;
@@ -58,6 +57,8 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
             analysis.exprPath[i - 1].e != call->fun) {
             auto vFunctionDescription = functionDescriptionValue(
                 state, call->fun, *analysis.exprPath[i].env);
+            vFunctionDescription->print(state.symbols, std::cout);
+            std::cout << "\n";
             state.callFunction(*vGetFunctionSchema, *vFunctionDescription,
                                *vSchema, nix::noPos);
             vSchema->print(state.symbols, std::cout);
