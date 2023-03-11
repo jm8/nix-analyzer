@@ -25,7 +25,14 @@ std::vector<Token> tokenize(
     std::vector<Token> result;
 
     while ((type = static_cast<TokenType>(yylex(&val, &loc, scanner, &data)))) {
-        result.push_back({type, val, loc});
+        Position start = {
+            static_cast<uint32_t>(loc.first_line - 1),
+            static_cast<uint32_t>(loc.first_column - 1)};
+        if (!result.empty()) {
+            result.back().range.end = start;
+        }
+        Position end = {start.line + 1, 0};
+        result.push_back({type, val, {start, end}});
     }
 
     yylex_destroy(scanner);

@@ -1,12 +1,12 @@
 #pragma once
 #include "config.h"
 #include <nix/nixexpr.hh>
+#include "common/position.h"
 #include "schema/schema.h"
 
 struct NAParseError {
     std::string message;
-    nix::Pos begin;
-    nix::Pos end;
+    Range range;
 };
 
 struct ParseResultAttrPath {

@@ -51,6 +51,7 @@ TEST_P(NixAnalyzerTest, Works) {
     std::string path = "";
 
     auto analysis = parse(*state, source, path, nix::absPath("."), {0, 0});
+    ASSERT_FALSE(analysis.exprPath.empty());
 
     auto expected = state->forceString(
         *v->attrs->get(state->symbols.create("expected"))->value, nix::noPos

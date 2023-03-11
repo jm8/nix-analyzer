@@ -20,4 +20,4 @@ nix-analyzer-test: ${OBJ} build/test.o
 	g++ ${OBJ} build/test.o ${CFLAGS} -lgtest -o nix-analyzer-test
 
 clean:
-	rm -f nix-analyzer nix-analyzer-test
+	rm -rf nix-analyzer nix-analyzer-test build

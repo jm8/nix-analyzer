@@ -14,8 +14,8 @@ int main() {
     auto state =
         std::make_unique<nix::EvalState>(nix::Strings{}, nix::openStore());
 
-    auto tokens = tokenize(*state, "", "abc 123 + - if");
+    auto tokens = tokenize(*state, "", "abc\ndef");
     for (const auto& token : tokens) {
-        std::cout << tokenName(token.type) << "\n";
+        std::cout << tokenName(token.type) << token.range << "\n";
     }
 }
