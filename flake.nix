@@ -54,6 +54,8 @@
               "-isystem${pkgs.boehmgc.dev}/include"
               "-L${pkgs.boehmgc}/lib"
               "-lgc -lgccpp"
+              "-I${pkgs.gtest.dev}/include"
+              "-L${pkgs.gtest}/lib"
             ];
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook

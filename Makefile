@@ -17,7 +17,7 @@ nix-analyzer: ${OBJ} build/main.o
 	g++ ${OBJ} build/main.o ${CFLAGS} -o nix-analyzer
 
 nix-analyzer-test: ${OBJ} build/test.o
-	g++ ${OBJ} build/test.o ${CFLAGS} -o nix-analyzer-test
+	g++ ${OBJ} build/test.o ${CFLAGS} -lgtest -o nix-analyzer-test
 
 clean:
 	rm -f nix-analyzer nix-analyzer-test

@@ -9,79 +9,74 @@
 #include <any>
 #include <cstdint>
 #include <cstdlib>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "common/position.h"
+#include "gtest/gtest.h"
 #include "parser/parser.h"
 
-bool runParseTest(nix::EvalState& state, nix::Value& v) {
-    std::string source{state.forceString(
-        *v.attrs->get(state.symbols.create("source"))->value, nix::noPos
+class NixAnalyzerTest : public testing::TestWithParam<std::string> {
+   protected:
+    static void SetUpTestSuite() {
+        nix::initGC();
+        nix::initNix();
+        state = new nix::EvalState(nix::Strings{}, nix::openStore());
+    }
+
+    static void TearDownTestSuite() { delete state; }
+
+    static nix::EvalState* state;
+};
+
+nix::EvalState* NixAnalyzerTest::state = nullptr;
+
+TEST_P(NixAnalyzerTest, Works) {
+    auto v = state->allocValue();
+    state->evalFile(nix::absPath(GetParam()), *v);
+    state->forceAttrs(*v, nix::noPos);
+
+    auto type = state->forceString(
+        *v->attrs->get(state->symbols.create("type"))->value, nix::noPos
+    );
+
+    ASSERT_EQ(type, "parse");
+    std::string source{state->forceString(
+        *v->attrs->get(state->symbols.create("source"))->value, nix::noPos
     )};
 
     std::string path = "";
 
-    auto analysis = parse(state, source, path, nix::absPath("."), {0, 0});
+    auto analysis = parse(*state, source, path, nix::absPath("."), {0, 0});
 
-    auto expected = state.forceString(
-        *v.attrs->get(state.symbols.create("expected"))->value, nix::noPos
+    auto expected = state->forceString(
+        *v->attrs->get(state->symbols.create("expected"))->value, nix::noPos
     );
     if (expected.ends_with('\n')) {
         expected = expected.substr(0, expected.size() - 1);
     }
     std::stringstream ss;
-    analysis.exprPath.back().e->show(state.symbols, ss);
-    auto actual = ss.str();
+    analysis.exprPath.back().e->show(state->symbols, ss);
+    auto parsed = ss.str();
 
-    if (actual != expected) {
-        std::cout << "EXPECTED: " << expected << "\n";
-        std::cout << "ACTUAL: " << actual << "\n";
-        std::cout << "FAIL\n";
-        return false;
-    }
-
-    std::cout << "GOOD\n";
-
-    return true;
+    ASSERT_EQ(parsed, expected);
 }
 
-bool runTest(nix::EvalState& state, std::string path) {
-    auto v = state.allocValue();
-    state.evalFile(nix::absPath(path), *v);
-    state.forceAttrs(*v, nix::noPos);
+std::vector<std::string> arguments;
 
-    auto type = state.forceString(
-        *v->attrs->get(state.symbols.create("type"))->value, nix::noPos
-    );
-
-    if (type == "parse") {
-        return runParseTest(state, *v);
-    }
-    abort();
-}
+INSTANTIATE_TEST_SUITE_P(
+    Instantiation,
+    NixAnalyzerTest,
+    testing::ValuesIn(arguments)
+);
 
 int main(int argc, char* argv[]) {
-    nix::initNix();
-    nix::initGC();
+    for (int i = 1; i < argc; i++)
+        arguments.push_back(argv[i]);
 
-    auto state =
-        std::make_unique<nix::EvalState>(nix::Strings{}, nix::openStore());
-
-    int successCount = 0;
-    int totalCount = 0;
-    for (int i = 1; i < argc; i++) {
-        std::cout << argv[i] << "\n";
-        successCount += runTest(*state, argv[i]);
-        totalCount++;
-    }
-
-    if (successCount == totalCount) {
-        std::cout << "ALL GOOD\n";
-        return 0;
-    } else {
-        std::cout << "A TEST FAILED\n";
-        return 1;
-    };
+    testing::InitGoogleTest();
+    return RUN_ALL_TESTS();
 }

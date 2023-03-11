@@ -5,5 +5,5 @@
   '';
   expected = ''
     hello
-  ''
+  '';
 }
