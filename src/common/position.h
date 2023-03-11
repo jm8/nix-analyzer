@@ -4,6 +4,7 @@
 #include <nix/parser-tab.hh>
 #include <nix/pos.hh>
 #include <cstddef>
+#include <iomanip>
 #include <string>
 
 struct Position {
