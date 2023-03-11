@@ -14,4 +14,4 @@ jobs:
       with:
         name: jm8
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix build && ./result/bin/nix-analyzer-test $(nix develop -c sh -c 'echo $nixpkgs')
+    - run: nix build && nix develop -c bash -c './result/nix-analyzer-test tests/*.nix'

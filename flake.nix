@@ -57,6 +57,12 @@
               "-I${pkgs.gtest.dev}/include"
               "-L${pkgs.gtest}/lib"
             ];
+            buildInputs = with pkgs; [
+              boost
+              nixfork.packages.x86_64-linux.default
+              boehmgc
+              gtest
+            ];
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
             ];
@@ -65,15 +71,16 @@
               make
             '';
             installPhase = ''
-              mkdir -p $out/{bin,lib}
+              mkdir -p $out/bin
               cp nix-analyzer $out/bin
+              cp nix-analyzer-test $out
+              find src -name '*.csv' -exec cp --parents '{}' $out ';'
             '';
           };
           default = nix-analyzer;
         };
         devShells = {
           default = pkgs.mkShell {
-            nixdebug = nixfork.packages.${system}.default.debug;
             CFLAGS =
               packages.default.CFLAGS
               ++ [
@@ -83,6 +90,8 @@
             nativeBuildInputs = with pkgs; [
               gdb
             ];
+            inherit nixpkgs;
+            NIX_PATH = "nixpkgs=${nixpkgs}";
             shellHook = ''
               echo directory ${nixfork} > ./.gdbinit
               echo set debug-file-directory ${nixfork.packages.${system}.default.debug}/lib/debug >> ./.gdbinit
