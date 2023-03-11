@@ -1,3 +1,4 @@
+#pragma once
 #include <nix/config.h>
 
 #if HAVE_BOEHMGC

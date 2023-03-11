@@ -1,4 +1,5 @@
 #pragma once
+#include "config.h"
 #include <nix/nixexpr.hh>
 #include "schema/schema.h"
 

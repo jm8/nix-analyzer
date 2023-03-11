@@ -1,6 +1,4 @@
 #include <nix/config.h>
-#include <iostream>
-#include <memory>
 #include <nix/error.hh>
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
@@ -9,6 +7,8 @@
 #include <nix/types.hh>
 #include <nix/util.hh>
 #include <nix/value.hh>
+#include <iostream>
+#include <memory>
 #include <optional>
 #include <vector>
 #include "calculateenv/calculateenv.h"
@@ -22,8 +22,13 @@ int main() {
 
     const auto source = "(import <nixpkgs> {}).pkgs.stdenv.mkDerivation {}";
     // std::cout << state->staticBaseEnv << "\n";
-    auto analysis = parse(*state, source, "", nix::absPath("."),
-                          nix::Pos{source, nix::foString, 1, 48});
+    auto analysis = parse(
+        *state,
+        source,
+        "",
+        nix::absPath("."),
+        nix::Pos{source, nix::foString, 1, 48}
+    );
 
     calculateEnvs(*state, analysis);
 

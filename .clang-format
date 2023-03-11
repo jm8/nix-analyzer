@@ -1,2 +1,12 @@
 BasedOnStyle: Chromium
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: BlockIndent
 IndentWidth: 4
+IncludeCategories:
+  - Regex: 'config'
+    Priority: -1
+  - Regex: 'nix/'
+    Priority: 1
+PenaltyReturnTypeOnItsOwnLine: 1000000
+PenaltyBreakOpenParenthesis: 0

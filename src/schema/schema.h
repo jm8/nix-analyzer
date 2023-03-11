@@ -1,6 +1,5 @@
 #pragma once
 #include "config.h"
-
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/symbol-table.hh>

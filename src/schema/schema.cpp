@@ -1,23 +1,15 @@
 #include "schema/schema.h"
-#include <gc/gc.h>
-#include <filesystem>
-#include <iostream>
-#include <nix/attr-set.hh>
-#include <nix/error.hh>
-#include <nix/eval.hh>
-#include <nix/nixexpr.hh>
-#include <nix/pos.hh>
-#include <nix/symbol-table.hh>
-#include <nix/value.hh>
 #include "common/analysis.h"
 
 Schema::Schema() {}
 
 Schema::Schema(nix::Value* v) : value(v) {}
 
-nix::Value* functionDescriptionValue(nix::EvalState& state,
-                                     nix::Expr* fun,
-                                     nix::Env& env) {
+nix::Value* functionDescriptionValue(
+    nix::EvalState& state,
+    nix::Expr* fun,
+    nix::Env& env
+) {
     auto bindings = state.buildBindings(2);
 
     auto sName = state.symbols.create("name");
@@ -57,11 +49,13 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
         if ((call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) &&
             analysis.exprPath[i - 1].e != call->fun) {
             auto vFunctionDescription = functionDescriptionValue(
-                state, call->fun, *analysis.exprPath[i].env);
+                state, call->fun, *analysis.exprPath[i].env
+            );
             vFunctionDescription->print(state.symbols, std::cout);
             std::cout << "\n";
-            state.callFunction(*vGetFunctionSchema, *vFunctionDescription,
-                               *vSchema, nix::noPos);
+            state.callFunction(
+                *vGetFunctionSchema, *vFunctionDescription, *vSchema, nix::noPos
+            );
             vSchema->print(state.symbols, std::cout);
             std::cout << "\n";
         }

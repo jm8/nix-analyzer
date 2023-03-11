@@ -16,15 +16,20 @@ int poscmp(nix::Pos a, nix::Pos b) {
     return 0;
 }
 
-Analysis parse(nix::EvalState& state,
-               std::string source,
-               nix::Path path,
-               nix::Path basePath,
-               nix::Pos targetPos) {
+Analysis parse(
+    nix::EvalState& state,
+    std::string source,
+    nix::Path path,
+    nix::Path basePath,
+    nix::Pos targetPos
+) {
     Analysis analysis;
 
     state.parseWithCallback(
-        source, path.empty() ? nix::foString : nix::foFile, path, basePath,
+        source,
+        path.empty() ? nix::foString : nix::foFile,
+        path,
+        basePath,
         state.staticBaseEnv,
         [&](auto x, nix::Pos start, nix::Pos end) {
             // fix
@@ -37,8 +42,8 @@ Analysis parse(nix::EvalState& state,
                 return;
             }
 
-            if (!(poscmp(start, targetPos) <= 0 &&
-                  poscmp(targetPos, end) <= 0)) {
+            if (!(poscmp(start, targetPos) <= 0 && poscmp(targetPos, end) <= 0
+                )) {
                 return;
             }
 
@@ -47,8 +52,8 @@ Analysis parse(nix::EvalState& state,
                 analysis.exprPath.push_back(e);
             } else if (holds_alternative<nix::CallbackAttrPath>(x)) {
                 auto callbackAttrPath = get<nix::CallbackAttrPath>(x);
-                analysis.attr = {callbackAttrPath.index,
-                                 callbackAttrPath.attrPath};
+                analysis.attr = {
+                    callbackAttrPath.index, callbackAttrPath.attrPath};
             } else if (holds_alternative<nix::CallbackFormal>(x)) {
                 analysis.formal = get<nix::CallbackFormal>(x).formal;
             } else if (holds_alternative<nix::CallbackInherit>(x)) {
@@ -59,13 +64,16 @@ Analysis parse(nix::EvalState& state,
             if (!error.info().errPos)
                 return;
             auto errpos = *error.info().errPos;
-            auto pos = nix::Pos{errpos.file, errpos.origin,
-                                static_cast<uint32_t>(errpos.line),
-                                static_cast<uint32_t>(errpos.column)};
+            auto pos = nix::Pos{
+                errpos.file,
+                errpos.origin,
+                static_cast<uint32_t>(errpos.line),
+                static_cast<uint32_t>(errpos.column)};
             auto endpos = pos;
             endpos.column += 5;
-            analysis.parseErrors.push_back(
-                {error.info().msg.str(), pos, endpos});
-        });
+            analysis.parseErrors.push_back({error.info().msg.str(), pos, endpos}
+            );
+        }
+    );
     return analysis;
 }

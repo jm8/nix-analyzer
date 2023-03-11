@@ -1,11 +1,14 @@
+#include "calculateenv/calculateenv.h"
 #include <nix/eval.hh>
 #include "common/analysis.h"
 
-nix::Env* updateEnv(nix::EvalState& state,
-                    nix::Expr* parent,
-                    nix::Expr* child,
-                    nix::Env* up,
-                    std::optional<nix::Value*> lambdaArg) {
+nix::Env* updateEnv(
+    nix::EvalState& state,
+    nix::Expr* parent,
+    nix::Expr* child,
+    nix::Env* up,
+    std::optional<nix::Value*> lambdaArg
+) {
     if (auto let = dynamic_cast<nix::ExprLet*>(parent)) {
         nix::Env* env2 = &state.allocEnv(let->attrs->attrs.size());
         env2->up = up;
@@ -19,7 +22,8 @@ nix::Env* updateEnv(nix::EvalState& state,
         for (auto& [symbol, attrDef] : let->attrs->attrs) {
             try {
                 env2->values[displ] = attrDef.e->maybeThunk(
-                    state, attrDef.inherited ? *up : *env2);
+                    state, attrDef.inherited ? *up : *env2
+                );
             } catch (nix::Error& e) {
                 // na_log.dbg("Caught error: ", e.info().msg.str());
                 env2->values[displ] = state.allocValue();
@@ -114,7 +118,8 @@ nix::Env* updateEnv(nix::EvalState& state,
             nix::Value* vAttr;
             try {
                 vAttr = i.second.e->maybeThunk(
-                    state, i.second.inherited ? *up : *env2);
+                    state, i.second.inherited ? *up : *env2
+                );
             } catch (nix::Error& e) {
                 vAttr = state.allocValue();
                 vAttr->mkNull();
@@ -148,8 +153,9 @@ void calculateEnvs(nix::EvalState& state, Analysis& analysis) {
     for (size_t i = analysis.exprPath.size() - 1; i >= 1; i--) {
         nix::Expr* child = analysis.exprPath[i - 1].e;
         nix::Expr* parent = analysis.exprPath[i].e;
-        env = updateEnv(state, parent, child, env,
-                        analysis.exprPath[i].lambdaArg);
+        env = updateEnv(
+            state, parent, child, env, analysis.exprPath[i].lambdaArg
+        );
         analysis.exprPath[i].env = env;
     }
 }
