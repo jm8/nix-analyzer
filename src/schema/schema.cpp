@@ -18,12 +18,9 @@ Schema::Schema(nix::Value* v) : value(v) {}
 nix::Value* functionDescriptionValue(nix::EvalState& state,
                                      nix::Expr* fun,
                                      nix::Env& env) {
-    auto sFunction = state.symbols.create("function");
+    auto bindings = state.buildBindings(2);
+
     auto sName = state.symbols.create("name");
-    auto bindings = state.allocBindings(2);
-
-    auto functionV = fun->maybeThunk(state, env);
-
     std::string name;
     if (auto var = dynamic_cast<nix::ExprVar*>(fun)) {
         name = state.symbols[var->name];
@@ -32,11 +29,15 @@ nix::Value* functionDescriptionValue(nix::EvalState& state,
     }
     auto nameV = state.allocValue();
     nameV->mkString(name);
-    bindings->push_back({sFunction, functionV});
-    bindings->push_back({sName, nameV});
+    bindings.insert(sName, nameV);
+
+    auto sFunction = state.symbols.create("function");
+    auto functionV = fun->maybeThunk(state, env);
+    bindings.insert(sFunction, functionV);
 
     auto v = state.allocValue();
-    v->mkAttrs(bindings);
+    v->mkAttrs(bindings.finish());
+
     return v;
 }
 

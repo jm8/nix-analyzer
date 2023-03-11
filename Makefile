@@ -1,4 +1,4 @@
-CFLAGS+=-g -Isrc
+CFLAGS+=-Isrc
 SOURCE_FILES=src/calculateenv/calculateenv.cpp src/common/analysis.cpp src/parser/parser.cpp src/schema/schema.cpp src/main.cpp
 
 

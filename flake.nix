@@ -72,7 +72,12 @@
         devShells = {
           default = pkgs.mkShell {
             nixdebug = nixfork.packages.${system}.default.debug;
-            inherit (packages.default) CFLAGS;
+            CFLAGS =
+              packages.default.CFLAGS
+              ++ [
+                "-O0"
+                "-g"
+              ];
             nativeBuildInputs = with pkgs; [
               gdb
             ];
