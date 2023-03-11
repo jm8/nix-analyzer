@@ -1,6 +1,5 @@
 CFLAGS+=-Isrc
-SOURCE_FILES=src/calculateenv/calculateenv.cpp src/common/analysis.cpp src/parser/parser.cpp src/schema/schema.cpp src/main.cpp
-
+SOURCE_FILES=$(shell find src -type f -name '*.cpp')
 
 nix-analyzer: ${SOURCE_FILES}
 	g++ ${SOURCE_FILES} ${CFLAGS} -o nix-analyzer
