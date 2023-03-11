@@ -15,6 +15,8 @@ struct Position {
     Position(nix::Pos pos);
 
     nix::Pos nixPos(std::string path = {});
+
+    auto operator<=>(const Position& other) const = default;
 };
 
 struct Range {
@@ -23,4 +25,6 @@ struct Range {
 
     Range(Position start, Position end);
     Range(const YYLTYPE& loc);
+
+    bool contains(Position position) const;
 };

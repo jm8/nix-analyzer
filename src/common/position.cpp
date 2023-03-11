@@ -10,5 +10,9 @@ nix::Pos Position::nixPos(std::string path) {
 
 Range::Range(Position start, Position end) : start(start), end(end) {}
 Range::Range(const YYLTYPE& loc)
-    : start(loc.first_line, loc.first_column),
-      end(loc.last_line, loc.last_column) {}
+    : start(loc.first_line - 1, loc.first_column - 1),
+      end(loc.last_line - 1, loc.last_column - 1) {}
+
+bool Range::contains(Position position) const {
+    return (start <= position) && (position <= end);
+}

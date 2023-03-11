@@ -16,6 +16,7 @@ struct Parser {
     nix::EvalState& state;
     Analysis& analysis;
     const std::vector<Token>& tokens;
+    Position targetPos;
 
     size_t nextTokenIndex = 0;
     nix::Symbol sNull = state.symbols.create("null");
@@ -50,7 +51,10 @@ struct Parser {
         auto start = lookahead(0).range.start;
         auto e = expr_simple();
         auto end = lookahead(-1).range.end;
-        analysis.exprPath.push_back(e);
+        if (Range{start, end}.contains(targetPos)) {
+            analysis.exprPath.push_back(e);
+        }
+        return e;
     }
 
     nix::Expr* expr_simple() {
@@ -81,7 +85,7 @@ Analysis parse(
 
     auto tokens = tokenize(state, path, source);
 
-    Parser parser{state, analysis, tokens};
+    Parser parser{state, analysis, tokens, targetPos};
     parser.expr();
 
     return analysis;
