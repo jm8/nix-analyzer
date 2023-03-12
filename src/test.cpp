@@ -14,6 +14,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "common/position.h"
 #include "gtest/gtest.h"
@@ -34,31 +35,66 @@ class NixAnalyzerTest : public testing::TestWithParam<std::string> {
 
 nix::EvalState* NixAnalyzerTest::state = nullptr;
 
+std::string getString(
+    nix::EvalState* state,
+    nix::Value* v,
+    std::string_view key
+) {
+    auto i = v->attrs->get(state->symbols.create(key));
+    if (!i) {
+        std::cerr << "Missing key: " << key << "\n";
+        abort();
+    }
+    return std::string{state->forceString(*i->value, nix::noPos)};
+}
+
+std::vector<std::string> getListOfStrings(
+    nix::EvalState* state,
+    nix::Value* v,
+    std::string_view key
+) {
+    auto i = v->attrs->get(state->symbols.create(key));
+    if (!i) {
+        std::cerr << "Missing key: " << key << "\n";
+        abort();
+    }
+    state->forceList(*i->value, nix::noPos);
+    std::vector<std::string> list;
+    list.reserve(i->value->listSize());
+    for (auto el : i->value->listItems()) {
+        list.push_back(std::string(state->forceString(*el)));
+    }
+    return list;
+}
+
+int getInt(nix::EvalState* state, nix::Value* v, std::string_view key) {
+    auto i = v->attrs->get(state->symbols.create(key));
+    if (!i) {
+        std::cerr << "Missing key: " << key << "\n";
+        abort();
+    }
+    return state->forceInt(*i->value, nix::noPos);
+}
+
 void runParseTest(nix::EvalState* state, nix::Value* v) {
-    std::string source{state->forceString(
-        *v->attrs->get(state->symbols.create("source"))->value, nix::noPos
-    )};
+    auto source = getString(state, v, "source");
 
     std::string path = "";
 
-    auto analysis = parse(*state, source, path, nix::absPath("."), {0, 0});
+    Position targetPos{
+        static_cast<uint32_t>(getInt(state, v, "line")),
+        static_cast<uint32_t>(getInt(state, v, "col")),
+    };
+
+    auto analysis = parse(*state, source, path, nix::absPath("."), targetPos);
     ASSERT_FALSE(analysis.exprPath.empty());
 
-    auto expected = state->forceString(
-        *v->attrs->get(state->symbols.create("expected"))->value, nix::noPos
-    );
+    auto expected = getString(state, v, "expected");
     if (expected.ends_with('\n')) {
         expected = expected.substr(0, expected.size() - 1);
     }
 
-    auto vExpectedErrors =
-        v->attrs->get(state->symbols.create("expectedErrors"))->value;
-    state->forceList(*vExpectedErrors, nix::noPos);
-    std::vector<std::string> expectedErrors;
-    expectedErrors.reserve(vExpectedErrors->listSize());
-    for (auto el : vExpectedErrors->listItems()) {
-        expectedErrors.push_back(std::string(state->forceString(*el)));
-    }
+    auto expectedErrors = getListOfStrings(state, v, "expectedErrors");
 
     std::vector<std::string> actualErrors;
     for (auto parseError : analysis.parseErrors) {

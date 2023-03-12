@@ -1,7 +1,7 @@
-{
+import ./lib/maketest.nix {
   type = "parse";
   source = ''
-    hello
+    hel^lo
   '';
   expected = ''
     hello

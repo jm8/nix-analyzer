@@ -1,8 +1,10 @@
-rec {
+import ./lib/maketest.nix {
   type = "parse";
   source = ''
-    { x = y; y = z; }
+    { x.a.b^ = y; y = z; }
   '';
-  expected = source;
+  expected = ''
+    { x = { a = { b = y; }; }; y = z; }
+  '';
   expectedErrors = [];
 }

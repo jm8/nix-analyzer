@@ -1,8 +1,10 @@
-rec {
+import ./lib/maketest.nix {
   type = "parse";
   source = ''
+    {^ }
+  '';
+  expected = ''
     { }
   '';
-  expected = source;
   expectedErrors = [];
 }
