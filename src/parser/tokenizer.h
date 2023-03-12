@@ -3,7 +3,9 @@
 #include <nix/parser-tab.hh>
 // lexer-tab must be included after parser-tab
 #include <nix/lexer-tab.hh>
+#include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 #include "common/position.h"
 
@@ -13,14 +15,21 @@ using TokenType = int;
 
 struct Token {
     TokenType type;
-    YYSTYPE val;
+    std::variant<std::monostate, std::string> val;
     Range range;
 };
 
-std::string tokenName(TokenType type);
+struct Tokenizer {
+    nix::ParseData data;
+    std::string source;
+    yyscan_t scanner;
+    Token current;
+    YYLTYPE yylloc;
+    YYSTYPE yylval;
 
-std::vector<Token> tokenize(
-    nix::EvalState& state,
-    std::string path,
-    std::string source
-);
+    Tokenizer(nix::EvalState& state, std::string path, std::string source);
+    void advance();
+    ~Tokenizer();
+};
+
+std::string tokenName(TokenType type);

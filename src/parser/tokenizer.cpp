@@ -3,40 +3,49 @@
 #include <nix/eval.hh>
 #include <nix/lexer-tab.hh>
 #include <nix/parser-tab.hh>
+#include <cstring>
+#include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
+#include "common/position.h"
 
-std::vector<Token> tokenize(
+Tokenizer::Tokenizer(
     nix::EvalState& state,
     std::string path,
-    std::string source
-) {
-    nix::ParseData data(state, {path, nix::foFile});
-
+    std::string source_
+)
+    : data(state, {path, nix::foFile}), source(source_) {
     source.append("\0\0", 2);
-    yyscan_t scanner;
+
     yylex_init(&scanner);
     yy_scan_buffer(source.data(), source.length(), scanner);
+    advance();
+}
 
-    TokenType type;
-    YYLTYPE loc;
-    YYSTYPE val;
-
-    std::vector<Token> result;
-
-    while ((type = static_cast<TokenType>(yylex(&val, &loc, scanner, &data)))) {
-        Position start = {
-            static_cast<uint32_t>(loc.first_line - 1),
-            static_cast<uint32_t>(loc.first_column - 1)};
-        if (!result.empty()) {
-            result.back().range.end = start;
-        }
-        Position end = {start.line + 1, 0};
-        result.push_back({type, val, {start, end}});
+void Tokenizer::advance() {
+    if (current.type == 0)
+        return;
+    current.type =
+        static_cast<TokenType>(yylex(&yylval, &yylloc, scanner, &data));
+    if (current.type == 0)
+        return;
+    if (current.type == ID || current.type == STR || current.type == URI ||
+        current.type == PATH) {
+        current.val = std::string{std::string_view{yylval.id}};
+    } else {
+        current.val = {};
     }
+    current.range.start = {
+        static_cast<uint32_t>(yylloc.first_line - 1),
+        static_cast<uint32_t>(yylloc.first_column - 1)};
+    current.range.end = {
+        static_cast<uint32_t>(yylloc.last_line - 1),
+        static_cast<uint32_t>(yylloc.last_column - 1 + 1)};
+}
 
+Tokenizer::~Tokenizer() {
     yylex_destroy(scanner);
-    return result;
 }
 
 std::string tokenName(TokenType type) {

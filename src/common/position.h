@@ -16,6 +16,7 @@ struct Position {
 
     Position(uint32_t line, uint32_t col);
     Position(nix::Pos pos);
+    Position() = default;
 
     nix::Pos nixPos(std::string path = {});
 
@@ -30,6 +31,7 @@ struct Range {
     Position end;
 
     Range(Position start, Position end);
+    Range() = default;
 
     bool contains(Position position) const;
 };

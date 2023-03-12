@@ -34,16 +34,7 @@ class NixAnalyzerTest : public testing::TestWithParam<std::string> {
 
 nix::EvalState* NixAnalyzerTest::state = nullptr;
 
-TEST_P(NixAnalyzerTest, Works) {
-    auto v = state->allocValue();
-    state->evalFile(nix::absPath(GetParam()), *v);
-    state->forceAttrs(*v, nix::noPos);
-
-    auto type = state->forceString(
-        *v->attrs->get(state->symbols.create("type"))->value, nix::noPos
-    );
-
-    ASSERT_EQ(type, "parse");
+void runParseTest(nix::EvalState* state, nix::Value* v) {
     std::string source{state->forceString(
         *v->attrs->get(state->symbols.create("source"))->value, nix::noPos
     )};
@@ -64,6 +55,19 @@ TEST_P(NixAnalyzerTest, Works) {
     auto parsed = ss.str();
 
     ASSERT_EQ(parsed, expected);
+}
+
+TEST_P(NixAnalyzerTest, Works) {
+    auto v = state->allocValue();
+    state->evalFile(nix::absPath(GetParam()), *v);
+    state->forceAttrs(*v, nix::noPos);
+
+    auto type = state->forceString(
+        *v->attrs->get(state->symbols.create("type"))->value, nix::noPos
+    );
+
+    ASSERT_EQ(type, "parse");
+    ASSERT_NO_FATAL_FAILURE(runParseTest(state, v));
 }
 
 std::vector<std::string> arguments;

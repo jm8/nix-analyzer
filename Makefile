@@ -1,15 +1,11 @@
 CFLAGS+=-Isrc
-SOURCE+=src/parser/parser.cpp
-SOURCE+=src/parser/tokenizer.cpp
-SOURCE+=src/calculateenv/calculateenv.cpp
-SOURCE+=src/schema/schema.cpp
-SOURCE+=src/common/analysis.cpp
-SOURCE+=src/common/position.cpp
-OBJ = $(patsubst src/%.cpp,build/%.o,$(SOURCE))
+SOURCE=$(wildcard src/*/*.cpp) # doesn't include main.cpp and test.cpp
+HEADERS=$(wildcard src/*.h) $(wildcard src/*/*.h)
+OBJ=$(patsubst src/%.cpp,build/%.o,$(SOURCE))
 
 all: nix-analyzer nix-analyzer-test
 
-build/%.o: src/%.cpp
+build/%.o: src/%.cpp $(HEADERS)
 	mkdir -p `dirname $@`
 	g++ $(CFLAGS) $< -c -o $@
 
