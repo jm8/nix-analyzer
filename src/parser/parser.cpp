@@ -93,12 +93,12 @@ struct Parser {
             }
         }
         // '{' binds '}'
-        // if (accept('{')) {
-        // auto e = binds();
-        // expect('}');
-        // return e;
-        // }
-        consume();
+        if (accept('{')) {
+            auto e = binds();
+            expect('}');
+            return e;
+            // }
+        }
         return missing();
     }
 
@@ -131,7 +131,8 @@ struct Parser {
                         attrs = attrs2;
                     } else {
                         error("duplicate attr", range);
-                        // dupAttr(state, attrPath, start, end, j->second.pos);
+                        // dupAttr(state, attrPath, start, end,
+                        // j->second.pos);
                         return;
                     }
                 } else {
@@ -193,14 +194,14 @@ struct Parser {
     nix::Expr* binds() {
         auto attrs = new nix::ExprAttrs;
         while (allow(ID) || allow(OR_KW)) {
+            auto start = current().range.start;
             auto path = attrPath();
             if (!expect('=')) {
                 break;
             }
-            auto start = current().range.start;
             auto e = expr();
             auto end = current().range.start;
-            // addAttr(attrs, *path, e, {start, end});
+            addAttr(attrs, *path, e, {start, end});
             if (!expect(';')) {
                 break;
             }

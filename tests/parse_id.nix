@@ -6,4 +6,5 @@
   expected = ''
     hello
   '';
+  expectedErrors = [];
 }

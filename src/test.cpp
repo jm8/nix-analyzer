@@ -50,11 +50,32 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     if (expected.ends_with('\n')) {
         expected = expected.substr(0, expected.size() - 1);
     }
+
+    auto vExpectedErrors =
+        v->attrs->get(state->symbols.create("expectedErrors"))->value;
+    state->forceList(*vExpectedErrors, nix::noPos);
+    std::vector<std::string> expectedErrors;
+    expectedErrors.reserve(vExpectedErrors->listSize());
+    for (auto el : vExpectedErrors->listItems()) {
+        expectedErrors.push_back(std::string(state->forceString(*el)));
+    }
+
+    std::vector<std::string> actualErrors;
+    for (auto parseError : analysis.parseErrors) {
+        std::stringstream ss;
+        ss << parseError.message << " " << parseError.range;
+        actualErrors.push_back(ss.str());
+    }
+
+    if (expected.ends_with('\n')) {
+        expected = expected.substr(0, expected.size() - 1);
+    }
     std::stringstream ss;
     analysis.exprPath.back().e->show(state->symbols, ss);
-    auto parsed = ss.str();
+    auto actual = ss.str();
 
-    ASSERT_EQ(parsed, expected);
+    ASSERT_EQ(actual, expected) << source;
+    ASSERT_EQ(actualErrors, expectedErrors) << source;
 }
 
 TEST_P(NixAnalyzerTest, Works) {
