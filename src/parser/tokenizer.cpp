@@ -15,7 +15,7 @@ Tokenizer::Tokenizer(
     std::string path,
     std::string source_
 )
-    : data(state, {path, nix::foFile}), source(source_) {
+    : data(state, {path, nix::foFile}), source(source_), lastEnd() {
     source.append("\0\0", 2);
 
     yylex_init(&scanner);
@@ -43,7 +43,7 @@ Token Tokenizer::advance() {
     token.range.start = {
         static_cast<uint32_t>(yylloc.first_line - 1),
         static_cast<uint32_t>(yylloc.first_column - 1)};
-    token.range.end = {
+    lastEnd = token.range.end = {
         static_cast<uint32_t>(yylloc.last_line - 1),
         static_cast<uint32_t>(yylloc.last_column - 1 + 1)};
     return token;

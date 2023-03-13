@@ -1,13 +1,13 @@
 import ./lib/maketest.nix {
   type = "parse";
   source = ''
-    { x.^ }
+    { x.y^ }
   '';
   expected = ''
     { }
   '';
-  expectedAttrPath = ''x.""'';
+  expectedAttrPath = ''x.y'';
   expectedAttrPathIndex = 1;
-  expectedErrors = ["expected ID 0:5-0:7"];
+  expectedErrors = ["expected '=', got '}' 0:6-0:8"];
   expectedExprPath = ["ExprAttrs"];
 }

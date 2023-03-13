@@ -21,6 +21,7 @@ struct Parser {
     Analysis& analysis;
     std::string source;
     Position targetPos;
+    bool justReportedError = false;
 
     Tokenizer tokenizer = Tokenizer{state, analysis.path, source};
     std::array<Token, 4> tokens;
@@ -63,6 +64,7 @@ struct Parser {
 
     std::optional<Token> accept(TokenType type) {
         if (allow(type)) {
+            justReportedError = false;
             return consume();
         }
         return {};
@@ -70,6 +72,7 @@ struct Parser {
 
     std::optional<Token> expect(TokenType type) {
         if (allow(type)) {
+            justReportedError = false;
             return consume();
         }
         error(
@@ -92,7 +95,10 @@ struct Parser {
     }
 
     void error(std::string msg, Range range) {
+        if (justReportedError)
+            return;
         analysis.parseErrors.push_back({msg, range});
+        justReportedError = true;
     }
 
     nix::Expr* expr() {
@@ -126,6 +132,10 @@ struct Parser {
             auto e = binds();
             expect('}');
             return e;
+        }
+        error("expected expression", current().range);
+        while (!(allow(';') || allow('}'))) {
+            consume();
         }
         return missing();
     }
