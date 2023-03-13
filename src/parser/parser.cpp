@@ -21,7 +21,7 @@ struct Parser {
     Position targetPos;
 
     Tokenizer tokenizer = Tokenizer{state, analysis.path, source};
-    std::array<Token, 1> tokens;
+    std::array<Token, 4> tokens;
 
     Parser(
         nix::EvalState& state,
@@ -34,16 +34,21 @@ struct Parser {
           source(source),
           targetPos(targetPos),
           tokenizer(state, analysis.path, source) {
-        consume();
+        for (int i = 0; i < 3; i++)
+            consume();
     }
 
-    // Token previous() { return tokens[0]; }
-    Token current() { return tokens[0]; }
+    Token previous() { return tokens[0]; }
+    Token current() { return tokens[1]; }
+    Token lookahead() { return tokens[2]; }
+    Token lookahead2() { return tokens[3]; }
 
     Token consume() {
         auto result = current();
-        tokens.back() = tokenizer.advance();
-        std::cerr << "CONSUME: " << tokenName(tokens.back().type) << "\n";
+        tokens[0] = tokens[1];
+        tokens[1] = tokens[2];
+        tokens[2] = tokens[3];
+        tokens[3] = tokenizer.advance();
         return result;
     }
 
@@ -91,8 +96,7 @@ struct Parser {
     nix::Expr* expr() {
         auto start = current().range.start;
         auto e = expr_simple();
-        // auto end = previous().range.end;
-        auto end = current().range.start;
+        auto end = previous().range.end;
         if (Range{start, end}.contains(targetPos)) {
             analysis.exprPath.push_back({e});
         }
@@ -218,7 +222,7 @@ struct Parser {
                 break;
             }
             auto e = expr();
-            auto end = current().range.start;
+            auto end = previous().range.end;
             addAttr(attrs, *path, e, {start, end});
             if (!expect(';')) {
                 break;
@@ -231,7 +235,7 @@ struct Parser {
         auto path = new nix::AttrPath;
 
         while (allow(ID) || allow(OR_KW)) {
-            auto start = current().range.start;
+            auto start = previous().range.end;
             if (auto id = accept(ID)) {
                 auto name = get<std::string>(id->val);
                 path->push_back(state.symbols.create(name));
