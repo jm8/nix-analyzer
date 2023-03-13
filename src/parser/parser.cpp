@@ -241,7 +241,7 @@ struct Parser {
         auto path = new nix::AttrPath;
 
         while (true) {
-            auto start = previous().range.end;
+            auto start = current().range.start;
             if (auto id = accept(ID)) {
                 auto name = get<std::string>(id->val);
                 path->push_back(state.symbols.create(name));
@@ -249,9 +249,15 @@ struct Parser {
                 path->push_back(state.symbols.create("or"));
             } else {
                 error("expected ID", current().range);
+                auto dotPosition = previous().range.start;
+                auto nextTokenPosition = current().range.start;
+                path->push_back(state.symbols.create(""));
+                if (Range{dotPosition, nextTokenPosition}.contains(targetPos)) {
+                    analysis.attr = {path->size() - 1, path};
+                }
                 break;
             }
-            auto end = current().range.start;
+            auto end = previous().range.end;
             if (Range{start, end}.contains(targetPos)) {
                 analysis.attr = {path->size() - 1, path};
             }
