@@ -35,6 +35,8 @@ Token Tokenizer::advance() {
     if (token.type == ID || token.type == STR || token.type == URI ||
         token.type == PATH) {
         token.val = std::string{std::string_view{yylval.id}};
+    } else if (token.type == INT) {
+        token.val = yylval.n;
     } else {
         token.val = {};
     }

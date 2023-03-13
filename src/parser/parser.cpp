@@ -5,6 +5,7 @@
 #include <nix/parser-tab.hh>
 #include <nix/symbol-table.hh>
 #include <nix/util.hh>
+#include <nix/value.hh>
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
@@ -114,6 +115,10 @@ struct Parser {
                     posIdx(id->range.start), state.symbols.create(name)
                 );
             }
+        }
+        // INT
+        if (auto token = accept(INT)) {
+            return new nix::ExprInt(get<nix::NixInt>(token->val));
         }
         // '{' binds '}'
         if (accept('{')) {
@@ -234,19 +239,25 @@ struct Parser {
     nix::AttrPath* attrPath() {
         auto path = new nix::AttrPath;
 
-        while (allow(ID) || allow(OR_KW)) {
+        while (true) {
             auto start = previous().range.end;
             if (auto id = accept(ID)) {
                 auto name = get<std::string>(id->val);
                 path->push_back(state.symbols.create(name));
             } else if (accept(OR_KW)) {
                 path->push_back(state.symbols.create("or"));
+            } else {
+                error("expected ID", current().range);
+                break;
             }
             auto end = current().range.start;
             // if (Range{start, end}.contains(targetPos)) {
-            //     analysis.attr->attrPath = path;
+            // analysis.attr->attrPath = path;
             //     analysis.attr->index = path->size() - 1;
             // }
+            if (!accept('.')) {
+                break;
+            }
         }
 
         return path;

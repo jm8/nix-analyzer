@@ -3,6 +3,7 @@
 #include <nix/parser-tab.hh>
 // lexer-tab must be included after parser-tab
 #include <nix/lexer-tab.hh>
+#include <nix/value.hh>
 #include <optional>
 #include <string>
 #include <variant>
@@ -15,7 +16,7 @@ using TokenType = int;
 
 struct Token {
     TokenType type;
-    std::variant<std::monostate, std::string> val;
+    std::variant<std::monostate, std::string, nix::NixInt> val;
     Range range;
 };
 
