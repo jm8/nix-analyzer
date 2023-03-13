@@ -2,7 +2,9 @@
   type,
   source,
   expected,
-  expectedErrors,
+  expectedErrors ? [],
+  expectedExprPath ? [],
+  ...
 } @ attrs:
 with builtins; let
   splitted = split "\\^" source;
@@ -16,5 +18,5 @@ in
   attrs
   // {
     source = replaceStrings ["^"] [""] source;
-    inherit line col;
+    inherit line col expected expectedErrors expectedExprPath;
   }

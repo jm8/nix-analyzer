@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 #include "common/position.h"
+#include "common/stringify.h"
 #include "gtest/gtest.h"
 #include "parser/parser.h"
 
@@ -110,8 +111,16 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     analysis.exprPath.back().e->show(state->symbols, ss);
     auto actual = ss.str();
 
+    auto expectedExprPath = getListOfStrings(state, v, "expectedExprPath");
+    std::vector<std::string> actualExprPath;
+    actualExprPath.reserve(analysis.exprPath.size());
+    for (auto e : analysis.exprPath) {
+        actualExprPath.push_back(exprTypeName(e.e));
+    }
+
     ASSERT_EQ(actual, expected) << source;
     ASSERT_EQ(actualErrors, expectedErrors) << source;
+    ASSERT_EQ(actualExprPath, expectedExprPath) << source;
 }
 
 TEST_P(NixAnalyzerTest, Works) {

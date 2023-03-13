@@ -7,4 +7,5 @@ import ./lib/maketest.nix {
     { x = { a = { b = y; }; }; y = z; }
   '';
   expectedErrors = [];
+  expectedExprPath = ["ExprAttrs"];
 }

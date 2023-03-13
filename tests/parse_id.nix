@@ -7,4 +7,5 @@ import ./lib/maketest.nix {
     hello
   '';
   expectedErrors = [];
+  expectedExprPath = ["ExprVar"];
 }

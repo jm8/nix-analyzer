@@ -6,5 +6,5 @@ import ./lib/maketest.nix {
   expected = ''
     { }
   '';
-  expectedErrors = [];
+  expectedExprPath = ["ExprAttrs"];
 }
