@@ -6,6 +6,8 @@ import ./lib/maketest.nix {
   expected = ''
     { x = y; y = z; }
   '';
+  expectedAttrPath = "x";
+  expectedAttrPathIndex = 0;
   expectedErrors = [];
   expectedExprPath = ["ExprAttrs"];
 }

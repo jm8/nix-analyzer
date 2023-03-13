@@ -1,5 +1,6 @@
 #include "config.h"
 #include <nix/eval.hh>
+#include <nix/nixexpr.hh>
 #include <nix/pos.hh>
 #include <nix/shared.hh>
 #include <nix/store-api.hh>
@@ -7,6 +8,7 @@
 #include <nix/util.hh>
 #include <nix/value.hh>
 #include <any>
+#include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <gtest/gtest.h>
@@ -35,6 +37,10 @@ class NixAnalyzerTest : public testing::TestWithParam<std::string> {
 };
 
 nix::EvalState* NixAnalyzerTest::state = nullptr;
+
+bool hasAttr(nix::EvalState* state, nix::Value* v, std::string_view key) {
+    return v->attrs->get(state->symbols.create(key));
+}
 
 std::string getString(
     nix::EvalState* state,
@@ -116,6 +122,20 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     actualExprPath.reserve(analysis.exprPath.size());
     for (auto e : analysis.exprPath) {
         actualExprPath.push_back(exprTypeName(e.e));
+    }
+
+    if (hasAttr(state, v, "expectedAttrPath")) {
+        ASSERT_TRUE(analysis.attr.has_value());
+        auto expectedAttrPath = getString(state, v, "expectedAttrPath");
+        auto actualAttrPath =
+            nix::showAttrPath(state->symbols, *analysis.attr->attrPath);
+        auto expectedAttrPathIndex = getInt(state, v, "expectedAttrPathIndex");
+        auto actualAttrPathIndex = analysis.attr->index;
+
+        ASSERT_EQ(actualAttrPath, expectedAttrPath) << source;
+        ASSERT_EQ(actualAttrPathIndex, expectedAttrPathIndex) << source;
+    } else {
+        ASSERT_FALSE(analysis.attr.has_value()) << source;
     }
 
     ASSERT_EQ(actual, expected) << source;

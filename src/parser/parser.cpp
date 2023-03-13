@@ -11,6 +11,7 @@
 #include <iostream>
 #include <optional>
 #include <string_view>
+#include "common/analysis.h"
 #include "common/position.h"
 #include "parser/tokenizer.h"
 #include "schema/schema.h"
@@ -251,10 +252,9 @@ struct Parser {
                 break;
             }
             auto end = current().range.start;
-            // if (Range{start, end}.contains(targetPos)) {
-            // analysis.attr->attrPath = path;
-            //     analysis.attr->index = path->size() - 1;
-            // }
+            if (Range{start, end}.contains(targetPos)) {
+                analysis.attr = {path->size() - 1, path};
+            }
             if (!accept('.')) {
                 break;
             }
