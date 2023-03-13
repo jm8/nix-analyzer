@@ -23,12 +23,13 @@ struct Tokenizer {
     nix::ParseData data;
     std::string source;
     yyscan_t scanner;
-    Token current;
     YYLTYPE yylloc;
     YYSTYPE yylval;
+    Position lastEnd;
+    bool done = false;
 
     Tokenizer(nix::EvalState& state, std::string path, std::string source);
-    void advance();
+    Token advance();
     ~Tokenizer();
 };
 

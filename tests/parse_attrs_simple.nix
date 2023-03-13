@@ -1,10 +1,10 @@
 import ./lib/maketest.nix {
   type = "parse";
   source = ''
-    { x.a.b^ = y; y = z; }
+    { x^ = y; y = z; }
   '';
   expected = ''
-    { x = { a = { b = y; }; }; y = z; }
+    { x = y; y = z; }
   '';
   expectedErrors = [];
   expectedExprPath = ["ExprAttrs"];

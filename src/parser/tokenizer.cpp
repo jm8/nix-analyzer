@@ -20,28 +20,31 @@ Tokenizer::Tokenizer(
 
     yylex_init(&scanner);
     yy_scan_buffer(source.data(), source.length(), scanner);
-    advance();
 }
 
-void Tokenizer::advance() {
-    if (current.type == 0)
-        return;
-    current.type =
+Token Tokenizer::advance() {
+    if (done)
+        return {YYEOF, {}, {lastEnd, lastEnd}};
+    Token token;
+    token.type =
         static_cast<TokenType>(yylex(&yylval, &yylloc, scanner, &data));
-    if (current.type == 0)
-        return;
-    if (current.type == ID || current.type == STR || current.type == URI ||
-        current.type == PATH) {
-        current.val = std::string{std::string_view{yylval.id}};
-    } else {
-        current.val = {};
+    if (token.type == 0) {
+        done = true;
+        return {YYEOF, {}, {lastEnd, lastEnd}};
     }
-    current.range.start = {
+    if (token.type == ID || token.type == STR || token.type == URI ||
+        token.type == PATH) {
+        token.val = std::string{std::string_view{yylval.id}};
+    } else {
+        token.val = {};
+    }
+    token.range.start = {
         static_cast<uint32_t>(yylloc.first_line - 1),
         static_cast<uint32_t>(yylloc.first_column - 1)};
-    current.range.end = {
+    token.range.end = {
         static_cast<uint32_t>(yylloc.last_line - 1),
         static_cast<uint32_t>(yylloc.last_column - 1 + 1)};
+    return token;
 }
 
 Tokenizer::~Tokenizer() {

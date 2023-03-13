@@ -88,7 +88,7 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     };
 
     auto analysis = parse(*state, source, path, nix::absPath("."), targetPos);
-    ASSERT_FALSE(analysis.exprPath.empty());
+    ASSERT_FALSE(analysis.exprPath.empty()) << source;
 
     auto expected = getString(state, v, "expected");
     if (expected.ends_with('\n')) {

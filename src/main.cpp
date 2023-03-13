@@ -19,7 +19,6 @@ int main() {
     // std::cout << "\n";
     Tokenizer tokenizer{*state, "", "{ x = y; a = b;}"};
     for (int i = 0; i < 15; i++) {
-        std::cout << tokenName(tokenizer.current.type) << "\n";
-        tokenizer.advance();
+        std::cout << tokenName(tokenizer.advance().type) << "\n";
     }
 }

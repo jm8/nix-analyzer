@@ -5,6 +5,7 @@
 #include <nix/parser-tab.hh>
 #include <nix/symbol-table.hh>
 #include <nix/util.hh>
+#include <algorithm>
 #include <cstddef>
 #include <iostream>
 #include <optional>
@@ -20,12 +21,29 @@ struct Parser {
     Position targetPos;
 
     Tokenizer tokenizer = Tokenizer{state, analysis.path, source};
+    std::array<Token, 1> tokens;
 
-    Token current() { return tokenizer.current; }
+    Parser(
+        nix::EvalState& state,
+        Analysis& analysis,
+        std::string source,
+        Position targetPos
+    )
+        : state(state),
+          analysis(analysis),
+          source(source),
+          targetPos(targetPos),
+          tokenizer(state, analysis.path, source) {
+        consume();
+    }
+
+    // Token previous() { return tokens[0]; }
+    Token current() { return tokens[0]; }
 
     Token consume() {
         auto result = current();
-        tokenizer.advance();
+        tokens.back() = tokenizer.advance();
+        std::cerr << "CONSUME: " << tokenName(tokens.back().type) << "\n";
         return result;
     }
 
@@ -73,10 +91,11 @@ struct Parser {
     nix::Expr* expr() {
         auto start = current().range.start;
         auto e = expr_simple();
+        // auto end = previous().range.end;
         auto end = current().range.start;
-        // if (Range{start, end}.contains(targetPos)) {
-        // analysis.exprPath.push_back({e});
-        // }
+        if (Range{start, end}.contains(targetPos)) {
+            analysis.exprPath.push_back({e});
+        }
         return e;
     }
 
@@ -97,7 +116,6 @@ struct Parser {
             auto e = binds();
             expect('}');
             return e;
-            // }
         }
         return missing();
     }
@@ -213,18 +231,18 @@ struct Parser {
         auto path = new nix::AttrPath;
 
         while (allow(ID) || allow(OR_KW)) {
+            auto start = current().range.start;
             if (auto id = accept(ID)) {
-                std::string_view name = get<std::string>(id->val);
+                auto name = get<std::string>(id->val);
                 path->push_back(state.symbols.create(name));
-                if (!accept('.')) {
-                    break;
-                }
             } else if (accept(OR_KW)) {
                 path->push_back(state.symbols.create("or"));
-                if (!accept('.')) {
-                    break;
-                }
             }
+            auto end = current().range.start;
+            // if (Range{start, end}.contains(targetPos)) {
+            //     analysis.attr->attrPath = path;
+            //     analysis.attr->index = path->size() - 1;
+            // }
         }
 
         return path;
@@ -241,7 +259,10 @@ Analysis parse(
     Analysis analysis;
 
     Parser parser{state, analysis, source, targetPos};
-    analysis.exprPath.push_back(parser.expr());
+    auto e = parser.expr();
+    if (analysis.exprPath.empty()) {
+        analysis.exprPath.push_back(e);
+    }
 
     return analysis;
 }
