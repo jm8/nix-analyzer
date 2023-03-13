@@ -23,8 +23,8 @@
 #include "gtest/gtest.h"
 #include "parser/parser.h"
 
-class NixAnalyzerTest : public testing::TestWithParam<std::string> {
-   protected:
+class FileTest : public testing::TestWithParam<std::string> {
+   public:
     static void SetUpTestSuite() {
         nix::initGC();
         nix::initNix();
@@ -36,7 +36,7 @@ class NixAnalyzerTest : public testing::TestWithParam<std::string> {
     static nix::EvalState* state;
 };
 
-nix::EvalState* NixAnalyzerTest::state = nullptr;
+nix::EvalState* FileTest::state = nullptr;
 
 bool hasAttr(nix::EvalState* state, nix::Value* v, std::string_view key) {
     return v->attrs->get(state->symbols.create(key));
@@ -143,7 +143,7 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     ASSERT_EQ(actualExprPath, expectedExprPath) << source;
 }
 
-TEST_P(NixAnalyzerTest, Works) {
+TEST_P(FileTest, A) {
     auto v = state->allocValue();
     state->evalFile(nix::absPath(GetParam()), *v);
     state->forceAttrs(*v, nix::noPos);
@@ -159,9 +159,15 @@ TEST_P(NixAnalyzerTest, Works) {
 std::vector<std::string> arguments;
 
 INSTANTIATE_TEST_SUITE_P(
-    Instantiation,
-    NixAnalyzerTest,
-    testing::ValuesIn(arguments)
+    A,
+    FileTest,
+    testing::ValuesIn(arguments),
+    [](auto info) {
+        auto path = static_cast<std::string>(info.param);
+        auto start = path.find('/');
+        auto end = path.find('.');
+        return path.substr(start + 1, end - start - 1);
+    }
 );
 
 int main(int argc, char* argv[]) {
