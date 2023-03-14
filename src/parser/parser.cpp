@@ -29,7 +29,7 @@ struct Parser {
     // tokens[0] == previous
     // tokens[1] == current
     // tokens[2...] == lookahead
-    // tokens.size() >= 4 but may be more because of backtracking
+    // tokens.size() >= 4 but may be more
     std::deque<Token> tokens;
 
     Parser(
@@ -50,18 +50,22 @@ struct Parser {
         tokens[3] = tokenizer.advance();
     }
 
-    size_t token_index = 0;
-
     Token previous() { return tokens[0]; }
     Token current() { return tokens[1]; }
-    Token lookahead() { return tokens[2]; }
-    Token lookahead2() { return tokens[3]; }
+    Token lookahead(size_t i) {
+        auto array_index = i + 1;
+        while (tokens.size() <= array_index) {
+            tokens.push_back(tokenizer.advance());
+        }
+        return tokens[array_index];
+    }
 
     Token consume() {
         auto result = current();
         tokens.pop_front();
-        tokens.push_back(tokenizer.advance());
-        token_index++;
+        if (tokens.size() < 4) {
+            tokens.push_back(tokenizer.advance());
+        }
         return result;
     }
 
@@ -140,16 +144,24 @@ struct Parser {
         if (allow(allowedExprStarts)) {
             auto call = new nix::ExprCall(posIdx(start), f, {});
             while (allow(allowedExprStarts)) {
-                auto startIndex = token_index;
-                call->args.push_back(expr_select());
-                auto endIndex = token_index;
-                // if (allow('=')) {
-                // we have a situation like
+                // we want
                 // { a = a b c d.e.f = 2; }
-                // which should be parsed as
+                // to be parsed as
                 // { a = a b c; d.e.f = 2; }
-                // so backtrack
-                // }
+                size_t i = 0;
+                // check if looking at potential attrpath
+                while (lookahead(i).type == ID) {
+                    if (lookahead(i + 1).type == '.') {
+                        i += 2;
+                    } else {
+                        i += 1;
+                        break;
+                    }
+                }
+                if (lookahead(i).type == '=') {
+                    break;
+                }
+                call->args.push_back(expr_select());
             }
             auto end = previous().range.end;
             visit(call, {start, end});
@@ -310,13 +322,13 @@ struct Parser {
             auto start = current().range.start;
             auto path = attrPath();
             if (!expect('=')) {
-                break;
+                continue;
             }
             auto e = expr();
             auto end = previous().range.end;
             addAttr(attrs, *path, e, {start, end});
             if (!expect(';')) {
-                break;
+                continue;
             }
         }
         return attrs;
