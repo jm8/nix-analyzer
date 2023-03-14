@@ -138,6 +138,15 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
         ASSERT_FALSE(analysis.attr.has_value()) << source;
     }
 
+    if (hasAttr(state, v, "expectedFormal")) {
+        ASSERT_TRUE(analysis.formal.has_value());
+        auto expectedFormal = getString(state, v, "expectedFormal");
+        std::string actualFormal = state->symbols[analysis.formal->name];
+        ASSERT_EQ(actualFormal, expectedFormal);
+    } else {
+        ASSERT_FALSE(analysis.formal.has_value());
+    }
+
     ASSERT_EQ(actual, expected) << source;
     ASSERT_EQ(actualErrors, expectedErrors) << source;
     ASSERT_EQ(actualExprPath, expectedExprPath) << source;

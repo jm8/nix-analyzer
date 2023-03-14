@@ -13,6 +13,8 @@
 #include <iterator>
 #include <optional>
 #include <string_view>
+#include <utility>
+#include <vector>
 #include "common/analysis.h"
 #include "common/position.h"
 #include "parser/tokenizer.h"
@@ -58,6 +60,14 @@ struct Parser {
             tokens.push_back(tokenizer.advance());
         }
         return tokens[array_index];
+    }
+
+    bool lookaheadMatches(std::vector<TokenType> types) {
+        for (size_t i = 0; i < types.size(); i++) {
+            if (lookahead(i).type != types[i])
+                return false;
+        }
+        return true;
     }
 
     Token consume() {
@@ -133,7 +143,7 @@ struct Parser {
 
     nix::Expr* expr() {
         // ID ':' expr_function
-        if (lookahead(0).type == ID && lookahead(1).type == ':') {
+        if (lookaheadMatches({ID, ':'})) {
             auto start = current().range.start;
             auto arg = accept(ID);
             auto argSym = state.symbols.create(get<std::string>(arg->val));
@@ -145,7 +155,23 @@ struct Parser {
             visit(result, {start, end});
             return result;
         }
-
+        // '{' formals '}' ':'TokenType type} expr_function
+        if (lookaheadMatches({'{', ID, ','}) ||
+            lookaheadMatches({'{', ID, '?'}) ||
+            lookaheadMatches({'{', '}', ':'}) ||
+            lookaheadMatches({'{', '}', '@'})) {
+            auto start = current().range.start;
+            accept('{');
+            auto fs = formals();
+            expect('}');
+            expect(':');
+            auto body = expr();
+            auto end = previous().range.end;
+            auto e =
+                new nix::ExprLambda(posIdx(start), to_formals(fs, {}), body);
+            visit(e, {start, end});
+            return e;
+        }
         return expr_app();
     }
 
@@ -376,6 +402,72 @@ struct Parser {
         }
 
         return path;
+    }
+
+    struct ParserFormal {
+        nix::Formal formal;
+        Range range;
+
+        bool operator<(ParserFormal other) {
+            return formal.name < other.formal.name ||
+                   range.start < other.range.start;
+        }
+    };
+
+    struct ParserFormals {
+        std::vector<ParserFormal> formals;
+        bool ellipsis = false;
+    };
+
+    ParserFormals* formals() {
+        auto result = new ParserFormals;
+        while (allow({ELLIPSIS, ID})) {
+            if (accept(ELLIPSIS)) {
+                result->ellipsis = true;
+            } else {
+                auto id = accept(ID);
+
+                auto name = state.symbols.create(get<std::string>(id->val));
+                nix::Formal formal{posIdx(id->range.start), name, nullptr};
+                if (accept('?')) {
+                    formal.def = expr();
+                }
+                if (id->range.contains(targetPos)) {
+                    analysis.formal = formal;
+                }
+                result->formals.push_back({formal, id->range});
+            }
+            if (!allow('}')) {
+                expect(',');
+            }
+        }
+        return result;
+    }
+
+    nix::Formals* to_formals(ParserFormals* formals, nix::Symbol arg) {
+        std::sort(formals->formals.begin(), formals->formals.end());
+
+        nix::Formals result;
+        result.ellipsis = formals->ellipsis;
+
+        if (formals->formals.empty()) {
+            return new nix::Formals(std::move(result));
+        }
+
+        for (auto [formal, range] : formals->formals) {
+            // nix-analyzer: report duplicate formals error without throwing
+            // exception
+            if (!result.formals.empty() &&
+                (formal.name == result.formals.back().name || formal.name == arg
+                )) {
+                error("duplicate formal function argument", range);
+            } else {
+                result.formals.push_back(formal);
+            }
+        }
+
+        delete formals;
+        return new nix::Formals(std::move(result));
     }
 };
 
