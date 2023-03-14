@@ -4,7 +4,7 @@ import ./lib/maketest.nix {
     fun^ction a b c d
   '';
   expected = ''
-    (function (a (b (c d))))
+    (function a b c d)
   '';
   expectedExprPath = ["ExprVar" "ExprCall"];
 }

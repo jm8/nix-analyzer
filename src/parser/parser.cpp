@@ -8,7 +8,9 @@
 #include <nix/value.hh>
 #include <algorithm>
 #include <cstddef>
+#include <deque>
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <string_view>
 #include "common/analysis.h"
@@ -24,7 +26,11 @@ struct Parser {
     bool justReportedError = false;
 
     Tokenizer tokenizer = Tokenizer{state, analysis.path, source};
-    std::array<Token, 4> tokens;
+    // tokens[0] == previous
+    // tokens[1] == current
+    // tokens[2...] == lookahead
+    // tokens.size() >= 4 but may be more because of backtracking
+    std::deque<Token> tokens;
 
     Parser(
         nix::EvalState& state,
@@ -36,10 +42,15 @@ struct Parser {
           analysis(analysis),
           source(source),
           targetPos(targetPos),
-          tokenizer(state, analysis.path, source) {
-        for (int i = 0; i < 3; i++)
-            consume();
+          tokenizer(state, analysis.path, source),
+          tokens(4) {
+        tokens[0].type = YYEOF;
+        tokens[1] = tokenizer.advance();
+        tokens[2] = tokenizer.advance();
+        tokens[3] = tokenizer.advance();
     }
+
+    size_t token_index = 0;
 
     Token previous() { return tokens[0]; }
     Token current() { return tokens[1]; }
@@ -48,10 +59,9 @@ struct Parser {
 
     Token consume() {
         auto result = current();
-        tokens[0] = tokens[1];
-        tokens[1] = tokens[2];
-        tokens[2] = tokens[3];
-        tokens[3] = tokenizer.advance();
+        tokens.pop_front();
+        tokens.push_back(tokenizer.advance());
+        token_index++;
         return result;
     }
 
@@ -130,9 +140,18 @@ struct Parser {
         if (allow(allowedExprStarts)) {
             auto call = new nix::ExprCall(posIdx(start), f, {});
             while (allow(allowedExprStarts)) {
-                call->args.push_back(expr());
+                auto startIndex = token_index;
+                call->args.push_back(expr_select());
+                auto endIndex = token_index;
+                // if (allow('=')) {
+                // we have a situation like
+                // { a = a b c d.e.f = 2; }
+                // which should be parsed as
+                // { a = a b c; d.e.f = 2; }
+                // so backtrack
+                // }
             }
-            auto end = current().range.end;
+            auto end = previous().range.end;
             visit(call, {start, end});
             return call;
         } else {
@@ -140,7 +159,19 @@ struct Parser {
         }
     }
 
-    nix::Expr* expr_select() { return expr_simple(); }
+    nix::Expr* expr_select() {
+        auto start = current().range.start;
+        auto e = expr_simple();
+        if (accept('.')) {
+            auto path = attrPath();
+            auto select = new nix::ExprSelect(posIdx(start), e, *path, nullptr);
+            auto end = previous().range.end;
+            visit(select, {start, end});
+            return select;
+        } else {
+            return e;
+        }
+    }
 
     nix::Expr* expr_simple() {
         auto start = current().range.start;
