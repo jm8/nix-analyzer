@@ -26,9 +26,9 @@ struct Parser {
     bool justReportedError = false;
 
     Tokenizer tokenizer = Tokenizer{state, analysis.path, source};
-    // tokens[0] == previous
-    // tokens[1] == current
-    // tokens[2...] == lookahead
+    // tokens[0] == previous()
+    // tokens[1] == current() == lookahead(0)
+    // tokens[2...] == lookahead(1), lookahead(2), ...
     // tokens.size() >= 4 but may be more
     std::deque<Token> tokens;
 
@@ -132,9 +132,21 @@ struct Parser {
     // GRAMMAR
 
     nix::Expr* expr() {
-        auto e = expr_app();
+        // ID ':' expr_function
+        if (lookahead(0).type == ID && lookahead(1).type == ':') {
+            auto start = current().range.start;
+            auto arg = accept(ID);
+            auto argSym = state.symbols.create(get<std::string>(arg->val));
+            accept(':');
+            auto body = expr();
+            auto end = previous().range.end;
+            auto result =
+                new nix::ExprLambda(posIdx(start), argSym, nullptr, body);
+            visit(result, {start, end});
+            return result;
+        }
 
-        return e;
+        return expr_app();
     }
 
     nix::Expr* expr_app() {
