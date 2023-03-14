@@ -62,6 +62,14 @@ struct Parser {
         return {};
     }
 
+    std::optional<Token> allow(const std::vector<TokenType>& types) {
+        for (auto type : types) {
+            if (auto result = allow(type))
+                return result;
+        }
+        return {};
+    }
+
     std::optional<Token> accept(TokenType type) {
         if (allow(type)) {
             justReportedError = false;
@@ -101,18 +109,58 @@ struct Parser {
         justReportedError = true;
     }
 
-    nix::Expr* expr() {
-        auto start = current().range.start;
-        auto e = expr_simple();
-        auto end = previous().range.end;
-        if (Range{start, end}.contains(targetPos)) {
+    void visit(nix::Expr* e, Range range) {
+        if (range.contains(targetPos)) {
             analysis.exprPath.push_back({e});
         }
+    }
+
+    // GRAMMAR
+
+    nix::Expr* expr() {
+        auto e = expr_app();
+
         return e;
     }
 
+    nix::Expr* expr_app() {
+        auto start = current().range.start;
+        auto f = expr_select();
+
+        if (allow(allowedExprStarts)) {
+            auto call = new nix::ExprCall(posIdx(start), f, {});
+            while (allow(allowedExprStarts)) {
+                call->args.push_back(expr());
+            }
+            auto end = current().range.end;
+            visit(call, {start, end});
+            return call;
+        } else {
+            return f;
+        }
+    }
+
+    nix::Expr* expr_select() { return expr_simple(); }
+
     nix::Expr* expr_simple() {
+        auto start = current().range.start;
+        auto e = expr_simple_();
+        auto end = previous().range.end;
+        visit(e, {start, end});
+        return e;
+    }
+
+    const std::vector<TokenType> allowedExprStarts{ID, INT, '{'};
+
+    nix::Expr* expr_simple_() {
         // ID
+        if (!allow(allowedExprStarts)) {
+            error("expected expression", current().range);
+            while (!allow({';', '}'})) {
+                consume();
+            }
+            return missing();
+        }
         if (auto id = accept(ID)) {
             std::string_view name = get<std::string>(id->val);
             if (name == "__curPos") {
@@ -133,11 +181,7 @@ struct Parser {
             expect('}');
             return e;
         }
-        error("expected expression", current().range);
-        while (!(allow(';') || allow('}'))) {
-            consume();
-        }
-        return missing();
+        assert(false);
     }
 
     // copy+paste from parser.y
