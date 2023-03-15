@@ -242,10 +242,34 @@ struct Parser {
             expect(';');
             auto body = (this->*subExpr)();
             result = new nix::ExprWith(posIdx(start), attrs, body);
+        } else if (accept(LET)) {
+            auto attrs = binds();
+            expect(IN);
+            auto body = (this->*subExpr)();
+            result = new nix::ExprLet(attrs, body);
         }
         auto end = previous().range.end;
         visit(result, {start, end});
         return result;
+    }
+
+    bool lookaheadBind() {
+        size_t i = 0;
+        if (allow({IN, '}'}))
+            return false;
+        while (lookahead(i).type == ID || lookahead(i).type == OR_KW) {
+            if (lookahead(i + 1).type == '.') {
+                i += 2;
+            } else {
+                i += 1;
+                break;
+            }
+        }
+        if (lookahead(i).type == '=' || lookahead(i).type == IN ||
+            lookahead(i).type == '}') {
+            return true;
+        }
+        return false;
     }
 
     nix::Expr* expr_app() {
@@ -259,19 +283,9 @@ struct Parser {
                 // { a = a b c d.e.f = 2; }
                 // to be parsed as
                 // { a = a b c; d.e.f = 2; }
-                size_t i = 0;
                 // check if looking at potential attrpath
-                while (lookahead(i).type == ID) {
-                    if (lookahead(i + 1).type == '.') {
-                        i += 2;
-                    } else {
-                        i += 1;
-                        break;
-                    }
-                }
-                if (lookahead(i).type == '=') {
+                if (lookaheadBind())
                     break;
-                }
                 call->args.push_back(expr_select());
             }
             auto end = previous().range.end;
@@ -308,7 +322,7 @@ struct Parser {
         // ID
         if (!allow(allowedExprStarts)) {
             error("expected expression", current().range);
-            while (!allow({';', '}'})) {
+            while (!allow({';', '}', ']', ')', IN, YYEOF})) {
                 consume();
             }
             return missing();
@@ -440,9 +454,9 @@ struct Parser {
         }
     }
 
-    nix::Expr* binds() {
+    nix::ExprAttrs* binds() {
         auto attrs = new nix::ExprAttrs;
-        while (allow(ID) || allow(OR_KW)) {
+        while (lookaheadBind()) {
             auto start = current().range.start;
             auto path = attrPath();
             if (!expect('=')) {
