@@ -202,7 +202,30 @@ struct Parser {
             visit(e, {start, end});
             return e;
         }
+        if (allow(allowedKeywordExprStarts)) {
+            return keyword_expression(true);
+        }
         return expr_app();
+    }
+
+    // these are assert, with, let, if.
+    nix::Expr* keyword_expression(bool allowed) {
+        if (!allowed) {
+            error(
+                tokenName(current().type) + " not allowed here", current().range
+            );
+        }
+        nix::Expr* result;
+        auto start = current().range.start;
+        if (accept(ASSERT)) {
+            auto cond = expr();
+            expect(';');
+            auto body = expr();
+            result = new nix::ExprAssert(posIdx(start), cond, body);
+        }
+        auto end = previous().range.end;
+        visit(result, {start, end});
+        return result;
     }
 
     nix::Expr* expr_app() {
@@ -261,7 +284,13 @@ struct Parser {
         return e;
     }
 
-    const std::vector<TokenType> allowedExprStarts{ID, INT, '{'};
+    const std::vector<TokenType> allowedKeywordExprStarts{
+        ASSERT,
+        WITH,
+        LET,
+        IF};
+    const std::vector<TokenType>
+        allowedExprStarts{ASSERT, WITH, LET, IF, ID, INT, '{'};
 
     nix::Expr* expr_simple_() {
         // ID
