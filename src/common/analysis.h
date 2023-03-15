@@ -29,6 +29,7 @@ struct Analysis {
     std::string basePath;
     std::optional<ParseResultAttrPath> attr;
     std::optional<nix::Formal> formal;
+    bool arg;
     // {} is no inherit. {{}} is inherit ...; {{expr}} is inherit (expr) ...;
     std::optional<std::optional<nix::Expr*>> inherit;
 };

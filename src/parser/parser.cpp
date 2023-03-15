@@ -155,7 +155,8 @@ struct Parser {
             visit(result, {start, end});
             return result;
         }
-        // '{' formals '}' ':'TokenType type} expr_function
+        // '{' formals '}' ':' expr_function
+        // '{' formals '}' '@' ID ':' expr_function
         if (lookaheadMatches({'{', ID, ','}) ||
             lookaheadMatches({'{', ID, '?'}) ||
             lookaheadMatches({'{', '}', ':'}) ||
@@ -164,11 +165,19 @@ struct Parser {
             accept('{');
             auto fs = formals();
             expect('}');
+            nix::Symbol arg;
+            if (accept('@')) {
+                arg = state.symbols.create(get<std::string>(expect(ID)->val));
+                if (previous().range.contains(targetPos)) {
+                    analysis.arg = true;
+                }
+            }
             expect(':');
             auto body = expr();
             auto end = previous().range.end;
-            auto e =
-                new nix::ExprLambda(posIdx(start), to_formals(fs, {}), body);
+            auto e = new nix::ExprLambda(
+                posIdx(start), arg, to_formals(fs, arg), body
+            );
             visit(e, {start, end});
             return e;
         }

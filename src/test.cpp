@@ -147,6 +147,12 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
         ASSERT_FALSE(analysis.formal.has_value());
     }
 
+    if (hasAttr(state, v, "expectedArg")) {
+        ASSERT_TRUE(analysis.arg);
+    } else {
+        ASSERT_FALSE(analysis.arg);
+    }
+
     ASSERT_EQ(actual, expected) << source;
     ASSERT_EQ(actualErrors, expectedErrors) << source;
     ASSERT_EQ(actualExprPath, expectedExprPath) << source;
