@@ -181,6 +181,27 @@ struct Parser {
             visit(e, {start, end});
             return e;
         }
+        // ID '@' '{' formals '}' ':' expr_function
+        if (lookaheadMatches({ID, '@'})) {
+            auto start = current().range.start;
+            nix::Symbol arg =
+                state.symbols.create(get<std::string>(expect(ID)->val));
+            if (previous().range.contains(targetPos)) {
+                analysis.arg = true;
+            }
+            expect('@');
+            expect('{');
+            auto fs = formals();
+            expect('}');
+            expect(':');
+            auto body = expr();
+            auto end = previous().range.end;
+            auto e = new nix::ExprLambda(
+                posIdx(start), arg, to_formals(fs, arg), body
+            );
+            visit(e, {start, end});
+            return e;
+        }
         return expr_app();
     }
 
