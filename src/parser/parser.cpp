@@ -141,6 +141,14 @@ struct Parser {
 
     // GRAMMAR
 
+    const std::vector<TokenType> allowedKeywordExprStarts{
+        ASSERT,
+        WITH,
+        LET,
+        IF};
+    const std::vector<TokenType>
+        allowedExprStarts{ASSERT, WITH, LET, IF, ID, INT, '{', '['};
+
     nix::Expr* expr() {
         // ID ':' expr_function
         if (lookaheadMatches({ID, ':'})) {
@@ -203,13 +211,20 @@ struct Parser {
             return e;
         }
         if (allow(allowedKeywordExprStarts)) {
-            return keyword_expression(true);
+            return keyword_expression(true, &Parser::expr);
         }
         return expr_app();
     }
 
     // these are assert, with, let, if.
-    nix::Expr* keyword_expression(bool allowed) {
+    // subExpr is used to parse sub expressions (not followed by ';').
+    // for example in a list it is expr_select
+    nix::Expr* keyword_expression(
+        bool allowed,
+        // pointer to member function
+        // https://isocpp.org/wiki/faq/pointers-to-members#fnptr-vs-memfnptr-types
+        nix::Expr* (Parser::*subExpr)()
+    ) {
         if (!allowed) {
             error(
                 tokenName(current().type) + " not allowed here", current().range
@@ -220,8 +235,13 @@ struct Parser {
         if (accept(ASSERT)) {
             auto cond = expr();
             expect(';');
-            auto body = expr();
+            auto body = (this->*subExpr)();
             result = new nix::ExprAssert(posIdx(start), cond, body);
+        } else if (accept(WITH)) {
+            auto attrs = expr();
+            expect(';');
+            auto body = (this->*subExpr)();
+            result = new nix::ExprWith(posIdx(start), attrs, body);
         }
         auto end = previous().range.end;
         visit(result, {start, end});
@@ -284,14 +304,6 @@ struct Parser {
         return e;
     }
 
-    const std::vector<TokenType> allowedKeywordExprStarts{
-        ASSERT,
-        WITH,
-        LET,
-        IF};
-    const std::vector<TokenType>
-        allowedExprStarts{ASSERT, WITH, LET, IF, ID, INT, '{'};
-
     nix::Expr* expr_simple_() {
         // ID
         if (!allow(allowedExprStarts)) {
@@ -319,6 +331,21 @@ struct Parser {
         if (accept('{')) {
             auto e = binds();
             expect('}');
+            return e;
+        }
+        // '[' expr_list ']'
+        if (accept('[')) {
+            auto e = new nix::ExprList;
+            while (allow(allowedExprStarts)) {
+                if (allow(allowedKeywordExprStarts)) {
+                    e->elems.push_back(
+                        keyword_expression(false, &Parser::expr_select)
+                    );
+                } else {
+                    e->elems.push_back(expr_select());
+                }
+            }
+            expect(']');
             return e;
         }
         assert(false);
