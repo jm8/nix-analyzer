@@ -147,7 +147,7 @@ struct Parser {
         LET,
         IF};
     const std::vector<TokenType>
-        allowedExprStarts{ASSERT, WITH, LET, IF, ID, INT, '{', '['};
+        allowedExprStarts{ASSERT, WITH, LET, IF, ID, INT, '{', '[', '-', '!'};
 
     nix::Expr* expr() {
         // ID ':' expr_function
@@ -213,7 +213,7 @@ struct Parser {
         if (allow(allowedKeywordExprStarts)) {
             return keyword_expression(true, &Parser::expr);
         }
-        return expr_app();
+        return expr_op();
     }
 
     // these are assert, with, let, if.
@@ -253,23 +253,47 @@ struct Parser {
         return result;
     }
 
-    bool lookaheadBind() {
-        size_t i = 0;
-        if (allow({IN, '}'}))
-            return false;
-        while (lookahead(i).type == ID || lookahead(i).type == OR_KW) {
-            if (lookahead(i + 1).type == '.') {
-                i += 2;
-            } else {
-                i += 1;
-                break;
+    int binding_power(TokenType type) {
+        switch (type) {
+            case '+':
+                return 10;
+            case '*':
+                return 20;
+            default:
+                return -1;
+        }
+    }
+
+    nix::Expr* expr_op(int min_binding_power = 0) {
+        auto start = current().range.start;
+        auto e = expr_app();
+
+        while (binding_power(current().type) >= min_binding_power) {
+            auto op = consume();
+            auto rhs = expr_op(binding_power(op.type));
+            auto curPos = posIdx(op.range.start);
+            switch (op.type) {
+                case '+':
+                    e = new nix::ExprConcatStrings(
+                        curPos,
+                        false,
+                        new std::vector<std::pair<nix::PosIdx, nix::Expr*>>(
+                            {{posIdx(start), e}, {posIdx(op.range.end), rhs}}
+                        )
+                    );
+                    break;
+                case '*':
+                    e = new nix::ExprCall(
+                        curPos,
+                        new nix::ExprVar(state.symbols.create("__mul")),
+                        {e, rhs}
+                    );
+                    break;
             }
+            visit(e, {start, previous().range.end});
         }
-        if (lookahead(i).type == '=' || lookahead(i).type == IN ||
-            lookahead(i).type == '}') {
-            return true;
-        }
-        return false;
+
+        return e;
     }
 
     nix::Expr* expr_app() {
@@ -452,6 +476,25 @@ struct Parser {
                 nix::ExprAttrs::DynamicAttrDef(i->expr, e, pos)
             );
         }
+    }
+
+    bool lookaheadBind() {
+        size_t i = 0;
+        if (allow({IN, '}'}))
+            return false;
+        while (lookahead(i).type == ID || lookahead(i).type == OR_KW) {
+            if (lookahead(i + 1).type == '.') {
+                i += 2;
+            } else {
+                i += 1;
+                break;
+            }
+        }
+        if (lookahead(i).type == '=' || lookahead(i).type == IN ||
+            lookahead(i).type == '}') {
+            return true;
+        }
+        return false;
     }
 
     nix::ExprAttrs* binds() {
