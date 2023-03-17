@@ -1,4 +1,5 @@
 #include "parser.h"
+#include <nix/attr-set.hh>
 #include <nix/error.hh>
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
@@ -253,14 +254,43 @@ struct Parser {
         return result;
     }
 
-    int binding_power(TokenType type) {
+    struct BindingPower {
+        int binding_power;
+        enum {
+            RIGHT,
+            LEFT,
+            NONE,
+        } associativity;
+    };
+
+    BindingPower binding_power(TokenType type) {
         switch (type) {
+            case IMPL:
+                return {10, BindingPower::RIGHT};
+            case OR:
+                return {20, BindingPower::LEFT};
+            case AND:
+                return {30, BindingPower::LEFT};
+            case EQ:
+            case NEQ:
+                return {40, BindingPower::NONE};
+            case '<':
+            case '>':
+            case LEQ:
+            case GEQ:
+                return {50, BindingPower::NONE};
+            case UPDATE:
+                return {60, BindingPower::RIGHT};
             case '+':
-                return 10;
+                return {80, BindingPower::LEFT};
             case '*':
-                return 20;
+                return {90, BindingPower::LEFT};
+            case CONCAT:
+                return {100, BindingPower::RIGHT};
+            case '?':
+                return {110, BindingPower::NONE};
             default:
-                return -1;
+                return {-1, BindingPower::NONE};
         }
     }
 
@@ -268,11 +298,75 @@ struct Parser {
         auto start = current().range.start;
         auto e = expr_app();
 
-        while (binding_power(current().type) >= min_binding_power) {
+        while (binding_power(current().type).binding_power >= min_binding_power
+        ) {
             auto op = consume();
-            auto rhs = expr_op(binding_power(op.type));
+            auto [bp, associativity] = binding_power(op.type);
             auto curPos = posIdx(op.range.start);
+
+            if (op.type == '?') {
+                e = new nix::ExprOpHasAttr(e, *attrPath());
+                visit(e, {start, previous().range.end});
+                continue;
+            }
+
+            auto rhs =
+                expr_op(associativity == BindingPower::LEFT ? bp + 1 : bp);
+
             switch (op.type) {
+                case EQ:
+                    e = new nix::ExprOpEq(e, rhs);
+                    break;
+                case NEQ:
+                    e = new nix::ExprOpNEq(e, rhs);
+                    break;
+                case '<':
+                    e = new nix::ExprCall(
+                        curPos,
+                        new nix::ExprVar(state.symbols.create("__lessThan")),
+                        {e, rhs}
+                    );
+                    break;
+                case LEQ:
+                    e = new nix::ExprOpNot(new nix::ExprCall(
+                        curPos,
+                        new nix::ExprVar(state.symbols.create("__lessThan")),
+                        {rhs, e}
+                    ));
+                    break;
+                case '>':
+                    e = new nix::ExprCall(
+                        curPos,
+                        new nix::ExprVar(state.symbols.create("__lessThan")),
+                        {rhs, e}
+                    );
+                    break;
+                case GEQ:
+                    e = new nix::ExprOpNot(new nix::ExprCall(
+                        curPos,
+                        new nix::ExprVar(state.symbols.create("__lessThan")),
+                        {e, rhs}
+                    ));
+                    break;
+                case AND:
+                    e = new nix::ExprOpAnd(curPos, e, rhs);
+                    break;
+                case OR:
+                    e = new nix::ExprOpOr(curPos, e, rhs);
+                    break;
+                case IMPL:
+                    e = new nix::ExprOpImpl(curPos, e, rhs);
+                    break;
+                case UPDATE:
+                    e = new nix::ExprOpUpdate(curPos, e, rhs);
+                    break;
+                case '-':
+                    e = new nix::ExprCall(
+                        curPos,
+                        new nix::ExprVar(state.symbols.create("__sub")),
+                        {e, rhs}
+                    );
+                    break;
                 case '+':
                     e = new nix::ExprConcatStrings(
                         curPos,
@@ -288,6 +382,16 @@ struct Parser {
                         new nix::ExprVar(state.symbols.create("__mul")),
                         {e, rhs}
                     );
+                    break;
+                case '/':
+                    e = new nix::ExprCall(
+                        curPos,
+                        new nix::ExprVar(state.symbols.create("__div")),
+                        {e, rhs}
+                    );
+                    break;
+                case CONCAT:
+                    e = new nix::ExprOpConcatLists(curPos, e, rhs);
                     break;
             }
             visit(e, {start, previous().range.end});
@@ -343,7 +447,6 @@ struct Parser {
     }
 
     nix::Expr* expr_simple_() {
-        // ID
         if (!allow(allowedExprStarts)) {
             error("expected expression", current().range);
             while (!allow({';', '}', ']', ')', IN, YYEOF})) {
@@ -351,6 +454,19 @@ struct Parser {
             }
             return missing();
         }
+        // '!' expr_op
+        if (accept('!')) {
+            return new nix::ExprOpNot(expr_op(70));
+        }
+        // '-' expr_op
+        if (accept('-')) {
+            return new nix::ExprCall(
+                posIdx(previous().range.start),
+                new nix::ExprVar(state.symbols.create("__sub")),
+                {new nix::ExprInt(0), expr_simple()}
+            );
+        }
+        // ID
         if (auto id = accept(ID)) {
             std::string_view name = get<std::string>(id->val);
             if (name == "__curPos") {

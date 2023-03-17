@@ -14,11 +14,9 @@ int main() {
     auto state =
         std::make_unique<nix::EvalState>(nix::Strings{}, nix::openStore());
 
-    // auto analysis = parse(*state, "{ x = y; a = b;}", "", "", {0, 0});
-    // analysis.exprPath.back().e->show(state->symbols, std::cout);
-    // std::cout << "\n";
-    Tokenizer tokenizer{*state, "", "{ x = y; a = b;}"};
-    for (int i = 0; i < 15; i++) {
-        std::cout << tokenName(tokenizer.advance().type) << "\n";
-    }
+    auto source =
+        "1 -> 2 || -3 && 4 == 5 || 6 < 7 || 8 // !9 + 10 * 11 ++ 12 13 ? a // "
+        "1";
+    state->parseExprFromString(source, "")->show(state->symbols, std::cout);
+    std::cout << "\n";
 }

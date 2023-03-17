@@ -1,10 +1,12 @@
-import ./lib/maketest.nix {
+# https://github.com/oxalica/nil/blob/main/crates/syntax/test_data/parser/ok/0004-operator.nix
+import ./lib/maketest.nix
+{
   type = "parse";
   source = ''
-    a + b * c^ + d
+    1 -> 2 || -3 && 4 == 5 || 6^ < 7 || 8 // !9 + 10 * 11 ++ 12 13 ? a // 1
   '';
   expected = ''
-    (a + ((__mul b c) + d))
+    (1 -> (((2 || ((__sub 0 3) && (4 == 5))) || (__lessThan 6 7)) || (8 // ((! (9 + (__mul 10 (11 ++ (((12 13)) ? a))))) // 1))))
   '';
-  expectedExprPath = [ "ExprVar" "ExprCall" "ExprConcatStrings" "ExprConcatStrings" ];
+  expectedExprPath = [ "ExprInt" "ExprCall" "ExprOpOr" "ExprOpOr" "ExprOpImpl" ];
 }
