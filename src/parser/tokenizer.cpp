@@ -34,6 +34,8 @@ Token Tokenizer::advance() {
     }
     if (token.type == ID) {
         token.val = std::string{std::string_view{yylval.id}};
+    } else if (token.type == STR) {
+        token.val = std::string{std::string_view{yylval.str}};
     } else if (token.type == INT) {
         token.val = yylval.n;
     } else if (token.type == FLOAT) {

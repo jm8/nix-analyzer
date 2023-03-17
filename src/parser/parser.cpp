@@ -4,6 +4,7 @@
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/parser-tab.hh>
+#include <nix/pos.hh>
 #include <nix/symbol-table.hh>
 #include <nix/util.hh>
 #include <nix/value.hh>
@@ -156,6 +157,8 @@ struct Parser {
         OR_KW,
         INT,
         FLOAT,
+        '"',
+        IND_STRING_OPEN,
         '{',
         '[',
         '-',
@@ -519,6 +522,12 @@ struct Parser {
         if (auto token = accept(FLOAT)) {
             return new nix::ExprFloat(get<nix::NixFloat>(token->val));
         }
+        // '"' string_parts '"'
+        if (accept('"')) {
+            auto e = string_parts();
+            expect('"');
+            return e;
+        }
         // '{' binds '}'
         if (accept('{')) {
             auto e = binds();
@@ -541,6 +550,33 @@ struct Parser {
             return e;
         }
         assert(false);
+    }
+
+    nix::Expr* string_parts() {
+        auto parts = new std::vector<std::pair<nix::PosIdx, nix::Expr*>>;
+        auto start = current().range.start;
+        while (allow({STR, DOLLAR_CURLY})) {
+            if (auto token = accept(STR)) {
+                auto s = get<std::string>(token->val);
+                parts->push_back(
+                    {posIdx(token->range.start), new nix::ExprString(s)}
+                );
+            } else {
+                accept(DOLLAR_CURLY);
+                auto start = current().range.start;
+                auto e = expr();
+                expect('}');
+                parts->push_back({posIdx(start), e});
+            }
+        }
+        if (parts->empty()) {
+            return new nix::ExprString("");
+        }
+        if (parts->size() == 1 &&
+            dynamic_cast<nix::ExprString*>((*parts)[0].second)) {
+            return (*parts)[0].second;
+        }
+        return new nix::ExprConcatStrings(posIdx(start), true, parts);
     }
 
     // copy+paste from parser.y
