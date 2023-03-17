@@ -147,8 +147,18 @@ struct Parser {
         WITH,
         LET,
         IF};
-    const std::vector<TokenType>
-        allowedExprStarts{ASSERT, WITH, LET, IF, ID, INT, '{', '[', '-', '!'};
+    const std::vector<TokenType> allowedExprStarts{
+        ASSERT,
+        WITH,
+        LET,
+        IF,
+        ID,
+        OR_KW,
+        INT,
+        '{',
+        '[',
+        '-',
+        '!'};
 
     nix::Expr* expr() {
         // ID ':' expr_function
@@ -441,7 +451,11 @@ struct Parser {
         auto e = expr_simple();
         if (accept('.')) {
             auto path = attrPath();
-            auto select = new nix::ExprSelect(posIdx(start), e, *path, nullptr);
+            nix::Expr* def = nullptr;
+            if (accept(OR_KW)) {
+                def = expr_select();
+            }
+            auto select = new nix::ExprSelect(posIdx(start), e, *path, def);
             auto end = previous().range.end;
             visit(select, {start, end});
             return select;
@@ -461,7 +475,9 @@ struct Parser {
     nix::Expr* expr_simple_() {
         if (!allow(allowedExprStarts)) {
             error("expected expression", current().range);
-            while (!allow({';', '}', ']', ')', IN, YYEOF})) {
+            while (!allow({';', '}',    ']', ')', IN,     YYEOF, IMPL,
+                           OR,  AND,    EQ,  NEQ, '<',    '>',   LEQ,
+                           GEQ, UPDATE, '+', '*', CONCAT, '?'})) {
                 consume();
             }
             return missing();
@@ -488,6 +504,11 @@ struct Parser {
                     posIdx(id->range.start), state.symbols.create(name)
                 );
             }
+        }
+        if (accept(OR_KW)) {
+            return new nix::ExprVar(
+                posIdx(previous().range.start), state.symbols.create("or")
+            );
         }
         // INT
         if (auto token = accept(INT)) {
