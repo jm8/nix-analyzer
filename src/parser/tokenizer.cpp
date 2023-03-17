@@ -32,11 +32,12 @@ Token Tokenizer::advance() {
         done = true;
         return {YYEOF, {}, {lastEnd, lastEnd}};
     }
-    if (token.type == ID || token.type == STR || token.type == URI ||
-        token.type == PATH) {
+    if (token.type == ID) {
         token.val = std::string{std::string_view{yylval.id}};
     } else if (token.type == INT) {
         token.val = yylval.n;
+    } else if (token.type == FLOAT) {
+        token.val = yylval.nf;
     } else {
         token.val = {};
     }

@@ -16,7 +16,7 @@ using TokenType = int;
 
 struct Token {
     TokenType type;
-    std::variant<std::monostate, std::string, nix::NixInt> val;
+    std::variant<std::monostate, std::string, nix::NixInt, nix::NixFloat> val;
     Range range;
 };
 

@@ -155,6 +155,7 @@ struct Parser {
         ID,
         OR_KW,
         INT,
+        FLOAT,
         '{',
         '[',
         '-',
@@ -513,6 +514,10 @@ struct Parser {
         // INT
         if (auto token = accept(INT)) {
             return new nix::ExprInt(get<nix::NixInt>(token->val));
+        }
+        // FLOAT
+        if (auto token = accept(FLOAT)) {
+            return new nix::ExprFloat(get<nix::NixFloat>(token->val));
         }
         // '{' binds '}'
         if (accept('{')) {
