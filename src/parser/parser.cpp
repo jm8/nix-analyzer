@@ -297,12 +297,24 @@ struct Parser {
     nix::Expr* expr_op(int min_binding_power = 0) {
         auto start = current().range.start;
         auto e = expr_app();
+        bool nonassoc_encountered = false;
 
         while (binding_power(current().type).binding_power >= min_binding_power
         ) {
             auto op = consume();
             auto [bp, associativity] = binding_power(op.type);
             auto curPos = posIdx(op.range.start);
+
+            if (associativity == BindingPower::NONE) {
+                if (nonassoc_encountered) {
+                    error(
+                        "operator " + tokenName(op.type) +
+                            " is not associative",
+                        op.range
+                    );
+                }
+                nonassoc_encountered = true;
+            }
 
             if (op.type == '?') {
                 e = new nix::ExprOpHasAttr(e, *attrPath());
@@ -311,7 +323,7 @@ struct Parser {
             }
 
             auto rhs =
-                expr_op(associativity == BindingPower::LEFT ? bp + 1 : bp);
+                expr_op(associativity == BindingPower::RIGHT ? bp : bp + 1);
 
             switch (op.type) {
                 case EQ:
