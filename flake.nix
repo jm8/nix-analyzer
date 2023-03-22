@@ -54,8 +54,9 @@
               "-isystem${pkgs.boehmgc.dev}/include"
               "-L${pkgs.boehmgc}/lib"
               "-lgc -lgccpp"
-              "-I${pkgs.gtest.dev}/include"
+              "-isystem${pkgs.gtest.dev}/include"
               "-L${pkgs.gtest}/lib"
+              "-isystem${pkgs.nlohmann_json}/include"
             ];
             buildInputs = with pkgs; [
               boost
@@ -84,8 +85,8 @@
             CFLAGS =
               packages.default.CFLAGS
               ++ [
-                "-O0"
-                "-g"
+                # "-O0"
+                # "-g"
               ];
             nativeBuildInputs = with pkgs; [
               gdb
