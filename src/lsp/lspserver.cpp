@@ -14,19 +14,26 @@ void LspServer::run(std::istream& in, std::ostream& out) {
         Message message = conn.read();
         if (holds_alternative<Request>(message)) {
             auto request = get<Request>(message);
-            std::cerr << "Request:" << request.method << "\n";
-            conn.write(Response{
-                request.id,
-                {
-                    {"capabilities", nlohmann::json::value_t::object},
-                },
-            });
+            std::cerr << "<-- " << request.method << "\n";
+            if (request.method == "initialize") {
+                conn.write(Response{
+                    request.id,
+                    {
+                        {"capabilities", nlohmann::json::value_t::object},
+                    },
+                });
+            } else if (request.method == "shutdown") {
+                conn.write(Response{request.id, nlohmann::json::value_t::null});
+            }
         } else if (holds_alternative<Response>(message)) {
+            std::cerr << "<-- [response]\n";
             auto response = get<Response>(message);
-            // std::cerr << "<-- " << response;
         } else if (holds_alternative<Notification>(message)) {
             auto notification = get<Notification>(message);
-            std::cerr << "<-- " << notification.method;
+            std::cerr << "<-- " << notification.method << "\n";
+            if (notification.method == "exit") {
+                break;
+            }
         }
     }
 }
