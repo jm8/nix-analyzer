@@ -1,5 +1,7 @@
 #include "lsp/jsonrpc.h"
+#include <iostream>
 #include <nlohmann/json_fwd.hpp>
+#include <variant>
 
 Connection::Connection(std::istream& in, std::ostream& out)
     : in(in), out(out) {}
@@ -43,4 +45,14 @@ Message Connection::read() {
     } else {
         return json.get<Notification>();
     }
+}
+
+void Connection::write(Message message) {
+    auto json =
+        std::visit([](auto&& x) -> nlohmann::json { return x; }, message);
+    json["jsonrpc"] = "2.0";
+    auto content = json.dump();
+    out << "Content-Length: " << content.length() << "\r\n";
+    out << "\r\n";
+    out << content;
 }

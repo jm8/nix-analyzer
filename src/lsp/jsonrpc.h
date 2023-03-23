@@ -44,4 +44,6 @@ struct Connection {
     size_t read_header();
 
     Message read();
+
+    void write(Message message);
 };
