@@ -6,13 +6,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
+#include <nlohmann/json.hpp>
 #include <ostream>
 #include <string>
 
 // Position in a document (0-indexed line and col)
 struct Position {
     uint32_t line;
-    uint32_t col;
+    uint32_t character;
 
     Position(uint32_t line, uint32_t col);
     Position(nix::Pos pos);
@@ -22,6 +23,8 @@ struct Position {
 
     auto operator<=>(const Position& other) const = default;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Position, line, character);
 
 std::ostream& operator<<(std::ostream& os, const Position& position);
 
@@ -35,5 +38,7 @@ struct Range {
 
     bool contains(Position position) const;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Range, start, end);
 
 std::ostream& operator<<(std::ostream& os, const Range& range);

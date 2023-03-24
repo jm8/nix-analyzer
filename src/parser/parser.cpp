@@ -119,7 +119,9 @@ struct Parser {
 
     nix::PosIdx posIdx(Position position) {
         return state.positions.add(
-            {analysis.path, nix::foFile}, position.line + 1, position.col + 1
+            {analysis.path, nix::foFile},
+            position.line + 1,
+            position.character + 1
         );
     }
 

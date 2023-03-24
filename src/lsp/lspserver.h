@@ -1,11 +1,36 @@
 #pragma once
 #include "config.h"
 #include <istream>
+#include <nlohmann/detail/macro_scope.hpp>
 #include <nlohmann/json.hpp>
-#include <nlohmann/json_fwd.hpp>
 #include <ostream>
+#include <unordered_map>
+#include "common/position.h"
 
-class LspServer {
-   public:
+struct ContentChange {
+    std::optional<Range> range;
+    std::string text;
+};
+
+inline void from_json(
+    const nlohmann::json& json,
+    ContentChange& contentChange
+) {
+    auto it = json.find("range");
+    if (it != json.end()) {
+        contentChange.range = it->get<Range>();
+    }
+    json.at("text").get_to(contentChange.text);
+}
+
+struct Document {
+    std::string source;
+
+    void applyContentChange(ContentChange contentChange);
+};
+
+struct LspServer {
+    std::unordered_map<std::string, Document> documents;
+
     void run(std::istream& in, std::ostream& out);
 };
