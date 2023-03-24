@@ -2,8 +2,12 @@
 #include "lsp/lspserver.h"
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <sstream>
 #include <variant>
+#include "common/stringify.h"
 #include "lsp/jsonrpc.h"
+#include "parser/parser.h"
 
 using namespace nlohmann::json_literals;
 
@@ -46,6 +50,18 @@ void Document::applyContentChange(ContentChange contentChange) {
     std::cerr << source << "\n";
 }
 
+std::optional<std::string> LspServer::hover(
+    const Document& document,
+    Position targetPos
+) {
+    auto analysis = parse(state, document.source, "", "", targetPos);
+    std::stringstream ss;
+    for (auto item : analysis.exprPath) {
+        ss << exprTypeName(item.e) << " ";
+    }
+    return ss.str();
+}
+
 void LspServer::run(std::istream& in, std::ostream& out) {
     Connection conn(in, out);
 
@@ -63,12 +79,34 @@ void LspServer::run(std::istream& in, std::ostream& out) {
                             "capabilities",
                             {
                                 {"textDocumentSync", 2 /* incremental */},
+                                {"hoverProvider", true},
                             },
                         },
                     },
                 });
             } else if (request.method == "shutdown") {
                 conn.write(Response{request.id, nlohmann::json::value_t::null});
+            } else if (request.method == "textDocument/hover") {
+                std::string url = request.params["textDocument"]["uri"];
+                Position position = request.params["position"];
+                auto h = hover(documents[url], position);
+                if (!h) {
+                    conn.write(Response{
+                        request.id, nlohmann::json::value_t::null});
+                } else {
+                    conn.write(Response{
+                        request.id,
+                        {
+                            {
+                                "contents",
+                                {
+                                    {"kind", "markdown"},
+                                    {"value", *h},
+                                },
+                            },
+                        },
+                    });
+                }
             }
         } else if (holds_alternative<Response>(message)) {
             std::cerr << "<-- response\n";

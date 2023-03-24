@@ -16,6 +16,6 @@ int main() {
     auto state =
         std::make_unique<nix::EvalState>(nix::Strings{}, nix::openStore());
 
-    LspServer server;
+    LspServer server{*state};
     server.run(std::cin, std::cout);
 }
