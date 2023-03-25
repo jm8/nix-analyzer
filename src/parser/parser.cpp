@@ -150,21 +150,20 @@ struct Parser {
         WITH,
         LET,
         IF};
-    const std::vector<TokenType> allowedExprStarts{
-        ASSERT,
-        WITH,
-        LET,
-        IF,
-        ID,
-        OR_KW,
-        INT,
-        FLOAT,
-        '"',
-        IND_STRING_OPEN,
-        '{',
-        '[',
-        '-',
-        '!'};
+    const std::vector<TokenType> allowedExprStarts{// ASSERT,
+                                                   WITH,
+                                                   LET,
+                                                   // IF,
+                                                   ID,
+                                                   OR_KW,
+                                                   INT,
+                                                   FLOAT,
+                                                   '"',
+                                                   // IND_STRING_OPEN,
+                                                   '{',
+                                                   '[',
+                                                   '-',
+                                                   '!'};
 
     nix::Expr* expr() {
         // ID ':' expr_function
@@ -551,6 +550,7 @@ struct Parser {
             expect(']');
             return e;
         }
+        std::cerr << tokenName(current().type) << "\n";
         assert(false);
     }
 

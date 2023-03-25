@@ -23,20 +23,9 @@
 #include "gtest/gtest.h"
 #include "parser/parser.h"
 
-class FileTest : public testing::TestWithParam<std::string> {
-   public:
-    static void SetUpTestSuite() {
-        nix::initGC();
-        nix::initNix();
-        state = new nix::EvalState(nix::Strings{}, nix::openStore());
-    }
+nix::EvalState* state = nullptr;
 
-    static void TearDownTestSuite() { delete state; }
-
-    static nix::EvalState* state;
-};
-
-nix::EvalState* FileTest::state = nullptr;
+class FileTest : public testing::TestWithParam<std::string> {};
 
 bool hasAttr(nix::EvalState* state, nix::Value* v, std::string_view key) {
     return v->attrs->get(state->symbols.create(key));
@@ -186,6 +175,10 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 int main(int argc, char* argv[]) {
+    nix::initGC();
+    nix::initNix();
+    state = new nix::EvalState(nix::Strings{}, nix::openStore());
+
     for (int i = 1; i < argc; i++)
         arguments.push_back(argv[i]);
 

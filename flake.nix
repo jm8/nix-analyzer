@@ -75,6 +75,7 @@
               mkdir -p $out/bin
               cp nix-analyzer $out/bin
               cp nix-analyzer-test $out
+              cp parsertest $out
               find src -name '*.csv' -exec cp --parents '{}' $out ';'
             '';
           };

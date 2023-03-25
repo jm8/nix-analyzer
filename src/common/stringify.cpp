@@ -1,5 +1,7 @@
 #include "config.h"
+#include <nix/eval.hh>
 #include <nix/nixexpr.hh>
+#include <sstream>
 
 const char* exprTypeName(nix::Expr* e) {
     if (dynamic_cast<nix::ExprInt*>(e)) {
@@ -78,4 +80,16 @@ const char* exprTypeName(nix::Expr* e) {
         return "ExprPos";
     }
     return "???";
+}
+
+std::string stringify(nix::EvalState& state, nix::Expr* e) {
+    std::stringstream ss;
+    e->show(state.symbols, ss);
+    return ss.str();
+}
+
+std::string stringify(nix::EvalState& state, nix::Value* v) {
+    std::stringstream ss;
+    v->print(state.symbols, ss);
+    return ss.str();
 }

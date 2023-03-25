@@ -1,6 +1,7 @@
 .direnv
 nix-analyzer
 nix-analyzer-test
+parsertest
 result
 compile_commands.json
 .cache
