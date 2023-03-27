@@ -146,7 +146,7 @@ struct Parser {
     // GRAMMAR
 
     const std::vector<TokenType> allowedKeywordExprStarts{
-        // ASSERT,
+        ASSERT,
         WITH,
         LET,
         // IF
