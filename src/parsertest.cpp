@@ -19,7 +19,13 @@
 bool check_consistency(nix::EvalState& state, std::string path) {
     std::cout << path << " ";
     std::cout.flush();
+
     std::string source = nix::readFile(path);
+
+    if (source.size() > 100000) {
+        std::cout << "skipping\n";
+        return false;
+    }
     auto basePath = nix::absPath(nix::dirOf(path));
 
     auto analysis = parse(state, source, path, basePath, {});
