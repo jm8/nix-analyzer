@@ -744,9 +744,11 @@ struct Parser {
         nix::Formal formal;
         Range range;
 
-        bool operator<(ParserFormal other) {
-            return formal.name < other.formal.name ||
-                   range.start < other.range.start;
+        bool operator<(const ParserFormal& other) {
+            if (formal.name == other.formal.name) {
+                return range.start < other.range.start;
+            }
+            return formal.name < other.formal.name;
         }
     };
 
@@ -755,11 +757,11 @@ struct Parser {
         bool ellipsis = false;
     };
 
-    ParserFormals* formals() {
-        auto result = new ParserFormals;
+    ParserFormals formals() {
+        ParserFormals result;
         while (allow({ELLIPSIS, ID})) {
             if (accept(ELLIPSIS)) {
-                result->ellipsis = true;
+                result.ellipsis = true;
             } else {
                 auto id = accept(ID);
 
@@ -771,7 +773,7 @@ struct Parser {
                 if (id->range.contains(targetPos)) {
                     analysis.formal = formal;
                 }
-                result->formals.push_back({formal, id->range});
+                result.formals.push_back({formal, id->range});
             }
             if (!allow('}')) {
                 expect(',');
@@ -780,19 +782,17 @@ struct Parser {
         return result;
     }
 
-    nix::Formals* to_formals(ParserFormals* formals, nix::Symbol arg) {
-        std::sort(formals->formals.begin(), formals->formals.end());
-
+    nix::Formals* to_formals(ParserFormals& formals, nix::Symbol arg) {
         nix::Formals result;
-        result.ellipsis = formals->ellipsis;
+        result.ellipsis = formals.ellipsis;
 
-        if (formals->formals.empty()) {
+        if (formals.formals.empty()) {
             return new nix::Formals(std::move(result));
         }
 
-        for (auto [formal, range] : formals->formals) {
-            // nix-analyzer: report duplicate formals error without throwing
-            // exception
+        std::sort(formals.formals.begin(), formals.formals.end());
+
+        for (auto [formal, range] : formals.formals) {
             if (!result.formals.empty() &&
                 (formal.name == result.formals.back().name || formal.name == arg
                 )) {
@@ -802,7 +802,6 @@ struct Parser {
             }
         }
 
-        delete formals;
         return new nix::Formals(std::move(result));
     }
 };
