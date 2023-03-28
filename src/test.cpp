@@ -82,7 +82,7 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
         static_cast<uint32_t>(getInt(state, v, "col")),
     };
 
-    auto analysis = parse(*state, source, path, nix::absPath("."), targetPos);
+    auto analysis = parse(*state, source, path, "/base-path", targetPos);
     ASSERT_FALSE(analysis.exprPath.empty()) << source;
 
     auto expected = getString(state, v, "expected");

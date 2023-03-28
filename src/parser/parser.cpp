@@ -167,6 +167,8 @@ struct Parser {
         '[',
         '-',
         '!',
+        PATH,
+        HPATH,
     };
 
     nix::Expr* expr() {
@@ -536,6 +538,7 @@ struct Parser {
         // path_start string_parts_interpolated PATH_END
         if (allow({PATH, HPATH})) {
             auto token = consume();
+            auto start = token.range.start;
             nix::Path path;
             if (token.type == HPATH) {
                 auto p = get<std::string>(token.val);
@@ -552,10 +555,17 @@ struct Parser {
                 path += "/";
             }
             nix::Expr* pathExpr = new nix::ExprPath(path);
-            // if (accept(PATH_END)) {
+            // if there are interpolated parts add them
+            // if (auto sparts =
+            //         dynamic_cast<nix::ExprConcatStrings*>(string_parts()))
+            // {
+            //     sparts->es->insert(
+            //         sparts->es->begin(), {posIdx(start), pathExpr}
+            //     );
+            //     return sparts;
+            // }
             expect(PATH_END);
             return pathExpr;
-            // }
         }
         // '{' binds '}'
         if (accept('{')) {
@@ -852,6 +862,7 @@ Analysis parse(
     Position targetPos
 ) {
     Analysis analysis;
+    analysis.basePath = basePath;
 
     Parser parser{state, analysis, source, targetPos};
     auto e = parser.expr();

@@ -37,10 +37,10 @@ bool check_consistency(nix::EvalState& state, std::string path) {
     auto expectedS = stringify(state, expected);
 
     if (actualS == expectedS) {
-        std::cout << "good\n";
+        std::cout << "GOOD\n";
         return true;
     } else {
-        std::cout << "bad\n";
+        std::cout << "BAD\n";
         return false;
     };
 }
