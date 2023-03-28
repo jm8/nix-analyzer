@@ -1,6 +1,7 @@
 #pragma once
 #include "config.h"
 #include <nix/nixexpr.hh>
+#include <nix/symbol-table.hh>
 #include "common/position.h"
 #include "schema/schema.h"
 
@@ -12,6 +13,11 @@ struct NAParseError {
 struct ParseResultAttrPath {
     size_t index;
     nix::AttrPath* attrPath;
+};
+
+struct ParseResultInherit {
+    nix::Symbol symbol;
+    std::optional<nix::Expr*> e;
 };
 
 struct ExprPathItem {
@@ -30,6 +36,5 @@ struct Analysis {
     std::optional<ParseResultAttrPath> attr;
     std::optional<nix::Formal> formal;
     bool arg;
-    // {} is no inherit. {{}} is inherit ...; {{expr}} is inherit (expr) ...;
-    std::optional<std::optional<nix::Expr*>> inherit;
+    std::optional<ParseResultInherit> inherit;
 };

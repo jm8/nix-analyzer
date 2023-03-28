@@ -338,7 +338,7 @@ struct Parser {
             }
 
             if (op.type == '?') {
-                e = new nix::ExprOpHasAttr(e, *attrPath());
+                e = new nix::ExprOpHasAttr(e, *attrNames());
                 visit(e, {start, previous().range.end});
                 continue;
             }
@@ -461,7 +461,7 @@ struct Parser {
         auto start = current().range.start;
         auto e = expr_simple();
         if (accept('.')) {
-            auto path = attrPath();
+            auto path = attrNames();
             nix::Expr* def = nullptr;
             if (accept(OR_KW)) {
                 def = expr_select();
@@ -740,15 +740,43 @@ struct Parser {
 
     nix::ExprAttrs* binds() {
         auto attrs = new nix::ExprAttrs;
-        while (lookaheadBind()) {
+        while (allow(INHERIT) || lookaheadBind()) {
             auto start = current().range.start;
-            auto path = attrPath();
-            if (!expect('=')) {
-                continue;
+            if (accept(INHERIT)) {
+                std::optional<nix::Expr*> inheritFrom = {};
+                if (accept('(')) {
+                    inheritFrom = expr();
+                    expect(')');
+                }
+                while (auto id = accept(ID)) {
+                    auto symbol =
+                        state.symbols.create(get<std::string>(id->val));
+                    if (id->range.contains(targetPos)) {
+                        analysis.inherit = {{symbol, inheritFrom}};
+                    }
+                    if (attrs->attrs.find(symbol) != attrs->attrs.end()) {
+                        error("duplicate attr", id->range);
+                        continue;
+                    }
+                    auto pos = posIdx(id->range.start);
+                    nix::Expr* def =
+                        inheritFrom ? (nix::Expr*)new nix::ExprSelect(
+                                          pos, *inheritFrom, symbol
+                                      )
+                                    : (nix::Expr*)new nix::ExprVar(pos, symbol);
+                    attrs->attrs.emplace(
+                        symbol, nix::ExprAttrs::AttrDef(def, pos, !inheritFrom)
+                    );
+                }
+            } else {
+                auto path = attrNames();
+                if (!expect('=')) {
+                    continue;
+                }
+                auto e = expr();
+                auto end = previous().range.end;
+                addAttr(attrs, *path, e, {start, end});
             }
-            auto e = expr();
-            auto end = previous().range.end;
-            addAttr(attrs, *path, e, {start, end});
             if (!expect(';')) {
                 continue;
             }
@@ -756,7 +784,7 @@ struct Parser {
         return attrs;
     }
 
-    nix::AttrPath* attrPath() {
+    nix::AttrPath* attrNames() {
         auto path = new nix::AttrPath;
 
         while (true) {
