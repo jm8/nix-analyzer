@@ -86,8 +86,8 @@
             CFLAGS =
               packages.default.CFLAGS
               ++ [
-                "-O0"
-                "-g"
+                # "-O0"
+                # "-g"
               ];
             nativeBuildInputs = with pkgs; [
               gdb

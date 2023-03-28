@@ -151,20 +151,23 @@ struct Parser {
         LET,
         // IF
     };
-    const std::vector<TokenType> allowedExprStarts{// ASSERT,
-                                                   WITH,
-                                                   LET,
-                                                   // IF,
-                                                   ID,
-                                                   OR_KW,
-                                                   INT,
-                                                   FLOAT,
-                                                   '"',
-                                                   // IND_STRING_OPEN,
-                                                   '{',
-                                                   '[',
-                                                   '-',
-                                                   '!'};
+    const std::vector<TokenType> allowedExprStarts{
+        ASSERT,
+        WITH,
+        LET,
+        // IF,
+        ID,
+        OR_KW,
+        INT,
+        FLOAT,
+        '"',
+        // IND_STRING_OPEN,
+        REC,
+        '{',
+        '[',
+        '-',
+        '!',
+    };
 
     nix::Expr* expr() {
         // ID ':' expr_function
@@ -536,6 +539,14 @@ struct Parser {
             expect('}');
             return e;
         }
+        // 'REC' '{' binds '}'
+        if (accept(REC)) {
+            expect('{');
+            auto e = binds();
+            expect('}');
+            e->recursive = true;
+            return e;
+        }
         // '[' expr_list ']'
         if (accept('[')) {
             auto e = new nix::ExprList;
@@ -550,6 +561,9 @@ struct Parser {
             }
             expect(']');
             return e;
+        }
+        if (allow(allowedKeywordExprStarts)) {
+            return keyword_expression(false, &Parser::expr_simple);
         }
         std::cerr << tokenName(current().type) << "\n";
         assert(false);
