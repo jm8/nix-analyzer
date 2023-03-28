@@ -1,4 +1,0 @@
-{
-    "nix.enableLanguageServer": true,
-    "nix.serverPath": "/home/josh/dev/nix-analyzer/nix-analyzer"
-}
