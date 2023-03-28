@@ -36,6 +36,13 @@ bool check_consistency(nix::EvalState& state, std::string path) {
     auto actualS = stringify(state, actual);
     auto expectedS = stringify(state, expected);
 
+    // std::cerr << "ACTUAL\n" << actualS << "\n";
+    // for (auto err : analysis.parseErrors) {
+    //     std::cerr << err.message << " " << err.range << "\n";
+    // }
+    // std::cerr << "\n";
+    // std::cerr << "EXPECTED\n" << expectedS << "\n\n";
+
     if (actualS == expectedS) {
         std::cout << "GOOD\n";
         return true;

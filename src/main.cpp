@@ -16,6 +16,11 @@ int main() {
     auto state =
         std::make_unique<nix::EvalState>(nix::Strings{}, nix::openStore());
 
-    LspServer server{*state};
-    server.run(std::cin, std::cout);
+    // LspServer server{*state};
+    // server.run(std::cin, std::cout);
+
+    auto e =
+        state->parseExprFromString("/hello/${username}/whatever", "/base-path");
+    e->show(state->symbols, std::cout);
+    std::cout << "\n";
 }

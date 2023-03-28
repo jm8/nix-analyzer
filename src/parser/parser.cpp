@@ -539,31 +539,31 @@ struct Parser {
         if (allow({PATH, HPATH})) {
             auto token = consume();
             auto start = token.range.start;
+            auto p = get<std::string>(token.val);
             nix::Path path;
             if (token.type == HPATH) {
-                auto p = get<std::string>(token.val);
-                // remove leading and trailing slash
-                p = p.substr(1, p.length() - 1);
+                // remove leading slash
+                p.erase(0, 1);
                 path = nix::getHome() + p;
             } else {
                 // PATH
                 path = nix::absPath(
                     get<std::string>(token.val), analysis.basePath
                 );
+                // add back trailing slash to first segment
+                if (p.ends_with('/') && p.length() > 1) {
+                    path += "/";
+                }
             };
-            if (path.ends_with('/') && path.length() > 1) {
-                path += "/";
-            }
             nix::Expr* pathExpr = new nix::ExprPath(path);
             // if there are interpolated parts add them
-            // if (auto sparts =
-            //         dynamic_cast<nix::ExprConcatStrings*>(string_parts()))
-            // {
-            //     sparts->es->insert(
-            //         sparts->es->begin(), {posIdx(start), pathExpr}
-            //     );
-            //     return sparts;
-            // }
+            if (auto sparts =
+                    dynamic_cast<nix::ExprConcatStrings*>(string_parts())) {
+                sparts->es->insert(
+                    sparts->es->begin(), {posIdx(start), pathExpr}
+                );
+                return sparts;
+            }
             expect(PATH_END);
             return pathExpr;
         }
