@@ -533,6 +533,30 @@ struct Parser {
             expect('"');
             return e;
         }
+        // path_start string_parts_interpolated PATH_END
+        if (allow({PATH, HPATH})) {
+            auto token = consume();
+            nix::Path path;
+            if (token.type == HPATH) {
+                auto p = get<std::string>(token.val);
+                // remove leading and trailing slash
+                p = p.substr(1, p.length() - 1);
+                path = nix::getHome() + p;
+            } else {
+                // PATH
+                path = nix::absPath(
+                    get<std::string>(token.val), analysis.basePath
+                );
+            };
+            if (path.ends_with('/') && path.length() > 1) {
+                path += "/";
+            }
+            nix::Expr* pathExpr = new nix::ExprPath(path);
+            // if (accept(PATH_END)) {
+            expect(PATH_END);
+            return pathExpr;
+            // }
+        }
         // '{' binds '}'
         if (accept('{')) {
             auto e = binds();
