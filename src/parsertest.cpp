@@ -69,7 +69,6 @@ int main(int argc, char* argv[]) {
     );
     assert(it != searchPath.end());
     std::string nixpkgs = it->second;
-
     for (auto f : std::filesystem::recursive_directory_iterator(nixpkgs)) {
         if (f.path().extension() != ".nix")
             continue;

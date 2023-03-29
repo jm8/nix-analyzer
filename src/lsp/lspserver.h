@@ -13,10 +13,5 @@ struct LspServer {
     nix::EvalState& state;
     std::unordered_map<std::string, Document> documents;
 
-    std::optional<std::string> hover(
-        const Document& document,
-        Position targetPos
-    );
-
     void run(std::istream& in, std::ostream& out);
 };

@@ -2,25 +2,17 @@
 #include "lsp/lspserver.h"
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <sstream>
 #include <variant>
 #include "common/stringify.h"
+#include "completion/completion.h"
 #include "hover/hover.h"
 #include "lsp/jsonrpc.h"
 #include "parser/parser.h"
 
 using namespace nlohmann::json_literals;
-
-std::optional<std::string> LspServer::hover(
-    const Document& document,
-    Position targetPos
-) {
-    auto analysis = parse(
-        state, document.source, document.path, document.basePath, targetPos
-    );
-    return ::hover(state, analysis);
-}
 
 void LspServer::run(std::istream& in, std::ostream& out) {
     Connection conn(in, out);
@@ -40,6 +32,10 @@ void LspServer::run(std::istream& in, std::ostream& out) {
                             {
                                 {"textDocumentSync", 2 /* incremental */},
                                 {"hoverProvider", true},
+                                {"completionProvider",
+                                 {
+                                     {"triggerCharacters", {"."}},
+                                 }},
                             },
                         },
                     },
@@ -49,7 +45,15 @@ void LspServer::run(std::istream& in, std::ostream& out) {
             } else if (request.method == "textDocument/hover") {
                 std::string url = request.params["textDocument"]["uri"];
                 Position position = request.params["position"];
-                auto h = hover(documents[url], position);
+                auto document = documents[url];
+                auto analysis = parse(
+                    state,
+                    document.source,
+                    document.path,
+                    document.basePath,
+                    position
+                );
+                auto h = hover(state, analysis);
                 if (!h) {
                     conn.write(Response{
                         request.id, nlohmann::json::value_t::null});
@@ -67,6 +71,23 @@ void LspServer::run(std::istream& in, std::ostream& out) {
                         },
                     });
                 }
+            } else if (request.method == "textDocument/completion") {
+                std::string url = request.params["textDocument"]["uri"];
+                Position position = request.params["position"];
+                auto document = documents[url];
+                auto analysis = parse(
+                    state,
+                    document.source,
+                    document.path,
+                    document.basePath,
+                    position
+                );
+                auto c = completion(state, analysis);
+                auto completionItems = nlohmann::json::array_t{};
+                for (auto item : c.items) {
+                    completionItems.push_back({{"label", item}});
+                }
+                conn.write(Response{request.id, completionItems});
             }
         } else if (holds_alternative<Response>(message)) {
             std::cerr << "<-- response\n";
