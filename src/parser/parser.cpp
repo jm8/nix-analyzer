@@ -163,6 +163,7 @@ struct Parser {
         '"',
         // IND_STRING_OPEN,
         REC,
+        '(',
         '{',
         '[',
         '-',
@@ -477,13 +478,6 @@ struct Parser {
 
     nix::Expr* expr_simple() {
         auto start = current().range.start;
-        auto e = expr_simple_();
-        auto end = previous().range.end;
-        visit(e, {start, end});
-        return e;
-    }
-
-    nix::Expr* expr_simple_() {
         if (!allow(allowedExprStarts)) {
             error("expected expression", current().range);
             while (!allow({';', '}',    ']', ')', IN,     YYEOF, IMPL,
@@ -491,48 +485,65 @@ struct Parser {
                            GEQ, UPDATE, '+', '*', CONCAT, '?'})) {
                 consume();
             }
-            return missing();
+            auto e = missing();
+            visit(e, {start, previous().range.end});
+            return e;
         }
         // '!' expr_op
         if (accept('!')) {
-            return new nix::ExprOpNot(expr_op(70));
+            auto e = new nix::ExprOpNot(expr_op(70));
+            visit(e, {start, previous().range.end});
+            return e;
         }
         // '-' expr_op
         if (accept('-')) {
-            return new nix::ExprCall(
+            auto e = new nix::ExprCall(
                 posIdx(previous().range.start),
                 new nix::ExprVar(state.symbols.create("__sub")),
                 {new nix::ExprInt(0), expr_simple()}
             );
+            visit(e, {start, previous().range.end});
+            return e;
         }
         // ID
         if (auto id = accept(ID)) {
             std::string_view name = get<std::string>(id->val);
             if (name == "__curPos") {
-                return new nix::ExprPos(posIdx(id->range.start));
+                auto e = new nix::ExprPos(posIdx(id->range.start));
+                visit(e, {start, previous().range.end});
+                return e;
             } else {
-                return new nix::ExprVar(
+                auto e = new nix::ExprVar(
                     posIdx(id->range.start), state.symbols.create(name)
                 );
+                visit(e, {start, previous().range.end});
+                return e;
             }
         }
         if (accept(OR_KW)) {
-            return new nix::ExprVar(
+            auto e = new nix::ExprVar(
                 posIdx(previous().range.start), state.symbols.create("or")
             );
+            visit(e, {start, previous().range.end});
+            return e;
         }
         // INT
         if (auto token = accept(INT)) {
-            return new nix::ExprInt(get<nix::NixInt>(token->val));
+            auto e = new nix::ExprInt(get<nix::NixInt>(token->val));
+            visit(e, {start, previous().range.end});
+            return e;
         }
         // FLOAT
         if (auto token = accept(FLOAT)) {
-            return new nix::ExprFloat(get<nix::NixFloat>(token->val));
+            auto e = new nix::ExprFloat(get<nix::NixFloat>(token->val));
+            visit(e, {start, previous().range.end});
+            return e;
         }
         // '"' string_parts '"'
         if (accept('"')) {
             auto e = string_parts();
             expect('"');
+            visit(e, {start, previous().range.end});
             return e;
         }
         // path_start string_parts_interpolated PATH_END
@@ -557,11 +568,13 @@ struct Parser {
             };
             nix::Expr* pathExpr = new nix::ExprPath(path);
             // if there are interpolated parts add them
+            visit(pathExpr, {start, previous().range.end});
             if (auto sparts =
                     dynamic_cast<nix::ExprConcatStrings*>(string_parts())) {
                 sparts->es->insert(
                     sparts->es->begin(), {posIdx(start), pathExpr}
                 );
+                visit(sparts, {start, previous().range.end});
                 return sparts;
             }
             expect(PATH_END);
@@ -571,6 +584,7 @@ struct Parser {
         if (accept('{')) {
             auto e = binds();
             expect('}');
+            visit(e, {start, previous().range.end});
             return e;
         }
         // 'REC' '{' binds '}'
@@ -579,6 +593,7 @@ struct Parser {
             auto e = binds();
             expect('}');
             e->recursive = true;
+            visit(e, {start, previous().range.end});
             return e;
         }
         // '[' expr_list ']'
@@ -594,7 +609,14 @@ struct Parser {
                 }
             }
             expect(']');
+            visit(e, {start, previous().range.end});
             return e;
+        }
+        // '(' expr ')'
+        if (accept('(')) {
+            auto result = expr();
+            expect(')');
+            return result;
         }
         if (allow(allowedKeywordExprStarts)) {
             return keyword_expression(false, &Parser::expr_simple);
