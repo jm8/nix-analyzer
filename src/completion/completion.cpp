@@ -23,7 +23,7 @@ std::optional<CompletionResult> completionSelect(
         analysis.attr ? analysis.attr->index : select->attrPath.size() - 1;
     prefixPath.erase(prefixPath.begin() + attrIndex, prefixPath.end());
     auto prefix =
-        attrIndex > 0
+        prefixPath.size() > 0
             ? new nix::ExprSelect(nix::noPos, select->e, prefixPath, nullptr)
             : select->e;
     std::cerr << stringify(state, prefix) << "\n";

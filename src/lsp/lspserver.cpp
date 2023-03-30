@@ -72,7 +72,7 @@ void LspServer::run(std::istream& in, std::ostream& out) {
                                 "contents",
                                 {
                                     {"kind", "markdown"},
-                                    {"value", *h},
+                                    {"value", h->text},
                                 },
                             },
                         },
