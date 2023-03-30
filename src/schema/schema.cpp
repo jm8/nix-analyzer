@@ -1,9 +1,19 @@
 #include "schema/schema.h"
+#include <nix/error.hh>
+#include <nix/eval.hh>
+#include <nix/pos.hh>
+#include <nix/symbol-table.hh>
+#include <nix/value.hh>
+#include <vector>
 #include "common/analysis.h"
+#include "common/logging.h"
 
-Schema::Schema() {}
+Schema::Schema(nix::EvalState& state) : value() {
+    value = state.allocValue();
+    value->mkAttrs(0);
+}
 
-Schema::Schema(nix::Value* v) : value(v) {}
+Schema::Schema(nix::EvalState& state, nix::Value* v) : value(v) {}
 
 nix::Value* functionDescriptionValue(
     nix::EvalState& state,
@@ -24,7 +34,14 @@ nix::Value* functionDescriptionValue(
     bindings.insert(sName, nameV);
 
     auto sFunction = state.symbols.create("function");
-    auto functionV = fun->maybeThunk(state, env);
+    nix::Value* functionV;
+    try {
+        functionV = fun->maybeThunk(state, env);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        functionV = state.allocValue();
+        functionV->mkNull();
+    }
     bindings.insert(sFunction, functionV);
 
     auto v = state.allocValue();
@@ -35,7 +52,7 @@ nix::Value* functionDescriptionValue(
 
 Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
     if (analysis.exprPath.empty())
-        return {};
+        return {state};
 
     const std::string getFunctionSchemaPath =
         "/home/josh/dev/nix-analyzer/src/schema/getFunctionSchema.nix";
@@ -51,15 +68,29 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
             auto vFunctionDescription = functionDescriptionValue(
                 state, call->fun, *analysis.exprPath[i].env
             );
-            vFunctionDescription->print(state.symbols, std::cout);
-            std::cout << "\n";
+            vFunctionDescription->print(state.symbols, std::cerr);
+            std::cerr << "\n";
             state.callFunction(
                 *vGetFunctionSchema, *vFunctionDescription, *vSchema, nix::noPos
             );
-            vSchema->print(state.symbols, std::cout);
-            std::cout << "\n";
+            vSchema->print(state.symbols, std::cerr);
+            std::cerr << "\n";
         }
     }
 
-    return {};
+    return {state, vSchema};
+}
+
+std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
+    try {
+        state.forceAttrs(*value, nix::noPos);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        return {};
+    }
+    std::vector<nix::Symbol> result;
+    for (auto x : *value->attrs) {
+        result.push_back(x.name);
+    }
+    return result;
 }

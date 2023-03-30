@@ -16,11 +16,13 @@ struct Schema {
     nix::Value* value;
 
     // constructs an empty schema
-    Schema();
+    Schema(nix::EvalState& state);
 
-    Schema(nix::Value* value);
+    Schema(nix::EvalState& state, nix::Value* value);
 
-    Schema attrSubschema(nix::EvalState& state, nix::Symbol symbol);
+    std::vector<nix::Symbol> attrs(nix::EvalState& state);
+
+    // Schema attrSubschema(nix::EvalState& state, nix::Symbol symbol);
 };
 
 Schema getSchema(nix::EvalState& state, const Analysis& analysis);

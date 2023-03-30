@@ -8,6 +8,7 @@
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
 #include "common/stringify.h"
+#include "schema/schema.h"
 
 std::optional<CompletionResult> completionSelect(
     nix::EvalState& state,
@@ -47,6 +48,7 @@ std::optional<CompletionResult> completionVar(
     nix::EvalState& state,
     Analysis& analysis
 ) {
+    std::cerr << "completionVar\n";
     auto e = analysis.exprPath.front().e;
     const nix::StaticEnv* se = &*state.getStaticEnv(*e);
     CompletionResult result;
@@ -58,6 +60,7 @@ std::optional<CompletionResult> completionVar(
                 // underscore
                 continue;
             }
+            std::cerr << "Pushing a thing\n";
             result.items.push_back({std::string(sym)});
         }
         se = se->up;
@@ -65,13 +68,30 @@ std::optional<CompletionResult> completionVar(
     return result;
 }
 
+std::optional<CompletionResult> completionAttrsSchema(
+    nix::EvalState& state,
+    Analysis& analysis
+) {
+    auto attrs = dynamic_cast<nix::ExprAttrs*>(analysis.exprPath.front().e);
+    if (!attrs)
+        return {};
+    std::cerr << "completionAttrsSchema\n";
+    auto schema = getSchema(state, analysis);
+    CompletionResult result;
+    for (auto sym : schema.attrs(state)) {
+        result.items.push_back(state.symbols[sym]);
+    }
+    return result;
+}
+
 CompletionResult completion(nix::EvalState& state, Analysis& analysis) {
-    std::cerr << "HELLO\n";
     std::cerr << "completing " << exprTypeName(analysis.exprPath.front().e)
               << "\n";
     std::optional<CompletionResult> result;
     if (!result.has_value())
         result = completionSelect(state, analysis);
+    if (!result.has_value())
+        result = completionAttrsSchema(state, analysis);
     // default to variable completion
     if (!result.has_value())
         result = completionVar(state, analysis);
