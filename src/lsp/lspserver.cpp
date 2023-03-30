@@ -60,6 +60,11 @@ void LspServer::run() {
                                  {
                                      {"triggerCharacters", {"."}},
                                  }},
+                                {"diagnosticProvider",
+                                 {
+                                     {"interFileDependencies", false},
+                                     {"workspaceDiagnostics", false},
+                                 }},
                             },
                         },
                     },
@@ -107,6 +112,14 @@ void LspServer::run() {
                     }
                 );
                 conn.write(Response{request.id, completionItems});
+            } else if (request.method == "textDocument/diagnostic") {
+                std::string uri = request.params["textDocument"]["uri"];
+                const auto& document = documents[uri];
+                auto diagnostics = computeDiagnostics(state, document);
+                conn.write(Response{
+                    request.id,
+                    {{"kind", "full"}, {"items", diagnostics}},
+                });
             }
         } else if (holds_alternative<Response>(message)) {
             std::cerr << "<-- response\n";
@@ -132,14 +145,6 @@ void LspServer::run() {
                      notification.params["contentChanges"]) {
                     document.applyContentChange(contentChange);
                 }
-            } else if (notification.method == "textDocument/didSave") {
-                std::string uri = notification.params["textDocument"]["uri"];
-                const auto& document = documents[uri];
-                auto diagnostics = computeDiagnostics(state, document);
-                conn.write(Notification{
-                    "textDocument/publishDiagnostics",
-                    {{"uri", document.uri}, {"diagnostics", diagnostics}},
-                });
             }
         }
     }
