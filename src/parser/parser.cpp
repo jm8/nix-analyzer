@@ -479,14 +479,16 @@ struct Parser {
     nix::Expr* expr_simple() {
         auto start = current().range.start;
         if (!allow(allowedExprStarts)) {
-            error("expected expression", current().range);
+            auto missingStart = previous().range.end;
             while (!allow({';', '}',    ']', ')', IN,     YYEOF, IMPL,
                            OR,  AND,    EQ,  NEQ, '<',    '>',   LEQ,
                            GEQ, UPDATE, '+', '*', CONCAT, '?'})) {
                 consume();
             }
             auto e = missing();
-            visit(e, {start, previous().range.end});
+            Range missingRange = {missingStart, current().range.start};
+            error("expected expression", missingRange);
+            visit(e, missingRange);
             return e;
         }
         // '!' expr_op
