@@ -1,5 +1,6 @@
 #include "config.h"
 #include "lsp/lspserver.h"
+#include <algorithm>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
@@ -87,6 +88,13 @@ void LspServer::run(std::istream& in, std::ostream& out) {
                 for (auto item : c.items) {
                     completionItems.push_back({{"label", item}});
                 }
+                std::sort(
+                    completionItems.begin(),
+                    completionItems.end(),
+                    [](const auto& a, const auto& b) {
+                        return a["label"] < b["label"];
+                    }
+                );
                 conn.write(Response{request.id, completionItems});
             }
         } else if (holds_alternative<Response>(message)) {
