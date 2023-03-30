@@ -19,7 +19,11 @@
 
 using namespace nlohmann::json_literals;
 
-Analysis analyze(nix::EvalState& state, Document document, Position targetPos) {
+Analysis analyze(
+    nix::EvalState& state,
+    const Document document,
+    Position targetPos
+) {
     auto analysis = parse(
         state, document.source, document.path, document.basePath, targetPos
     );
@@ -28,9 +32,16 @@ Analysis analyze(nix::EvalState& state, Document document, Position targetPos) {
     return analysis;
 }
 
-void LspServer::run(std::istream& in, std::ostream& out) {
-    Connection conn(in, out);
+std::vector<Diagnostic> computeDiagnostics(
+    nix::EvalState& state,
+    const Document& document
+) {
+    auto analysis = analyze(state, document, {});
+    // auto root = analysis.exprPath.back().e;
+    return analysis.parseErrors;
+}
 
+void LspServer::run() {
     while (true) {
         Message message = conn.read();
         if (holds_alternative<Request>(message)) {
@@ -58,7 +69,7 @@ void LspServer::run(std::istream& in, std::ostream& out) {
             } else if (request.method == "textDocument/hover") {
                 std::string url = request.params["textDocument"]["uri"];
                 Position position = request.params["position"];
-                auto document = documents[url];
+                const auto& document = documents[url];
                 auto analysis = analyze(state, document, position);
                 auto h = hover(state, analysis);
                 if (!h) {
@@ -81,10 +92,10 @@ void LspServer::run(std::istream& in, std::ostream& out) {
             } else if (request.method == "textDocument/completion") {
                 std::string url = request.params["textDocument"]["uri"];
                 Position position = request.params["position"];
-                auto document = documents[url];
+                const auto& document = documents[url];
                 auto analysis = analyze(state, document, position);
                 auto c = completion(state, analysis);
-                auto completionItems = nlohmann::json::array_t{};
+                auto completionItems = nlohmann::json::array();
                 for (auto item : c.items) {
                     completionItems.push_back({{"label", item}});
                 }
@@ -107,8 +118,12 @@ void LspServer::run(std::istream& in, std::ostream& out) {
                 break;
             } else if (notification.method == "textDocument/didOpen") {
                 std::string uri = notification.params["textDocument"]["uri"];
-                documents[uri] = {notification.params["textDocument"]["text"]
-                                      .get<std::string>()};
+                documents[uri] = {
+                    uri,
+                    notification.params["textDocument"]["text"]
+                        .get<std::string>(),
+                    "",
+                    ""};
                 std::cerr << documents[uri].source << "\n";
             } else if (notification.method == "textDocument/didChange") {
                 std::string uri = notification.params["textDocument"]["uri"];
@@ -117,6 +132,14 @@ void LspServer::run(std::istream& in, std::ostream& out) {
                      notification.params["contentChanges"]) {
                     document.applyContentChange(contentChange);
                 }
+            } else if (notification.method == "textDocument/didSave") {
+                std::string uri = notification.params["textDocument"]["uri"];
+                const auto& document = documents[uri];
+                auto diagnostics = computeDiagnostics(state, document);
+                conn.write(Notification{
+                    "textDocument/publishDiagnostics",
+                    {{"uri", document.uri}, {"diagnostics", diagnostics}},
+                });
             }
         }
     }

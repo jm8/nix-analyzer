@@ -2,13 +2,16 @@
 #include "config.h"
 #include <nix/nixexpr.hh>
 #include <nix/symbol-table.hh>
+#include <nlohmann/json.hpp>
 #include "common/position.h"
 #include "schema/schema.h"
 
-struct NAParseError {
+struct Diagnostic {
     std::string message;
     Range range;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Diagnostic, message, range);
 
 struct ParseResultAttrPath {
     size_t index;
@@ -30,7 +33,7 @@ struct ExprPathItem {
 
 struct Analysis {
     std::vector<ExprPathItem> exprPath;
-    std::vector<NAParseError> parseErrors;
+    std::vector<Diagnostic> parseErrors;
     std::string path;
     std::string basePath;
     std::optional<ParseResultAttrPath> attr;

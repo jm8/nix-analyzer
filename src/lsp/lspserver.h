@@ -8,10 +8,14 @@
 #include <unordered_map>
 #include "common/document.h"
 #include "common/position.h"
+#include "lsp/jsonrpc.h"
 
 struct LspServer {
+    Connection conn;
     nix::EvalState& state;
+
     std::unordered_map<std::string, Document> documents;
 
-    void run(std::istream& in, std::ostream& out);
+    void run();
+    void publishDiagnostics(const Document& document);
 };
