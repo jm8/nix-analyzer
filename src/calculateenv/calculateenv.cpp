@@ -1,6 +1,8 @@
 #include "calculateenv/calculateenv.h"
 #include <nix/eval.hh>
+#include <iostream>
 #include "common/analysis.h"
+#include "common/stringify.h"
 
 nix::Env* updateEnv(
     nix::EvalState& state,
@@ -10,6 +12,7 @@ nix::Env* updateEnv(
     std::optional<nix::Value*> lambdaArg
 ) {
     if (auto let = dynamic_cast<nix::ExprLet*>(parent)) {
+        std::cerr << "Updating env from exprLet\n";
         nix::Env* env2 = &state.allocEnv(let->attrs->attrs.size());
         env2->up = up;
 
@@ -156,6 +159,6 @@ void calculateEnvs(nix::EvalState& state, Analysis& analysis) {
         env = updateEnv(
             state, parent, child, env, analysis.exprPath[i].lambdaArg
         );
-        analysis.exprPath[i].env = env;
+        analysis.exprPath[i - 1].env = env;
     }
 }

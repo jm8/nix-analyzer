@@ -30,7 +30,6 @@ Analysis analyze(nix::EvalState& state, Document document, Position targetPos) {
 void LspServer::run(std::istream& in, std::ostream& out) {
     Connection conn(in, out);
 
-    std::cerr << "Hello?\n";
     while (true) {
         Message message = conn.read();
         if (holds_alternative<Request>(message)) {

@@ -1,6 +1,7 @@
 #include "config.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
+#include <nix/util.hh>
 #include <sstream>
 
 const char* exprTypeName(nix::Expr* e) {
@@ -92,4 +93,8 @@ std::string stringify(nix::EvalState& state, nix::Value* v) {
     std::stringstream ss;
     v->print(state.symbols, ss);
     return ss.str();
+}
+
+std::string stringify(nix::Error& e) {
+    return nix::filterANSIEscapes(e.info().msg.str(), true);
 }

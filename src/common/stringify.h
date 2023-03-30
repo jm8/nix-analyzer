@@ -7,3 +7,4 @@ const char* exprTypeName(nix::Expr* e);
 
 std::string stringify(nix::EvalState& state, nix::Expr* e);
 std::string stringify(nix::EvalState& state, nix::Value* v);
+std::string stringify(nix::Error& e);

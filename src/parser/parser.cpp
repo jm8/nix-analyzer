@@ -920,5 +920,7 @@ Analysis parse(
         analysis.exprPath.push_back(e);
     }
 
+    analysis.exprPath.back().e->bindVars(state, state.staticBaseEnv);
+
     return analysis;
 }

@@ -51,9 +51,9 @@ void Connection::write(Message message) {
     auto json =
         std::visit([](auto&& x) -> nlohmann::json { return x; }, message);
     json["jsonrpc"] = "2.0";
-    // std::cerr << "--> response\n";
     auto content = json.dump();
-    std::cerr << "--> " << content << "\n";
+    std::cerr << "--> response\n";
+    // std::cerr << "--> " << content << "\n";
     out << "Content-Length: " << content.length() << "\r\n";
     out << "\r\n";
     out << content;
