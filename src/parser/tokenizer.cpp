@@ -50,7 +50,7 @@ Token Tokenizer::advance() {
         static_cast<uint32_t>(yylloc.first_column - 1)};
     lastEnd = token.range.end = {
         static_cast<uint32_t>(yylloc.last_line - 1),
-        static_cast<uint32_t>(yylloc.last_column - 1 + 1)};
+        static_cast<uint32_t>(yylloc.last_column - 1)};
     return token;
 }
 

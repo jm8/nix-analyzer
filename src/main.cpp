@@ -16,13 +16,6 @@ int main() {
     auto state =
         std::make_unique<nix::EvalState>(nix::Strings{}, nix::openStore());
 
-    // LspServer server{*state};
-    // server.run(std::cin, std::cout);
-
-    Tokenizer tokenizer{*state, "", "{ x.y = }"};
-
-    for (int i = 0; i < 10; i++) {
-        auto token = tokenizer.advance();
-        std::cout << tokenName(token.type) << " " << token.range << "\n";
-    }
+    LspServer server{*state};
+    server.run(std::cin, std::cout);
 }

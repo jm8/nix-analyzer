@@ -36,6 +36,8 @@ struct Range {
     Range(Position start, Position end);
     Range() = default;
 
+    Range extended();
+
     bool contains(Position position) const;
 };
 

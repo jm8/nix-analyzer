@@ -1,5 +1,6 @@
 #include "position.h"
 #include <nix/parser-tab.hh>
+#include <iostream>
 
 Position::Position(uint32_t line, uint32_t col) : line(line), character(col) {}
 Position::Position(nix::Pos pos)
@@ -18,6 +19,10 @@ Range::Range(Position start, Position end) : start(start), end(end) {}
 
 bool Range::contains(Position position) const {
     return (start <= position) && (position < end);
+}
+
+Range Range::extended() {
+    return {start, {end.line, end.character + 1}};
 }
 
 std::ostream& operator<<(std::ostream& os, const Range& range) {

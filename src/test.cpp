@@ -143,8 +143,8 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     }
 
     ASSERT_EQ(actual, expected) << source;
-    ASSERT_EQ(actualErrors, expectedErrors) << source;
     ASSERT_EQ(actualExprPath, expectedExprPath) << source;
+    ASSERT_EQ(actualErrors, expectedErrors) << source;
 }
 
 TEST_P(FileTest, A) {

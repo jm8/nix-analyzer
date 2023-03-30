@@ -138,7 +138,10 @@ struct Parser {
     }
 
     void visit(nix::Expr* e, Range range) {
-        if (range.contains(targetPos)) {
+        // extended because we want
+        // aaa^
+        // aaa to be in the exprPath
+        if (range.extended().contains(targetPos)) {
             analysis.exprPath.push_back({e});
         }
     }
@@ -199,7 +202,7 @@ struct Parser {
             nix::Symbol arg;
             if (accept('@')) {
                 arg = state.symbols.create(get<std::string>(expect(ID)->val));
-                if (previous().range.contains(targetPos)) {
+                if (previous().range.extended().contains(targetPos)) {
                     analysis.arg = true;
                 }
             }
@@ -339,7 +342,7 @@ struct Parser {
             }
 
             if (op.type == '?') {
-                e = new nix::ExprOpHasAttr(e, *attrNames());
+                e = new nix::ExprOpHasAttr(e, *attrPath());
                 visit(e, {start, previous().range.end});
                 continue;
             }
@@ -462,7 +465,7 @@ struct Parser {
         auto start = current().range.start;
         auto e = expr_simple();
         if (accept('.')) {
-            auto path = attrNames();
+            auto path = attrPath();
             nix::Expr* def = nullptr;
             if (accept(OR_KW)) {
                 def = expr_select();
@@ -793,7 +796,7 @@ struct Parser {
                     );
                 }
             } else {
-                auto path = attrNames();
+                auto path = attrPath();
                 if (!expect('=')) {
                     continue;
                 }
@@ -808,7 +811,7 @@ struct Parser {
         return attrs;
     }
 
-    nix::AttrPath* attrNames() {
+    nix::AttrPath* attrPath() {
         auto path = new nix::AttrPath;
 
         while (true) {
@@ -823,13 +826,15 @@ struct Parser {
                 auto dotPosition = previous().range.start;
                 auto nextTokenPosition = current().range.start;
                 path->push_back(state.symbols.create(""));
-                if (Range{dotPosition, nextTokenPosition}.contains(targetPos)) {
+                if (Range{dotPosition, nextTokenPosition}.extended().contains(
+                        targetPos
+                    )) {
                     analysis.attr = {path->size() - 1, path};
                 }
                 break;
             }
             auto end = previous().range.end;
-            if (Range{start, end}.contains(targetPos)) {
+            if (Range{start, end}.extended().contains(targetPos)) {
                 analysis.attr = {path->size() - 1, path};
             }
             if (!accept('.')) {
@@ -870,7 +875,7 @@ struct Parser {
                 if (accept('?')) {
                     formal.def = expr();
                 }
-                if (id->range.contains(targetPos)) {
+                if (id->range.extended().contains(targetPos)) {
                     analysis.formal = formal;
                 }
                 result.formals.push_back({formal, id->range});

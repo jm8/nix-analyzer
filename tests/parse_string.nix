@@ -6,6 +6,6 @@ import ./lib/maketest.nix {
   expected = ''
     ("hello " + abc + " " + null)
   '';
-  expectedErrors = [ "expected expression 0:16-0:18" ];
+  expectedErrors = [ "expected expression 0:16-0:16" ];
   expectedExprPath = [ "ExprVar" "ExprConcatStrings" ];
 }

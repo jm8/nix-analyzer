@@ -9,6 +9,6 @@ import ./lib/maketest.nix {
   expected = ''
     { first = (f a abc); other = { a = { b = { c = 2; }; }; }; }
   '';
-  expectedErrors = ["expected ';', got 'ID' 2:2-2:8"];
+  expectedErrors = ["expected ';', got 'ID' 2:2-2:7"];
   expectedExprPath = ["ExprVar" "ExprCall" "ExprAttrs"];
 }

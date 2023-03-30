@@ -6,6 +6,6 @@ import ./lib/maketest.nix {
   expected = ''
     { x = { y = abc; }; }
   '';
-  expectedErrors = ["expected ';', got '}' 0:12-0:14"];
+  expectedErrors = ["expected ';', got '}' 0:12-0:13"];
   expectedExprPath = ["ExprVar" "ExprAttrs"];
 }

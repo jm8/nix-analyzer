@@ -8,6 +8,6 @@ import ./lib/maketest.nix {
   '';
   expectedAttrPath = "x";
   expectedAttrPathIndex = 0;
-  expectedErrors = ["expected '=', got '}' 0:4-0:6"];
+  expectedErrors = ["expected '=', got '}' 0:4-0:5"];
   expectedExprPath = ["ExprAttrs"];
 }

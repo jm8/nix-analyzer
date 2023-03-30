@@ -9,7 +9,7 @@ import ./lib/maketest.nix
     (__lessThan (__lessThan 1 2) 3)
   '';
   expectedErrors = [
-    "operator < is not associative 0:6-0:8"
+    "operator < is not associative 0:6-0:7"
   ];
   expectedExprPath = [ "ExprInt" "ExprCall" "ExprCall" ];
 }

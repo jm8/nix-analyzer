@@ -8,6 +8,6 @@ import ./lib/maketest.nix {
   '';
   expectedAttrPath = "services.ssh.port";
   expectedAttrPathIndex = 1;
-  expectedErrors = ["duplicate attr 0:26-0:49"];
+  expectedErrors = ["duplicate attr 0:26-0:48"];
   expectedExprPath = ["ExprAttrs"];
 }

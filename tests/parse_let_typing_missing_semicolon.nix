@@ -6,6 +6,6 @@ import ./lib/maketest.nix {
   expected = ''
     (let a = 4; in b)
   '';
-  expectedErrors = ["expected ';', got 'IN' 0:10-0:13"];
+  expectedErrors = ["expected ';', got 'IN' 0:10-0:12"];
   expectedExprPath = ["ExprVar" "ExprLet"];
 }

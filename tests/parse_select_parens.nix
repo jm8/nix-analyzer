@@ -9,5 +9,5 @@ import ./lib/maketest.nix {
   expectedAttrPath = ''""'';
   expectedAttrPathIndex = 0;
   expectedExprPath = [ "ExprSelect" ];
-  expectedErrors = ["expected ID 0:61-0:61"]
+  expectedErrors = ["expected ID 0:60-0:60"]
 }
