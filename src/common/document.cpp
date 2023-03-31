@@ -35,6 +35,4 @@ void Document::applyContentChange(ContentChange contentChange) {
     // todo: Add range length comparison to ensure the documents in sync
     // like clangd
     source.replace(startIndex, endIndex - startIndex, contentChange.text);
-
-    std::cerr << source << "\n";
 }

@@ -1,5 +1,5 @@
 #include <iostream>
 #include "common/stringify.h"
-#define REPORT_ERROR(e)                                                      \
-    (std::cerr << "caught error: " << stringify(e) << " " << __FILE__ << ":" \
-               << __LINE__)
+#define REPORT_ERROR(e)                                                 \
+    (std::cerr << "caught error: " << e.msg() << " " << __FILE__ << ":" \
+               << __LINE__ << "\n")

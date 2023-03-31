@@ -4,13 +4,14 @@
 #include <nix/pos.hh>
 #include <nix/symbol-table.hh>
 #include <nix/value.hh>
+#include <iostream>
 #include <vector>
 #include "common/analysis.h"
 #include "common/logging.h"
 
 Schema::Schema(nix::EvalState& state) : value() {
     value = state.allocValue();
-    value->mkAttrs(0);
+    value->mkAttrs(state.allocBindings(0));
 }
 
 Schema::Schema(nix::EvalState& state, nix::Value* v) : value(v) {}
@@ -57,24 +58,36 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
     const std::string getFunctionSchemaPath =
         "/home/josh/dev/nix-analyzer/src/schema/getFunctionSchema.nix";
     auto vGetFunctionSchema = state.allocValue();
-    state.evalFile(getFunctionSchemaPath, *vGetFunctionSchema);
+    try {
+        state.evalFile(getFunctionSchemaPath, *vGetFunctionSchema);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        return {state};
+    }
 
     auto vSchema = state.allocValue();
-    vSchema->mkAttrs(state.allocBindings(0));
     for (int i = 1; i < analysis.exprPath.size(); i++) {
         nix::ExprCall* call;
+        std::cerr << "getSchema " << stringify(state, analysis.exprPath[i].e)
+                  << "\n";
         if ((call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) &&
             analysis.exprPath[i - 1].e != call->fun) {
-            auto vFunctionDescription = functionDescriptionValue(
-                state, call->fun, *analysis.exprPath[i].env
-            );
-            vFunctionDescription->print(state.symbols, std::cerr);
-            std::cerr << "\n";
-            state.callFunction(
-                *vGetFunctionSchema, *vFunctionDescription, *vSchema, nix::noPos
-            );
-            vSchema->print(state.symbols, std::cerr);
-            std::cerr << "\n";
+            try {
+                auto vFunctionDescription = functionDescriptionValue(
+                    state, call->fun, *analysis.exprPath[i].env
+                );
+                std::cerr << "vGetFunctionSchema = "
+                          << stringify(state, vGetFunctionSchema) << "\n";
+                state.callFunction(
+                    *vGetFunctionSchema,
+                    *vFunctionDescription,
+                    *vSchema,
+                    nix::noPos
+                );
+            } catch (nix::Error& e) {
+                REPORT_ERROR(e);
+                return {state};
+            }
         }
     }
 

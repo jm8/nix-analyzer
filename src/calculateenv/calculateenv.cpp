@@ -2,6 +2,7 @@
 #include <nix/eval.hh>
 #include <iostream>
 #include "common/analysis.h"
+#include "common/logging.h"
 #include "common/stringify.h"
 
 nix::Env* updateEnv(
@@ -28,7 +29,7 @@ nix::Env* updateEnv(
                     state, attrDef.inherited ? *up : *env2
                 );
             } catch (nix::Error& e) {
-                // na_log.dbg("Caught error: ", e.info().msg.str());
+                REPORT_ERROR(e);
                 env2->values[displ] = state.allocValue();
                 env2->values[displ]->mkNull();
             }
@@ -62,7 +63,7 @@ nix::Env* updateEnv(
             try {
                 state.forceAttrs(*arg, nix::noPos);
             } catch (nix::Error& e) {
-                // na_log.dbg("Caught error: ", e.info().msg.str());
+                REPORT_ERROR(e);
                 for (uint32_t i = 0; i < lambda->formals->formals.size(); i++) {
                     nix::Value* val = state.allocValue();
                     val->mkNull();
@@ -86,7 +87,7 @@ nix::Env* updateEnv(
                         try {
                             val = i.def->maybeThunk(state, *env2);
                         } catch (nix::Error& e) {
-                            // na_log.dbg("Caught error: ", e.info().msg.str());
+                            REPORT_ERROR(e);
                             val = state.allocValue();
                             val->mkNull();
                         }
@@ -124,6 +125,7 @@ nix::Env* updateEnv(
                     state, i.second.inherited ? *up : *env2
                 );
             } catch (nix::Error& e) {
+                REPORT_ERROR(e);
                 vAttr = state.allocValue();
                 vAttr->mkNull();
             }

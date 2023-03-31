@@ -137,7 +137,6 @@ void LspServer::run() {
                         .get<std::string>(),
                     "",
                     ""};
-                std::cerr << documents[uri].source << "\n";
             } else if (notification.method == "textDocument/didChange") {
                 std::string uri = notification.params["textDocument"]["uri"];
                 auto& document = documents[uri];

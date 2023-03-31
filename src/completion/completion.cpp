@@ -7,6 +7,7 @@
 #include <vector>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
+#include "common/logging.h"
 #include "common/stringify.h"
 #include "schema/schema.h"
 
@@ -35,7 +36,7 @@ std::optional<CompletionResult> completionSelect(
         prefix->eval(state, *analysis.exprPath.front().env, v);
         state.forceAttrs(v, nix::noPos);
     } catch (nix::Error& e) {
-        std::cerr << "caught error: " << stringify(e) << "\n";
+        REPORT_ERROR(e);
         return result;
     }
     for (auto [symbol, pos, subValue] : *v.attrs) {

@@ -11,6 +11,7 @@
 #include "parser/tokenizer.h"
 
 int main() {
+    std::cerr << "Welcome to nix-analyzer!\n";
     nix::initGC();
     nix::initNix();
 

@@ -4,6 +4,7 @@
 #include <iostream>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
+#include "common/logging.h"
 #include "common/stringify.h"
 
 std::optional<HoverResult> hoverSelect(
@@ -33,7 +34,7 @@ std::optional<HoverResult> hoverSelect(
         std::cerr << env << "\n";
         prefix->eval(state, *analysis.exprPath.front().env, v);
     } catch (nix::Error& e) {
-        std::cerr << "caught error: " << stringify(e) << "\n";
+        REPORT_ERROR(e);
         return {};
     }
     return {{stringify(state, &v)}};
