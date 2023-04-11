@@ -1,5 +1,7 @@
 #include "config.h"
 #include "lsp/lspserver.h"
+#include <nix/error.hh>
+#include <nix/util.hh>
 #include <algorithm>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -9,6 +11,7 @@
 #include <variant>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
+#include "common/logging.h"
 #include "common/position.h"
 #include "common/stringify.h"
 #include "completion/completion.h"
@@ -37,8 +40,27 @@ std::vector<Diagnostic> computeDiagnostics(
     const Document& document
 ) {
     auto analysis = analyze(state, document, {});
+    auto v = state.allocValue();
+    auto result = analysis.parseErrors;
+    try {
+        analysis.exprPath.back().e->eval(
+            state, *analysis.exprPath.back().env, *v
+        );
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        Diagnostic d;
+        Position pos;
+        if (e.info().errPos) {
+            pos.line = e.info().errPos->line - 1;
+            pos.character = e.info().errPos->column - 1;
+        }
+        result.push_back(
+            {nix::filterANSIEscapes(e.info().msg.str(), true),
+             {{pos.line, 0}, {pos.line + 1, 0}}}
+        );
+    }
     // auto root = analysis.exprPath.back().e;
-    return analysis.parseErrors;
+    return result;
 }
 
 void LspServer::run() {

@@ -59,7 +59,7 @@
               "-isystem${pkgs.nlohmann_json}/include"
 
               # this really shouldn't stop it from crashing but it does
-              "-fsanitize=address"
+              # "-fsanitize=address"
             ];
             buildInputs = with pkgs; [
               boost
@@ -94,6 +94,7 @@
               ];
             nativeBuildInputs = with pkgs; [
               gdb
+              valgrind
             ];
             inherit nixpkgs;
             NIX_PATH = "nixpkgs=${nixpkgs}";
