@@ -16,12 +16,33 @@ Schema::Schema(nix::EvalState& state) : value() {
 
 Schema::Schema(nix::EvalState& state, nix::Value* v) : value(v) {}
 
+nix::Value* _nixpkgsValue = nullptr;
+
+nix::Value* nixpkgsValue(nix::EvalState& state) {
+    if (_nixpkgsValue == nullptr) {
+        auto pkgsFunction = state.allocValue();
+        state.evalFile(
+            "/nix/store/xif4dbqvi7bmcwfxiqqhq0nr7ax07liw-source", *pkgsFunction
+        );
+
+        auto arg = state.allocValue();
+        arg->mkAttrs(state.allocBindings(0));
+
+        auto pkgs = state.allocValue();
+        state.callFunction(*pkgsFunction, *arg, *pkgs, nix::noPos);
+
+        _nixpkgsValue = pkgs;
+    }
+    return _nixpkgsValue;
+}
+
 nix::Value* functionDescriptionValue(
     nix::EvalState& state,
     nix::Expr* fun,
-    nix::Env& env
+    nix::Env& env,
+    nix::Value* pkgs
 ) {
-    auto bindings = state.buildBindings(2);
+    auto bindings = state.buildBindings(3);
 
     auto sName = state.symbols.create("name");
     std::string name;
@@ -44,6 +65,9 @@ nix::Value* functionDescriptionValue(
         functionV->mkNull();
     }
     bindings.insert(sFunction, functionV);
+
+    auto sPackages = state.symbols.create("pkgs");
+    bindings.insert(sPackages, pkgs);
 
     auto v = state.allocValue();
     v->mkAttrs(bindings.finish());
@@ -73,17 +97,27 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
         if ((call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) &&
             analysis.exprPath[i - 1].e != call->fun) {
             try {
+                std::cerr << "Point 0\n";
+                auto pkgs = nixpkgsValue(state);
+                std::cerr << "Point 1\n";
                 auto vFunctionDescription = functionDescriptionValue(
-                    state, call->fun, *analysis.exprPath[i].env
+                    state, call->fun, *analysis.exprPath[i].env, pkgs
                 );
+                std::cerr << "Point 2\n";
                 std::cerr << "vGetFunctionSchema = "
                           << stringify(state, vGetFunctionSchema) << "\n";
+                std::cerr << "vGetFunctionSchema->lambda.fun->body = "
+                          << stringify(
+                                 state, vGetFunctionSchema->lambda.fun->body
+                             )
+                          << "\n";
                 state.callFunction(
                     *vGetFunctionSchema,
                     *vFunctionDescription,
                     *vSchema,
                     nix::noPos
                 );
+                std::cerr << "Point 3\n";
             } catch (nix::Error& e) {
                 REPORT_ERROR(e);
                 return {state};

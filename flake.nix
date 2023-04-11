@@ -86,8 +86,9 @@
             CFLAGS =
               packages.default.CFLAGS
               ++ [
-                # "-O0"
-                # "-g"
+                "-O0"
+                "-g"
+                "-fsanitize=address"
               ];
             nativeBuildInputs = with pkgs; [
               gdb

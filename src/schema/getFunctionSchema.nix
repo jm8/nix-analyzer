@@ -1,9 +1,8 @@
 {
   function,
   name,
-}: let
-  pkgs = import <nixpkgs> {};
-in
+  pkgs,
+}:
   if name == "mkDerivation"
   then {
     buildFlags = "whatever";
@@ -11,5 +10,5 @@ in
   else if pkgs.lib.isFunction function
   then pkgs.lib.functionArgs function
   else {myNameIs = name;}
-# attrs: attrs // {here = true;}
+attrs: attrs // {here = true;}
 

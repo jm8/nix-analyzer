@@ -41,5 +41,6 @@ std::optional<HoverResult> hoverSelect(
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
-    return hoverSelect(state, analysis);
+    // return hoverSelect(state, analysis);
+    return {};
 }
