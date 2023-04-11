@@ -2,7 +2,6 @@
 #include <iostream>
 #include "common/stringify.h"
 
-#define REPORT_ERROR(e)                                                   \
-    (std::cerr << "caught error: "                                        \
-               << nix::filterANSIEscapes(e.info().msg.str(), true) << " " \
-               << __FILE__ << ":" << __LINE__ << "\n")
+#define REPORT_ERROR(e)                                                     \
+    (std::cerr << "caught error: " << nix::filterANSIEscapes(e.msg(), true) \
+               << " " << __FILE__ << ":" << __LINE__ << "\n")

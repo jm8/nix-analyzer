@@ -677,6 +677,8 @@ struct Parser {
         assert(!attrPath.empty());
         // Checking attrPath validity.
         // ===========================
+        // make sure to visit nested exprs in the correct order
+        std::vector<nix::Expr*> nestedStack;
         for (i = attrPath.begin(); i + 1 < attrPath.end(); i++) {
             if (i->symbol) {
                 auto j = attrs->attrs.find(i->symbol);
@@ -701,6 +703,7 @@ struct Parser {
                     auto nested = new nix::ExprAttrs;
                     attrs->attrs[i->symbol] =
                         nix::ExprAttrs::AttrDef(nested, pos);
+                    nestedStack.push_back(nested);
                     attrs = nested;
                 }
             } else {
@@ -708,8 +711,12 @@ struct Parser {
                 attrs->dynamicAttrs.push_back(
                     nix::ExprAttrs::DynamicAttrDef(i->expr, nested, pos)
                 );
+                nestedStack.push_back(nested);
                 attrs = nested;
             }
+        }
+        for (int i = nestedStack.size() - 1; i >= 0; i--) {
+            visit(nestedStack[i], range);
         }
         // Expr insertion.
         // ==========================

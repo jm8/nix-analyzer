@@ -15,14 +15,9 @@ struct Schema {
     // to other Schemas
     nix::Value* value;
 
-    // constructs an empty schema
-    Schema(nix::EvalState& state);
-
-    Schema(nix::EvalState& state, nix::Value* value);
-
     std::vector<nix::Symbol> attrs(nix::EvalState& state);
 
-    // Schema attrSubschema(nix::EvalState& state, nix::Symbol symbol);
+    Schema attrSubschema(nix::EvalState& state, nix::Symbol symbol);
 };
 
 Schema getSchema(nix::EvalState& state, const Analysis& analysis);

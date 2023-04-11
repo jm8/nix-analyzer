@@ -1,20 +1,42 @@
 #include "schema/schema.h"
 #include <nix/error.hh>
 #include <nix/eval.hh>
+#include <nix/nixexpr.hh>
 #include <nix/pos.hh>
 #include <nix/symbol-table.hh>
 #include <nix/value.hh>
+#include <cstddef>
 #include <iostream>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 #include "common/analysis.h"
 #include "common/logging.h"
 
-Schema::Schema(nix::EvalState& state) : value() {
-    value = state.allocValue();
-    value->mkAttrs(state.allocBindings(0));
+nix::Value* loadFile(nix::EvalState& state, std::string path) {
+    auto v = state.allocValue();
+    try {
+        state.evalFile("/home/josh/dev/nix-analyzer/src/" + path, *v);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        v->mkNull();
+    }
+    return v;
 }
 
-Schema::Schema(nix::EvalState& state, nix::Value* v) : value(v) {}
+nix::Value* makeAttrs(
+    nix::EvalState& state,
+    std::vector<std::pair<std::string_view, nix::Value*>> binds
+) {
+    auto bindings = state.buildBindings(binds.size());
+    for (auto [a, b] : binds) {
+        bindings.insert(state.symbols.create(a), b);
+    }
+    auto result = state.allocValue();
+    result->mkAttrs(bindings.finish());
+    return result;
+}
 
 nix::Value* _nixpkgsValue = nullptr;
 
@@ -75,21 +97,21 @@ nix::Value* functionDescriptionValue(
     return v;
 }
 
-Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
+struct SchemaRoot {
+    Schema schema;
+    // index in ExprPath for this SchemaRoot
+    size_t index;
+};
+
+SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
+    auto emptySchema = state.allocValue();
+    emptySchema->mkAttrs(state.allocBindings(0));
     if (analysis.exprPath.empty())
-        return {state};
+        return {emptySchema, 0};
 
-    const std::string getFunctionSchemaPath =
-        "/home/josh/dev/nix-analyzer/src/schema/getFunctionSchema.nix";
-    auto vGetFunctionSchema = state.allocValue();
-    try {
-        state.evalFile(getFunctionSchemaPath, *vGetFunctionSchema);
-    } catch (nix::Error& e) {
-        REPORT_ERROR(e);
-        return {state};
-    }
+    auto vGetFunctionSchema = loadFile(state, "schema/getFunctionSchema.nix");
 
-    for (int i = 1; i < analysis.exprPath.size(); i++) {
+    for (size_t i = 1; i < analysis.exprPath.size(); i++) {
         nix::ExprCall* call;
         std::cerr << "getSchema " << stringify(state, analysis.exprPath[i].e)
                   << "\n";
@@ -107,10 +129,10 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                     *vSchema,
                     nix::noPos
                 );
-                return {state, vSchema};
+                return {vSchema, i};
             } catch (nix::Error& e) {
                 REPORT_ERROR(e);
-                return {state};
+                return {emptySchema, 0};
             }
         }
     }
@@ -122,7 +144,7 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
         state.evalFile(getFileSchemaPath, *vGetFileSchema);
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
-        return {state};
+        return {emptySchema, 0};
     }
 
     auto vFileDescription = state.allocValue();
@@ -142,13 +164,38 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
         state.callFunction(
             *vGetFileSchema, *vFileDescription, *vSchema, nix::noPos
         );
-        return {state, vSchema};
+        return {vSchema, analysis.exprPath.size() - 1};
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
-        return {state};
+        return {emptySchema, 0};
     }
 
-    return {state};
+    return {emptySchema, 0};
+}
+
+Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
+    auto schemaRoot = getSchemaRoot(state, analysis);
+    Schema current = schemaRoot.schema;
+    for (int i = schemaRoot.index; i >= 1; i--) {
+        auto parent = analysis.exprPath[i].e;
+        auto child = analysis.exprPath[i - 1].e;
+        if (auto attrs = dynamic_cast<nix::ExprAttrs*>(parent)) {
+            std::optional<nix::Symbol> subname;
+            for (auto [symbol, attrDef] : attrs->attrs) {
+                if (!attrDef.inherited && attrDef.e == child) {
+                    subname = symbol;
+                }
+            }
+            if (!subname) {
+                std::cerr
+                    << "Failed to find the child in the parent attrs so don't "
+                       "know the symbol\n";
+                return {};
+            }
+            current = current.attrSubschema(state, *subname);
+        }
+    }
+    return current;
 }
 
 std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
@@ -158,9 +205,38 @@ std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
         REPORT_ERROR(e);
         return {};
     }
+    if (value->attrs->get(state.symbols.create("_type"))) {
+        return {};
+    }
     std::vector<nix::Symbol> result;
-    for (auto x : *value->attrs) {
+    for (nix::Attr x : *value->attrs) {
+        std::string_view s = state.symbols[x.name];
+        if (s.starts_with("_"))
+            continue;
         result.push_back(x.name);
     }
     return result;
+}
+
+Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
+    auto vFunction = loadFile(state, "schema/getAttrSubschema.nix");
+    auto vSymbol = state.allocValue();
+    vSymbol->mkString(state.symbols[symbol]);
+    auto vArg = makeAttrs(
+        state,
+        {
+            {"pkgs", nixpkgsValue(state)},
+            {"symbol", vSymbol},
+            {"parent", value},
+        }
+    );
+    auto vRes = state.allocValue();
+    try {
+        state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
+    } catch (nix::Error& e) {
+        vRes->mkAttrs(state.allocBindings(0));
+        REPORT_ERROR(e);
+    }
+
+    return {vRes};
 }

@@ -2,6 +2,4 @@
   path,
   pkgs,
 }:
-  {
-    apple = "banana";
-  }
+  (import (pkgs.path + "/nixos/lib/eval-config.nix") { modules = []; }).options
