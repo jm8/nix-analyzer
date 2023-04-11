@@ -100,13 +100,6 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                 auto vFunctionDescription = functionDescriptionValue(
                     state, call->fun, *analysis.exprPath[i].env, pkgs
                 );
-                std::cerr << "vGetFunctionSchema = "
-                          << stringify(state, vGetFunctionSchema) << "\n";
-                std::cerr << "vGetFunctionSchema->lambda.fun->body = "
-                          << stringify(
-                                 state, vGetFunctionSchema->lambda.fun->body
-                             )
-                          << "\n";
                 auto vSchema = state.allocValue();
                 state.callFunction(
                     *vGetFunctionSchema,
@@ -120,6 +113,39 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                 return {state};
             }
         }
+    }
+
+    const std::string getFileSchemaPath =
+        "/home/josh/dev/nix-analyzer/src/schema/getFileSchema.nix";
+    auto vGetFileSchema = state.allocValue();
+    try {
+        state.evalFile(getFileSchemaPath, *vGetFileSchema);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        return {state};
+    }
+
+    auto vFileDescription = state.allocValue();
+
+    auto bindings = state.buildBindings(2);
+
+    bindings.insert(state.symbols.create("pkgs"), nixpkgsValue(state));
+
+    auto vPath = state.allocValue();
+    vPath->mkPath(analysis.path);
+    bindings.insert(state.symbols.create("path"), vPath);
+
+    vFileDescription->mkAttrs(bindings.finish());
+
+    try {
+        auto vSchema = state.allocValue();
+        state.callFunction(
+            *vGetFileSchema, *vFileDescription, *vSchema, nix::noPos
+        );
+        return {state, vSchema};
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        return {state};
     }
 
     return {state};

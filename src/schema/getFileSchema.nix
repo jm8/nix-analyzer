@@ -1,0 +1,7 @@
+{
+  path,
+  pkgs,
+}:
+  {
+    apple = "banana";
+  }
