@@ -88,7 +88,7 @@ void LspServer::run() {
                                 "contents",
                                 {
                                     {"kind", "markdown"},
-                                    {"value", h->text},
+                                    {"value", "```nix\n" + h->text + "\n```"},
                                 },
                             },
                         },

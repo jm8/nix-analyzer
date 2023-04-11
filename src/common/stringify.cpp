@@ -2,6 +2,8 @@
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/util.hh>
+#include <nix/value.hh>
+#include <set>
 #include <sstream>
 
 const char* exprTypeName(nix::Expr* e) {
@@ -90,8 +92,21 @@ std::string stringify(nix::EvalState& state, nix::Expr* e) {
 }
 
 std::string stringify(nix::EvalState& state, nix::Value* v) {
+    // state.forceValue(*v);
     std::stringstream ss;
-    v->print(state.symbols, ss);
+    switch (v->type()) {
+        case nix::nThunk:
+            ss << "...";
+            break;
+        case nix::nAttrs:
+            ss << "{ ... }";
+            break;
+        case nix::nList:
+            ss << "[ ... ]";
+            break;
+        default:
+            v->print(state.symbols, ss);
+    }
     return ss.str();
 }
 

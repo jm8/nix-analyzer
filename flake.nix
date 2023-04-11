@@ -57,6 +57,9 @@
               "-isystem${pkgs.gtest.dev}/include"
               "-L${pkgs.gtest}/lib"
               "-isystem${pkgs.nlohmann_json}/include"
+
+              # this really shouldn't stop it from crashing but it does
+              "-fsanitize=address"
             ];
             buildInputs = with pkgs; [
               boost
@@ -88,7 +91,6 @@
               ++ [
                 "-O0"
                 "-g"
-                # "-fsanitize=address"
               ];
             nativeBuildInputs = with pkgs; [
               gdb

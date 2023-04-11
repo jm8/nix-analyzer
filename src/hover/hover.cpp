@@ -2,6 +2,7 @@
 #include <nix/nixexpr.hh>
 #include <nix/value.hh>
 #include <iostream>
+#include <optional>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
 #include "common/logging.h"
@@ -31,7 +32,6 @@ std::optional<HoverResult> hoverSelect(
     nix::Value v;
     try {
         auto env = analysis.exprPath.front().env;
-        std::cerr << env << "\n";
         prefix->eval(state, *analysis.exprPath.front().env, v);
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
@@ -40,7 +40,27 @@ std::optional<HoverResult> hoverSelect(
     return {{stringify(state, &v)}};
 }
 
+std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
+    auto var = dynamic_cast<nix::ExprVar*>(analysis.exprPath.front().e);
+    if (!var) {
+        return {};
+    }
+    nix::Value v;
+    try {
+        auto env = analysis.exprPath.front().env;
+        var->eval(state, *analysis.exprPath.front().env, v);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        return {};
+    }
+    return {{stringify(state, &v)}};
+}
+
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
-    // return hoverSelect(state, analysis);
-    return {};
+    std::optional<HoverResult> result;
+    if (!result)
+        result = hoverSelect(state, analysis);
+    if (!result)
+        result = hoverVar(state, analysis);
+    return result;
 }
