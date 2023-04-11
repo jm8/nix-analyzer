@@ -88,7 +88,7 @@
               ++ [
                 "-O0"
                 "-g"
-                "-fsanitize=address"
+                # "-fsanitize=address"
               ];
             nativeBuildInputs = with pkgs; [
               gdb

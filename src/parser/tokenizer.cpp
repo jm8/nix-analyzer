@@ -24,13 +24,13 @@ Tokenizer::Tokenizer(
 
 Token Tokenizer::advance() {
     if (done)
-        return {YYEOF, {}, {lastEnd, lastEnd}};
+        return {YYEOF, {}, {{lastEnd.line + 1, 0}, {lastEnd.line + 1, 0}}};
     Token token;
     token.type =
         static_cast<TokenType>(yylex(&yylval, &yylloc, scanner, &data));
     if (token.type == 0) {
         done = true;
-        return {YYEOF, {}, {lastEnd, lastEnd}};
+        return {YYEOF, {}, {{lastEnd.line + 1, 0}, {lastEnd.line + 1, 0}}};
     }
     if (token.type == ID) {
         token.val = std::string{std::string_view{yylval.id}};

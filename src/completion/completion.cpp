@@ -66,6 +66,36 @@ std::optional<CompletionResult> completionVar(
         }
         se = se->up;
     }
+    auto env = analysis.exprPath.front().env;
+    while (1) {
+        if (env->type == nix::Env::HasWithExpr) {
+            nix::Value* v = state.allocValue();
+            nix::Expr* e = (nix::Expr*)env->values[0];
+            try {
+                e->eval(state, *env->up, *v);
+                if (v->type() != nix::nAttrs) {
+                    // value is %1% while a set was expected
+                    v->mkAttrs(state.allocBindings(0));
+                }
+            } catch (nix::Error& e) {
+                REPORT_ERROR(e);
+                v->mkAttrs(state.allocBindings(0));
+            }
+            env->values[0] = v;
+            env->type = nix::Env::HasWithAttrs;
+        }
+        if (env->type == nix::Env::HasWithAttrs) {
+            for (auto binding : *env->values[0]->attrs) {
+                result.items.push_back({std::string{
+                    state.symbols[binding.name]}});
+            }
+        }
+        if (!env->prevWith) {
+            break;
+        }
+        for (size_t l = env->prevWith; l; --l, env = env->up)
+            ;
+    }
     return result;
 }
 

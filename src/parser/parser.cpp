@@ -139,9 +139,16 @@ struct Parser {
 
     void visit(nix::Expr* e, Range range) {
         // extended because we want
-        // aaa^
+        //     aaa^
         // aaa to be in the exprPath
-        if (range.extended().contains(targetPos)) {
+        auto r = range.extended();
+        // because we want
+        //    with pkgs;    ^
+        // to parse properly
+        if (current().type == YYEOF) {
+            r.end = current().range.start;
+        }
+        if (r.contains(targetPos)) {
             analysis.exprPath.push_back({e});
         }
     }
@@ -489,7 +496,7 @@ struct Parser {
                 consume();
             }
             auto e = missing();
-            Range missingRange = {missingStart, current().range.start};
+            Range missingRange{missingStart, current().range.start};
             error("expected expression", missingRange);
             visit(e, missingRange);
             return e;
@@ -822,13 +829,12 @@ struct Parser {
             } else if (accept(OR_KW)) {
                 path->push_back(state.symbols.create("or"));
             } else {
-                error("expected ID", current().range);
                 auto dotPosition = previous().range.start;
                 auto nextTokenPosition = current().range.start;
                 path->push_back(state.symbols.create(""));
-                if (Range{dotPosition, nextTokenPosition}.extended().contains(
-                        targetPos
-                    )) {
+                Range missingIdRange{dotPosition, nextTokenPosition};
+                error("expected ID", missingIdRange);
+                if (missingIdRange.extended().contains(targetPos)) {
                     analysis.attr = {path->size() - 1, path};
                 }
                 break;
