@@ -89,7 +89,6 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
         return {state};
     }
 
-    auto vSchema = state.allocValue();
     for (int i = 1; i < analysis.exprPath.size(); i++) {
         nix::ExprCall* call;
         std::cerr << "getSchema " << stringify(state, analysis.exprPath[i].e)
@@ -97,13 +96,10 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
         if ((call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) &&
             analysis.exprPath[i - 1].e != call->fun) {
             try {
-                std::cerr << "Point 0\n";
                 auto pkgs = nixpkgsValue(state);
-                std::cerr << "Point 1\n";
                 auto vFunctionDescription = functionDescriptionValue(
                     state, call->fun, *analysis.exprPath[i].env, pkgs
                 );
-                std::cerr << "Point 2\n";
                 std::cerr << "vGetFunctionSchema = "
                           << stringify(state, vGetFunctionSchema) << "\n";
                 std::cerr << "vGetFunctionSchema->lambda.fun->body = "
@@ -111,13 +107,14 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                                  state, vGetFunctionSchema->lambda.fun->body
                              )
                           << "\n";
+                auto vSchema = state.allocValue();
                 state.callFunction(
                     *vGetFunctionSchema,
                     *vFunctionDescription,
                     *vSchema,
                     nix::noPos
                 );
-                std::cerr << "Point 3\n";
+                return {state, vSchema};
             } catch (nix::Error& e) {
                 REPORT_ERROR(e);
                 return {state};
@@ -125,7 +122,7 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
         }
     }
 
-    return {state, vSchema};
+    return {state};
 }
 
 std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
