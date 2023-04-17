@@ -246,7 +246,7 @@ struct Parser {
         if (allow(allowedKeywordExprStarts)) {
             return keyword_expression(true, &Parser::expr);
         }
-        return expr_op();
+        return expr_if();
     }
 
     // these are assert, with, let, if.
@@ -324,6 +324,18 @@ struct Parser {
             default:
                 return {-1, BindingPower::NONE};
         }
+    }
+
+    nix::Expr* expr_if() {
+        if (accept(IF)) {
+            auto cond = expr();
+            expect(THEN);
+            auto then = expr();
+            expect(ELSE);
+            auto else_ = expr();
+            return new nix::ExprIf(nix::noPos, cond, then, else_);
+        }
+        return expr_op();
     }
 
     nix::Expr* expr_op(int min_binding_power = 0) {
@@ -501,13 +513,13 @@ struct Parser {
             visit(e, missingRange);
             return e;
         }
-        // '!' expr_op
+        // '!' expr_if
         if (accept('!')) {
             auto e = new nix::ExprOpNot(expr_op(70));
             visit(e, {start, previous().range.end});
             return e;
         }
-        // '-' expr_op
+        // '-' expr_if
         if (accept('-')) {
             auto e = new nix::ExprCall(
                 posIdx(previous().range.start),
