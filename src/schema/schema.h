@@ -6,6 +6,7 @@
 #include <nix/value.hh>
 #include <string>
 #include <vector>
+#include "hover/hover.h"
 
 struct Analysis;
 
@@ -16,6 +17,7 @@ struct Schema {
     nix::Value* value;
 
     std::vector<nix::Symbol> attrs(nix::EvalState& state);
+    std::optional<HoverResult> hover(nix::EvalState& state);
 
     Schema attrSubschema(nix::EvalState& state, nix::Symbol symbol);
 };

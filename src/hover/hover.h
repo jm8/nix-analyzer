@@ -1,11 +1,13 @@
+#pragma once
 #include "config.h"
 #include <optional>
 #include <string>
-#include "common/analysis.h"
 #include "common/position.h"
 
+struct Analysis;
+
 struct HoverResult {
-    std::string text;
+    std::string markdown;
 };
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis);

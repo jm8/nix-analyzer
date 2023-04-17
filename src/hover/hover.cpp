@@ -1,4 +1,5 @@
 #include "hover.h"
+#include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/value.hh>
 #include <iostream>
@@ -7,6 +8,7 @@
 #include "common/analysis.h"
 #include "common/logging.h"
 #include "common/stringify.h"
+#include "schema/schema.h"
 
 std::optional<HoverResult> hoverSelect(
     nix::EvalState& state,
@@ -40,6 +42,29 @@ std::optional<HoverResult> hoverSelect(
     return {{stringify(state, &v)}};
 }
 
+std::optional<HoverResult> hoverAttr(
+    nix::EvalState& state,
+    Analysis& analysis
+) {
+    auto attrs = dynamic_cast<nix::ExprAttrs*>(analysis.exprPath.front().e);
+    if (!attrs) {
+        return {};
+    }
+    if (!analysis.attr) {
+        std::cerr << "hover of attrs without analysis.attr\n";
+        return {};
+    }
+    auto prefixPath = analysis.attr->attrPath;
+    prefixPath->erase(
+        prefixPath->begin() + analysis.attr->index + 1, prefixPath->end()
+    );
+    Schema schema = getSchema(state, analysis);
+    for (auto attr : *prefixPath) {
+        schema = schema.attrSubschema(state, attr.symbol);
+    }
+    return schema.hover(state);
+}
+
 std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
     auto var = dynamic_cast<nix::ExprVar*>(analysis.exprPath.front().e);
     if (!var) {
@@ -60,6 +85,8 @@ std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
     std::optional<HoverResult> result;
     if (!result)
         result = hoverSelect(state, analysis);
+    if (!result)
+        result = hoverAttr(state, analysis);
     if (!result)
         result = hoverVar(state, analysis);
     return result;

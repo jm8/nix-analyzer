@@ -98,12 +98,12 @@ std::string stringify(nix::EvalState& state, nix::Value* v) {
         case nix::nThunk:
             ss << "...";
             break;
-        case nix::nAttrs:
-            ss << "{ ... }";
-            break;
-        case nix::nList:
-            ss << "[ ... ]";
-            break;
+        // case nix::nAttrs:
+        //     ss << "{ ... }";
+        //     break;
+        // case nix::nList:
+        //     ss << "[ ... ]";
+        //     break;
         default:
             v->print(state.symbols, ss);
     }
@@ -111,5 +111,11 @@ std::string stringify(nix::EvalState& state, nix::Value* v) {
 }
 
 std::string stringify(nix::Error& e) {
-    return nix::filterANSIEscapes(e.info().msg.str(), true);
+    std::stringstream ss;
+    ss << nix::filterANSIEscapes(e.msg(), true);
+    if (e.info().errPos) {
+        ss << " " << e.info().errPos->file << ":" << e.info().errPos->line
+           << " " << e.info().errPos->column;
+    }
+    return ss.str();
 }

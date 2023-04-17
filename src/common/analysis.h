@@ -32,7 +32,7 @@ struct ExprPathItem {
 };
 
 struct Analysis {
-    std::vector<ExprPathItem> exprPath;
+    TraceableVector<ExprPathItem> exprPath;
     std::vector<Diagnostic> parseErrors;
     std::string path;
     std::string basePath;

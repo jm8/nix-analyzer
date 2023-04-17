@@ -13,6 +13,7 @@
 #include <vector>
 #include "common/analysis.h"
 #include "common/logging.h"
+#include "hover/hover.h"
 
 nix::Value* loadFile(nix::EvalState& state, std::string path) {
     auto v = state.allocValue();
@@ -198,18 +199,31 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
     return current;
 }
 
-std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
+static nix::Value* attrSubschemas(nix::EvalState& state, Schema parent) {
+    auto vFunction = loadFile(state, "schema/getAttrSubschemas.nix");
+    auto vArg = makeAttrs(
+        state,
+        {
+            {"pkgs", nixpkgsValue(state)},
+            {"parent", parent.value},
+        }
+    );
+    auto vRes = state.allocValue();
     try {
-        state.forceAttrs(*value, nix::noPos);
+        state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
+        state.forceAttrs(*vRes, nix::noPos);
     } catch (nix::Error& e) {
+        vRes->mkAttrs(state.allocBindings(0));
         REPORT_ERROR(e);
-        return {};
     }
-    if (value->attrs->get(state.symbols.create("_type"))) {
-        return {};
-    }
+
+    return vRes;
+}
+
+std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
+    auto attrs = attrSubschemas(state, *this);
     std::vector<nix::Symbol> result;
-    for (nix::Attr x : *value->attrs) {
+    for (nix::Attr x : *attrs->attrs) {
         std::string_view s = state.symbols[x.name];
         if (s.starts_with("_"))
             continue;
@@ -219,24 +233,38 @@ std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
 }
 
 Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
-    auto vFunction = loadFile(state, "schema/getAttrSubschema.nix");
-    auto vSymbol = state.allocValue();
-    vSymbol->mkString(state.symbols[symbol]);
+    auto schemas = attrSubschemas(state, *this);
+    auto attr = schemas->attrs->get(symbol);
+    if (!attr) {
+        auto emptySchema = state.allocValue();
+        emptySchema->mkAttrs(state.allocBindings(0));
+        return {emptySchema};
+    }
+    return {attr->value};
+}
+
+std::optional<HoverResult> Schema::hover(nix::EvalState& state) {
+    state.forceValue(*value, nix::noPos);
+    std::cerr << "calling documentation on " << stringify(state, value) << "\n";
+    auto vFunction = loadFile(state, "schema/getSchemaDoc.nix");
     auto vArg = makeAttrs(
         state,
         {
             {"pkgs", nixpkgsValue(state)},
-            {"symbol", vSymbol},
-            {"parent", value},
+            {"schema", value},
         }
     );
     auto vRes = state.allocValue();
     try {
         state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
+        state.forceValue(*vRes, nix::noPos);
+        if (vRes->type() == nix::nNull) {
+            return {};
+        }
+        state.forceString(*vRes);
+        return {{vRes->string.s}};
     } catch (nix::Error& e) {
-        vRes->mkAttrs(state.allocBindings(0));
         REPORT_ERROR(e);
+        return {};
     }
-
-    return {vRes};
 }

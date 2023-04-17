@@ -110,7 +110,7 @@ void LspServer::run() {
                                 "contents",
                                 {
                                     {"kind", "markdown"},
-                                    {"value", "```nix\n" + h->text + "\n```"},
+                                    {"value", h->markdown},
                                 },
                             },
                         },
