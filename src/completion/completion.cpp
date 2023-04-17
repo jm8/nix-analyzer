@@ -61,7 +61,6 @@ std::optional<CompletionResult> completionVar(
                 // underscore
                 continue;
             }
-            std::cerr << "Pushing a thing\n";
             result.items.push_back({std::string(sym)});
         }
         se = se->up;
@@ -108,6 +107,16 @@ std::optional<CompletionResult> completionAttrsSchema(
         return {};
     std::cerr << "completionAttrsSchema\n";
     auto schema = getSchema(state, analysis);
+    if (analysis.attr) {
+        auto& attrPath = *analysis.attr->attrPath;
+        for (size_t i = 0; i < analysis.attr->index; i++) {
+            if (!attrPath[i].symbol) {
+                std::cerr << "completion of attrsSchema with dynamic attr\n";
+                return {};
+            }
+            schema = schema.attrSubschema(state, attrPath[i].symbol);
+        }
+    }
     CompletionResult result;
     for (auto sym : schema.attrs(state)) {
         result.items.push_back(state.symbols[sym]);
