@@ -114,8 +114,6 @@ SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
 
     for (size_t i = 1; i < analysis.exprPath.size(); i++) {
         nix::ExprCall* call;
-        std::cerr << "getSchema " << stringify(state, analysis.exprPath[i].e)
-                  << "\n";
         if ((call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) &&
             analysis.exprPath[i - 1].e != call->fun) {
             try {
@@ -138,16 +136,7 @@ SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
         }
     }
 
-    const std::string getFileSchemaPath =
-        "/home/josh/dev/nix-analyzer/src/schema/getFileSchema.nix";
-    auto vGetFileSchema = state.allocValue();
-    try {
-        state.evalFile(getFileSchemaPath, *vGetFileSchema);
-    } catch (nix::Error& e) {
-        REPORT_ERROR(e);
-        return {emptySchema, 0};
-    }
-
+    auto vGetFileSchema = loadFile(state, "schema/getFileSchema.nix");
     auto vFileDescription = state.allocValue();
 
     auto bindings = state.buildBindings(2);
@@ -180,6 +169,8 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
     for (int i = schemaRoot.index; i >= 1; i--) {
         auto parent = analysis.exprPath[i].e;
         auto child = analysis.exprPath[i - 1].e;
+        std::cerr << "Get schema:: " << stringify(state, parent) << " -> "
+                  << stringify(state, child) << "\n";
         if (auto attrs = dynamic_cast<nix::ExprAttrs*>(parent)) {
             std::optional<nix::Symbol> subname;
             for (auto [symbol, attrDef] : attrs->attrs) {

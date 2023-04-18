@@ -107,9 +107,13 @@ std::optional<CompletionResult> completionAttrsSchema(
         return {};
     std::cerr << "completionAttrsSchema\n";
     auto schema = getSchema(state, analysis);
+    state.forceValue(*schema.value, nix::noPos);
+    std::cerr << "base schema: " << stringify(state, schema.value) << "\n";
     if (analysis.attr) {
         auto& attrPath = *analysis.attr->attrPath;
         for (size_t i = 0; i < analysis.attr->index; i++) {
+            std::cerr << "subattr " << state.symbols[attrPath[i].symbol]
+                      << "\n";
             if (!attrPath[i].symbol) {
                 std::cerr << "completion of attrsSchema with dynamic attr\n";
                 return {};

@@ -19,6 +19,7 @@
 #include <vector>
 #include "common/analysis.h"
 #include "common/position.h"
+#include "common/stringify.h"
 #include "parser/tokenizer.h"
 #include "schema/schema.h"
 
@@ -138,9 +139,9 @@ struct Parser {
     }
 
     void visit(nix::Expr* e, Range range) {
-        // extended because we want
+        // extended because for
         //     aaa^
-        // aaa to be in the exprPath
+        // we want aaa to be in the exprPath
         auto r = range.extended();
         // because we want
         //    with pkgs;    ^
@@ -159,13 +160,12 @@ struct Parser {
         ASSERT,
         WITH,
         LET,
-        // IF
     };
     const std::vector<TokenType> allowedExprStarts{
         ASSERT,
         WITH,
         LET,
-        // IF,
+        IF,
         ID,
         OR_KW,
         INT,
@@ -793,7 +793,7 @@ struct Parser {
 
     nix::ExprAttrs* binds() {
         auto attrs = new nix::ExprAttrs;
-        while (allow(INHERIT) || lookaheadBind()) {
+        while (allow(INHERIT) || allow(ID)) {
             auto start = current().range.start;
             if (accept(INHERIT)) {
                 std::optional<nix::Expr*> inheritFrom = {};
@@ -826,9 +826,10 @@ struct Parser {
                 if (!expect('=')) {
                     continue;
                 }
+                auto subExprStart = current().range.start;
                 auto e = expr();
                 auto end = previous().range.end;
-                addAttr(attrs, *path, e, {start, end});
+                addAttr(attrs, *path, e, {subExprStart, end});
             }
             if (!expect(';')) {
                 continue;
