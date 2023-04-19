@@ -67,6 +67,9 @@ std::optional<CompletionResult> completionVar(
     }
     auto env = analysis.exprPath.front().env;
     while (1) {
+        while (env->type == nix::Env::Plain && env->up) {
+            env = env->up;
+        }
         if (env->type == nix::Env::HasWithExpr) {
             nix::Value* v = state.allocValue();
             nix::Expr* e = (nix::Expr*)env->values[0];
