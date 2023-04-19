@@ -2,13 +2,46 @@
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/value.hh>
+#include <boost/algorithm/string/replace.hpp>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
 #include "common/logging.h"
 #include "common/stringify.h"
 #include "schema/schema.h"
+
+HoverResult hoverPrimop(nix::Value* v) {
+    assert(v->isPrimOp());
+    std::stringstream ss;
+    ss << "### built-in function `" << v->primOp->name << "`";
+    if (!v->primOp->args.empty()) {
+        ss << " *`";
+        for (const auto& arg : v->primOp->args) {
+            ss << arg << " ";
+        }
+        ss << "`*";
+    }
+    ss << "\n\n";
+    if (v->primOp->doc) {
+        bool isStartOfLine = true;
+        std::string_view doc{v->primOp->doc};
+        int spacesToRemoveAtStartOfLine = 6;
+        for (char c : doc) {
+            if (c == '\n') {
+                ss << '\n';
+                spacesToRemoveAtStartOfLine = 6;
+            } else if (spacesToRemoveAtStartOfLine > 0 && c == ' ') {
+                spacesToRemoveAtStartOfLine--;
+            } else {
+                ss << c;
+                spacesToRemoveAtStartOfLine = -1;
+            }
+        }
+    }
+    return {ss.str()};
+}
 
 std::optional<HoverResult> hoverSelect(
     nix::EvalState& state,
@@ -26,20 +59,28 @@ std::optional<HoverResult> hoverSelect(
     prefixPath.erase(
         prefixPath.begin() + analysis.attr->index + 1, prefixPath.end()
     );
+    auto name = prefixPath.back().symbol;
+    if (!name) {
+        std::cerr << "hover of non-symbol select attr";
+        return {};
+    }
     auto prefix =
         prefixPath.size() > 0
             ? new nix::ExprSelect(nix::noPos, select->e, prefixPath, nullptr)
             : select->e;
     std::cerr << stringify(state, prefix) << "\n";
-    nix::Value v;
+    auto v = state.allocValue();
     try {
         auto env = analysis.exprPath.front().env;
-        prefix->eval(state, *analysis.exprPath.front().env, v);
+        prefix->eval(state, *analysis.exprPath.front().env, *v);
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
         return {};
     }
-    return {{stringify(state, &v)}};
+    if (v->isPrimOp()) {
+        return hoverPrimop(v);
+    }
+    return {};
 }
 
 std::optional<HoverResult> hoverAttr(
@@ -78,7 +119,10 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
         REPORT_ERROR(e);
         return {};
     }
-    return {{stringify(state, &v)}};
+    if (v.isPrimOp()) {
+        return hoverPrimop(&v);
+    }
+    return {};
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
