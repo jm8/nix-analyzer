@@ -106,6 +106,25 @@ std::optional<HoverResult> hoverAttr(
     return schema.hover(state);
 }
 
+std::optional<size_t> getExprForLevel(
+    const Analysis& analysis,
+    nix::Level targetLevel
+) {
+    nix::Level currLevel = 0;
+    int j;
+    for (j = 0; j < analysis.exprPath.size() - 1; j++) {
+        if (analysis.exprPath[j].env != analysis.exprPath[j + 1].env) {
+            const auto& child = analysis.exprPath[j];
+            const auto& parent = analysis.exprPath[j + 1];
+            if (currLevel == targetLevel) {
+                return j + 1;
+            }
+            currLevel++;
+        }
+    }
+    return {};
+}
+
 std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
     auto var = dynamic_cast<nix::ExprVar*>(analysis.exprPath.front().e);
     if (!var) {
@@ -122,7 +141,17 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
     if (v.isPrimOp()) {
         return hoverPrimop(&v);
     }
-    return {};
+    auto j = getExprForLevel(analysis, var->level);
+    if (!j) {
+        return {};
+    }
+    std::stringstream ss;
+    auto e = analysis.exprPath[*j].e;
+    ss << "```nix\n";
+    e->show(state.symbols, ss);
+    ss << "\n```";
+
+    return {{ss.str()}};
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {

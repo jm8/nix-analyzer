@@ -180,6 +180,7 @@ struct Parser {
         '!',
         PATH,
         HPATH,
+        SPATH,
     };
 
     nix::Expr* expr() {
@@ -603,6 +604,17 @@ struct Parser {
             }
             expect(PATH_END);
             return pathExpr;
+        }
+        if (auto spath = accept(SPATH)) {
+            auto path = get<std::string>(spath->val);
+            auto e = new nix::ExprCall(
+                posIdx(start),
+                new nix::ExprVar(state.symbols.create("__findFile")),
+                {new nix::ExprVar(state.symbols.create("__nixPath")),
+                 new nix::ExprString(path)}
+            );
+            visit(e, previous().range);
+            return e;
         }
         // '{' binds '}'
         if (accept('{')) {
