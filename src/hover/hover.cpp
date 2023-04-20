@@ -1,6 +1,7 @@
 #include "hover.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
+#include <nix/pos.hh>
 #include <nix/value.hh>
 #include <boost/algorithm/string/replace.hpp>
 #include <iostream>
@@ -9,6 +10,7 @@
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
 #include "common/logging.h"
+#include "common/position.h"
 #include "common/stringify.h"
 #include "schema/schema.h"
 
@@ -57,11 +59,11 @@ std::optional<HoverResult> hoverSelect(
     }
     auto prefixPath = select->attrPath;
     prefixPath.erase(
-        prefixPath.begin() + analysis.attr->index + 1, prefixPath.end()
+        prefixPath.begin() + analysis.attr->index, prefixPath.end()
     );
-    auto name = prefixPath.back().symbol;
+    auto name = select->attrPath[analysis.attr->index].symbol;
     if (!name) {
-        std::cerr << "hover of non-symbol select attr";
+        std::cerr << "hover of non-symbol select attr\n";
         return {};
     }
     auto prefix =
@@ -69,18 +71,31 @@ std::optional<HoverResult> hoverSelect(
             ? new nix::ExprSelect(nix::noPos, select->e, prefixPath, nullptr)
             : select->e;
     std::cerr << stringify(state, prefix) << "\n";
-    auto v = state.allocValue();
+    auto vAttrs = state.allocValue();
     try {
         auto env = analysis.exprPath.front().env;
-        prefix->eval(state, *analysis.exprPath.front().env, *v);
+        prefix->eval(state, *analysis.exprPath.front().env, *vAttrs);
+        state.forceAttrs(*vAttrs, nix::noPos);
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
         return {};
     }
-    if (v->isPrimOp()) {
-        return hoverPrimop(v);
+    auto attr = vAttrs->attrs->get(name);
+    if (!attr) {
+        return {};
     }
-    return {};
+    HoverResult result;
+    std::stringstream ss;
+    if (attr->pos) {
+        Location loc{state.positions[attr->pos]};
+        ss << loc << "\n";
+        result.definitionPos = loc;
+    }
+    result.markdown = ss.str();
+    // if (v->isPrimOp()) {
+    //     result = hoverPrimop(vAttrs);
+    // }
+    return result;
 }
 
 std::optional<HoverResult> hoverAttr(

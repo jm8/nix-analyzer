@@ -44,3 +44,16 @@ struct Range {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Range, start, end);
 
 std::ostream& operator<<(std::ostream& os, const Range& range);
+
+struct Location {
+    std::string uri;
+    Range range;
+
+    Location(std::string uri, Range range);
+    Location(std::string uri, Position pos);
+    Location(nix::Pos nixPos);
+};
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Location, uri, range);
+
+std::ostream& operator<<(std::ostream& os, const Location& location);

@@ -22,24 +22,6 @@
         system = "x86_64-linux";
       in rec {
         packages = rec {
-          lspcpp = pkgs.stdenv.mkDerivation {
-            name = "LspCpp";
-            src = lspcppsrc;
-            enableParallelBuilding = true;
-            nativeBuildInputs = with pkgs; [
-              cmake
-            ];
-            buildInputs = with pkgs; [
-              boost
-            ];
-            installPhase = ''
-              mkdir -p $out/{lib,include}
-              cp liblspcpp.a $out/lib
-              cp -r $src/include/LibLsp $out/include/LibLsp
-              cp -r $src/third_party/uri/include/network $out/include/network
-              cp third_party/uri/src/libnetwork-uri.a $out/lib
-            '';
-          };
           nix-analyzer = pkgs.stdenv.mkDerivation {
             name = "nix-analyzer";
             src = ./.;
@@ -47,7 +29,7 @@
               "--std=c++20"
               "-isystem${nixfork.packages.${system}.default.dev}/include"
               "-L${nixfork.packages.${system}.default}/lib"
-              "-lnixmain -lnixexpr -lnixfetchers -lnixmain -lnixstore -lnixutil"
+              "-lnixmain -lnixexpr -lnixfetchers -lnixstore -lnixutil"
               "-isystem${pkgs.boost.dev}/include"
               "-L${pkgs.boost}/lib"
               "-isystem${pkgs.nlohmann_json}/include"
@@ -57,9 +39,6 @@
               "-isystem${pkgs.gtest.dev}/include"
               "-L${pkgs.gtest}/lib"
               "-isystem${pkgs.nlohmann_json}/include"
-
-              # this really shouldn't stop it from crashing but it does
-              # "-fsanitize=address"
             ];
             buildInputs = with pkgs; [
               boost
@@ -79,7 +58,7 @@
               cp nix-analyzer $out/bin
               cp nix-analyzer-test $out
               cp parsertest $out
-              find src -name '*.csv' -exec cp --parents '{}' $out ';'
+              find src -name '*.nix' -exec cp --parents '{}' $out ';'
             '';
           };
           default = nix-analyzer;

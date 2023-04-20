@@ -87,6 +87,7 @@ void LspServer::run() {
                                      {"interFileDependencies", false},
                                      {"workspaceDiagnostics", false},
                                  }},
+                                {"definitionProvider", true},
                             },
                         },
                     },
@@ -115,6 +116,18 @@ void LspServer::run() {
                             },
                         },
                     });
+                }
+            } else if (request.method == "textDocument/definition") {
+                std::string url = request.params["textDocument"]["uri"];
+                Position position = request.params["position"];
+                const auto& document = documents[url];
+                auto analysis = analyze(state, document, position);
+                auto h = hover(state, analysis);
+                if (!h || !h->definitionPos) {
+                    conn.write(Response{
+                        request.id, nlohmann::json::value_t::null});
+                } else {
+                    conn.write(Response{request.id, *h->definitionPos});
                 }
             } else if (request.method == "textDocument/completion") {
                 std::string url = request.params["textDocument"]["uri"];

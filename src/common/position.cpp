@@ -29,3 +29,13 @@ std::ostream& operator<<(std::ostream& os, const Range& range) {
     os << range.start << "-" << range.end;
     return os;
 }
+
+Location::Location(std::string uri, Range range) : uri(uri), range(range) {}
+Location::Location(std::string uri, Position pos) : uri(uri), range(pos, pos) {}
+Location::Location(nix::Pos nixPos)
+    : uri("file://" + nixPos.file), range(nixPos, nixPos) {}
+
+std::ostream& operator<<(std::ostream& os, const Location& location) {
+    os << location.uri << ":" << location.range;
+    return os;
+}
