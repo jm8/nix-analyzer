@@ -1,4 +1,5 @@
 #include "hover.h"
+#include <nix/error.hh>
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/pos.hh>
@@ -6,15 +7,17 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <iostream>
 #include <optional>
+#include <ostream>
 #include <sstream>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
+#include "common/loadfile.h"
 #include "common/logging.h"
 #include "common/position.h"
 #include "common/stringify.h"
 #include "schema/schema.h"
 
-HoverResult hoverPrimop(nix::Value* v) {
+std::string documentationPrimop(nix::EvalState& state, nix::Value* v) {
     assert(v->isPrimOp());
     std::stringstream ss;
     ss << "### built-in function `" << v->primOp->name << "`";
@@ -42,7 +45,139 @@ HoverResult hoverPrimop(nix::Value* v) {
             }
         }
     }
-    return {ss.str()};
+    return ss.str();
+}
+
+std::string documentationDerivation(nix::EvalState& state, nix::Value* v) {
+    assert(state.isDerivation(*v));
+    nix::Value* vFunction = loadFile(state, "hover/getDerivationDoc.nix");
+    nix::Value* vRes = state.allocValue();
+    try {
+        state.callFunction(*vFunction, *v, *vRes, nix::noPos);
+        return std::string{state.forceString(*vRes)};
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        return "";
+    }
+}
+
+void printValue(
+    std::ostream& stream,
+    nix::EvalState& state,
+    nix::Value* v,
+    int indentation = 0,
+    int maxDepth = 2
+) {
+    try {
+        state.forceValue(*v, nix::noPos);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        stream << "[error]";
+        return;
+    }
+    std::string spaces(indentation, ' ');
+    switch (v->type()) {
+        case nix::nAttrs:
+            if (state.isDerivation(*v)) {
+                stream << "<DERIVATION>";
+                break;
+            }
+            if (maxDepth > 0) {
+                stream << "{\n";
+                int n = 0;
+                for (auto& i : *v->attrs) {
+                    stream << spaces << "  ";
+                    if (n > 20) {
+                        stream << "/* ... */ \n";
+                        break;
+                    }
+                    stream << state.symbols[i.name] << " = ";
+                    printValue(
+                        stream, state, i.value, indentation + 2, maxDepth - 1
+                    );
+                    stream << ";\n";
+                    n++;
+                }
+
+                stream << spaces << "}";
+            } else {
+                stream << "{ /* ... */ }";
+            }
+            break;
+        case nix::nList:
+            if (maxDepth > 0) {
+                stream << "[\n";
+                int n = 0;
+                for (auto& i : v->listItems()) {
+                    stream << spaces << "  ";
+                    if (n > 20) {
+                        stream << "/* ... */ \n";
+                        break;
+                    }
+                    printValue(stream, state, i, indentation + 2, maxDepth - 1);
+                    stream << "\n";
+                    n++;
+                }
+
+                stream << spaces << "]";
+            } else {
+                stream << "[ /* ... */ ]";
+            }
+            break;
+        default:
+            v->print(state.symbols, stream);
+            break;
+    }
+}
+
+std::string valueType(nix::Value* v) {
+    switch (v->type()) {
+        case nix::nThunk:
+            return "thunk";
+        case nix::nInt:
+            return "integer";
+        case nix::nFloat:
+            return "float";
+        case nix::nBool:
+            return "boolean";
+        case nix::nString:
+            return "string";
+        case nix::nPath:
+            return "path";
+        case nix::nNull:
+            return "null";
+        case nix::nAttrs:
+            return "attrset";
+        case nix::nList:
+            return "list";
+        case nix::nFunction:
+            return "function";
+        case nix::nExternal:
+            return "external";
+    }
+}
+
+std::string documentationValue(nix::EvalState& state, nix::Value* v) {
+    try {
+        state.forceValue(*v, nix::noPos);
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        return "";
+    }
+    if (v->isPrimOp()) {
+        return documentationPrimop(state, v);
+    }
+    if (state.isDerivation(*v)) {
+        return documentationDerivation(state, v);
+    }
+
+    std::stringstream ss;
+    ss << "### " << valueType(v) << "\n\n";
+    ss << "```nix\n";
+    printValue(ss, state, v);
+    ss << "\n```";
+
+    return ss.str();
 }
 
 std::optional<HoverResult> hoverSelect(
@@ -91,10 +226,8 @@ std::optional<HoverResult> hoverSelect(
         ss << loc << "\n";
         result.definitionPos = loc;
     }
-    result.markdown = ss.str();
-    // if (v->isPrimOp()) {
-    //     result = hoverPrimop(vAttrs);
-    // }
+    // result.markdown = ss.str();
+    result.markdown += documentationValue(state, attr->value);
     return result;
 }
 
@@ -145,16 +278,13 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
     if (!var) {
         return {};
     }
-    nix::Value v;
+    nix::Value* v = state.allocValue();
     try {
         auto env = analysis.exprPath.front().env;
-        var->eval(state, *analysis.exprPath.front().env, v);
+        var->eval(state, *analysis.exprPath.front().env, *v);
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
         return {};
-    }
-    if (v.isPrimOp()) {
-        return hoverPrimop(&v);
     }
     auto j = getExprForLevel(analysis, var->level);
     if (!j) {
@@ -169,8 +299,9 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
         }
         std::cerr << "FILE: " << state.positions[attr->second.pos].file << "\n";
         Location loc = state.positions[attr->second.pos];
-        return {{"", loc}};
+        return {{documentationValue(state, v), loc}};
     }
+    return {};
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
