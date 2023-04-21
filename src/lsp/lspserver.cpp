@@ -166,12 +166,14 @@ void LspServer::run() {
                 break;
             } else if (notification.method == "textDocument/didOpen") {
                 std::string uri = notification.params["textDocument"]["uri"];
+                std::string path =
+                    uri.substr(std::string_view{"file://"}.size());
                 documents[uri] = {
                     uri,
                     notification.params["textDocument"]["text"]
                         .get<std::string>(),
-                    "",
-                    ""};
+                    path,
+                    nix::dirOf(path)};
             } else if (notification.method == "textDocument/didChange") {
                 std::string uri = notification.params["textDocument"]["uri"];
                 auto& document = documents[uri];

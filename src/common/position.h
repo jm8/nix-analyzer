@@ -1,6 +1,7 @@
 #pragma once
 #include "config.h"
 #include <nix/error.hh>
+#include <nix/eval.hh>
 #include <nix/parser-tab.hh>
 #include <nix/pos.hh>
 #include <cstddef>
@@ -20,6 +21,7 @@ struct Position {
     Position() = default;
 
     nix::Pos nixPos(std::string path = {});
+    nix::PosIdx posIdx(nix::EvalState& state, std::string path);
 
     auto operator<=>(const Position& other) const = default;
 };
@@ -52,6 +54,7 @@ struct Location {
     Location(std::string uri, Range range);
     Location(std::string uri, Position pos);
     Location(nix::Pos nixPos);
+    explicit Location(nix::EvalState& state, nix::Expr* expr);
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Location, uri, range);

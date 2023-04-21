@@ -160,13 +160,17 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
     if (!j) {
         return {};
     }
-    std::stringstream ss;
     auto e = analysis.exprPath[*j].e;
-    ss << "```nix\n";
-    e->show(state.symbols, ss);
-    ss << "\n```";
-
-    return {{ss.str()}};
+    if (auto let = dynamic_cast<nix::ExprLet*>(e)) {
+        auto attr = let->attrs->attrs.find(var->name);
+        if (attr == let->attrs->attrs.end()) {
+            std::cerr << "didn't find the attr in let";
+            return {};
+        }
+        std::cerr << "FILE: " << state.positions[attr->second.pos].file << "\n";
+        Location loc = state.positions[attr->second.pos];
+        return {{"", loc}};
+    }
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {

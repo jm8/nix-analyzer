@@ -119,11 +119,7 @@ struct Parser {
     }
 
     nix::PosIdx posIdx(Position position) {
-        return state.positions.add(
-            {analysis.path, nix::foFile},
-            position.line + 1,
-            position.character + 1
-        );
+        return position.posIdx(state, analysis.path);
     }
 
     nix::Expr* missing() {
@@ -139,6 +135,8 @@ struct Parser {
     }
 
     void visit(nix::Expr* e, Range range) {
+        e->startPos = posIdx(range.start);
+        e->endPos = posIdx(range.end);
         // extended because for
         //     aaa^
         // we want aaa to be in the exprPath
@@ -693,9 +691,10 @@ struct Parser {
         nix::ExprAttrs* attrs,
         nix::AttrPath& attrPath,
         nix::Expr* e,
-        Range range
+        Range attrPathRange,
+        Range exprRange
     ) {
-        const nix::PosIdx pos = posIdx(range.start);
+        const nix::PosIdx pos = posIdx(attrPathRange.start);
         nix::AttrPath::iterator i;
         // All attrpaths have at least one attr
         assert(!attrPath.empty());
@@ -711,14 +710,14 @@ struct Parser {
                         auto attrs2 =
                             dynamic_cast<nix::ExprAttrs*>(j->second.e);
                         if (!attrs2) {
-                            error("duplicate attr", range);
+                            error("duplicate attr", attrPathRange);
                             // dupAttr(state, attrPath, start, end,
                             // j->second.pos);
                             return;
                         }
                         attrs = attrs2;
                     } else {
-                        error("duplicate attr", range);
+                        error("duplicate attr", attrPathRange);
                         // dupAttr(state, attrPath, start, end,
                         // j->second.pos);
                         return;
@@ -740,7 +739,7 @@ struct Parser {
             }
         }
         for (int i = nestedStack.size() - 1; i >= 0; i--) {
-            visit(nestedStack[i], range);
+            visit(nestedStack[i], exprRange);
         }
         // Expr insertion.
         // ==========================
@@ -758,7 +757,7 @@ struct Parser {
                         if (j2 !=
                             jAttrs->attrs.end()) {  // Attr already defined
                                                     // in iAttrs, error.
-                            error("duplicate attr", range);
+                            error("duplicate attr", attrPathRange);
                             // dupAttr(state, ad.first, start, end,
                             // ad.second.pos);
                             return;
@@ -766,7 +765,7 @@ struct Parser {
                         jAttrs->attrs.emplace(ad.first, ad.second);
                     }
                 } else {
-                    error("duplicate attr", range);
+                    error("duplicate attr", attrPathRange);
                     // dupAttr(state, attrPath, start, end, j->second.pos);
                     return;
                 }
@@ -804,7 +803,7 @@ struct Parser {
     }
 
     nix::ExprAttrs* binds() {
-        auto attrs = new nix::ExprAttrs;
+        auto attrs = new nix::ExprAttrs(posIdx(current().range.start));
         while (allow(INHERIT) || allow(ID)) {
             auto start = current().range.start;
             if (accept(INHERIT)) {
@@ -834,14 +833,22 @@ struct Parser {
                     );
                 }
             } else {
+                auto attrPathStart = current().range.start;
                 auto path = attrPath();
+                auto attrPathEnd = previous().range.end;
                 if (!expect('=')) {
                     continue;
                 }
                 auto subExprStart = current().range.start;
                 auto e = expr();
                 auto end = previous().range.end;
-                addAttr(attrs, *path, e, {subExprStart, end});
+                addAttr(
+                    attrs,
+                    *path,
+                    e,
+                    {attrPathStart, attrPathEnd},
+                    {subExprStart, end}
+                );
             }
             if (!expect(';')) {
                 continue;
@@ -957,6 +964,7 @@ Analysis parse(
     Position targetPos
 ) {
     Analysis analysis;
+    analysis.path = path;
     analysis.basePath = basePath;
 
     Parser parser{state, analysis, source, targetPos};
