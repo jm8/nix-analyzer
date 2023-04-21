@@ -3,6 +3,7 @@
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/pos.hh>
+#include <nix/symbol-table.hh>
 #include <nix/value.hh>
 #include <boost/algorithm/string/replace.hpp>
 #include <iostream>
@@ -59,6 +60,42 @@ std::string documentationDerivation(nix::EvalState& state, nix::Value* v) {
         REPORT_ERROR(e);
         return "";
     }
+}
+
+std::string documentationLambda(
+    nix::EvalState& state,
+    nix::Value* v,
+    nix::Symbol name
+) {
+    assert(v->isLambda());
+
+    nix::ExprLambda* lambda = v->lambda.fun;
+    Location loc{state.positions[v->lambda.fun->pos]};
+    std::stringstream ss;
+    ss << "### lambda `" << state.symbols[lambda->name] << "` *`";
+    if (lambda->hasFormals()) {
+        auto sep = "";
+        ss << "{ ";
+        for (auto formal : lambda->formals->formals) {
+            ss << sep << state.symbols[formal.name];
+            ss << "?";
+            sep = ", ";
+        }
+        if (lambda->formals->ellipsis) {
+            ss << sep << "...";
+        }
+        ss << " }";
+    } else {
+        nix::ExprLambda* curr = lambda;
+        auto sep = "";
+        while (curr) {
+            ss << sep << state.symbols[curr->arg];
+            curr = dynamic_cast<nix::ExprLambda*>(curr->body);
+            sep = " ";
+        }
+    }
+    ss << "`*\n";
+    return ss.str();
 }
 
 void printValue(
@@ -157,7 +194,11 @@ std::string valueType(nix::Value* v) {
     }
 }
 
-std::string documentationValue(nix::EvalState& state, nix::Value* v) {
+std::string documentationValue(
+    nix::EvalState& state,
+    nix::Value* v,
+    nix::Symbol name
+) {
     try {
         state.forceValue(*v, nix::noPos);
     } catch (nix::Error& e) {
@@ -169,6 +210,9 @@ std::string documentationValue(nix::EvalState& state, nix::Value* v) {
     }
     if (state.isDerivation(*v)) {
         return documentationDerivation(state, v);
+    }
+    if (v->isLambda()) {
+        return documentationLambda(state, v, name);
     }
 
     std::stringstream ss;
@@ -227,7 +271,7 @@ std::optional<HoverResult> hoverSelect(
         result.definitionPos = loc;
     }
     // result.markdown = ss.str();
-    result.markdown += documentationValue(state, attr->value);
+    result.markdown += documentationValue(state, attr->value, name);
     return result;
 }
 
@@ -299,7 +343,7 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
         }
         std::cerr << "FILE: " << state.positions[attr->second.pos].file << "\n";
         Location loc = state.positions[attr->second.pos];
-        return {{documentationValue(state, v), loc}};
+        return {{documentationValue(state, v, var->name), loc}};
     }
     return {};
 }
