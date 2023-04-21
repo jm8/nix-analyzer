@@ -62,11 +62,7 @@ std::string documentationDerivation(nix::EvalState& state, nix::Value* v) {
     }
 }
 
-std::string documentationLambda(
-    nix::EvalState& state,
-    nix::Value* v,
-    nix::Symbol name
-) {
+std::string documentationLambda(nix::EvalState& state, nix::Value* v) {
     assert(v->isLambda());
 
     nix::ExprLambda* lambda = v->lambda.fun;
@@ -194,11 +190,7 @@ std::string valueType(nix::Value* v) {
     }
 }
 
-std::string documentationValue(
-    nix::EvalState& state,
-    nix::Value* v,
-    nix::Symbol name
-) {
+std::string documentationValue(nix::EvalState& state, nix::Value* v) {
     try {
         state.forceValue(*v, nix::noPos);
     } catch (nix::Error& e) {
@@ -212,7 +204,7 @@ std::string documentationValue(
         return documentationDerivation(state, v);
     }
     if (v->isLambda()) {
-        return documentationLambda(state, v, name);
+        return documentationLambda(state, v);
     }
 
     std::stringstream ss;
@@ -271,7 +263,7 @@ std::optional<HoverResult> hoverSelect(
         result.definitionPos = loc;
     }
     // result.markdown = ss.str();
-    result.markdown += documentationValue(state, attr->value, name);
+    result.markdown += documentationValue(state, attr->value);
     return result;
 }
 
@@ -343,7 +335,7 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
         }
         std::cerr << "FILE: " << state.positions[attr->second.pos].file << "\n";
         Location loc = state.positions[attr->second.pos];
-        return {{documentationValue(state, v, var->name), loc}};
+        return {{documentationValue(state, v), loc}};
     }
     return {};
 }
