@@ -16,6 +16,9 @@
 #include "common/stringify.h"
 #include "parser/parser.h"
 
+// current progress:
+// 22788 / 27150
+
 bool check_consistency(nix::EvalState& state, std::string path) {
     std::cout << path << " ";
     std::cout.flush();
