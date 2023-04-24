@@ -160,25 +160,8 @@ struct Parser {
         LET,
     };
     const std::vector<TokenType> allowedExprStarts{
-        ASSERT,
-        WITH,
-        LET,
-        IF,
-        ID,
-        OR_KW,
-        INT,
-        FLOAT,
-        '"',
-        // IND_STRING_OPEN,
-        REC,
-        '(',
-        '{',
-        '[',
-        '-',
-        '!',
-        PATH,
-        HPATH,
-        SPATH,
+        ASSERT, WITH, LET, IF,  ID,  OR_KW, INT,  FLOAT, '"',   IND_STRING_OPEN,
+        REC,    '(',  '{', '[', '-', '!',   PATH, HPATH, SPATH,
     };
 
     nix::Expr* expr() {
@@ -569,6 +552,16 @@ struct Parser {
             visit(e, {start, previous().range.end});
             return e;
         }
+        // IND_STRING_OPEN ind_string_parts IND_STRING_CLOSE
+        if (accept(IND_STRING_OPEN)) {
+            auto parts = ind_string_parts();
+            auto e = stripIndentation(
+                posIdx(current().range.start), state.symbols, parts
+            );
+            expect(IND_STRING_CLOSE);
+            visit(e, {start, previous().range.end});
+            return e;
+        }
         // path_start string_parts_interpolated PATH_END
         if (allow({PATH, HPATH})) {
             auto token = consume();
@@ -684,6 +677,129 @@ struct Parser {
             return (*parts)[0].second;
         }
         return new nix::ExprConcatStrings(posIdx(start), true, parts);
+    }
+
+    std::vector<std::pair<nix::PosIdx, std::variant<nix::Expr*, NAStringToken>>>
+    ind_string_parts() {
+        std::vector<
+            std::pair<nix::PosIdx, std::variant<nix::Expr*, NAStringToken>>>
+            parts;
+        while (true) {
+            if (auto s = accept(IND_STR)) {
+                parts.push_back(
+                    {posIdx(previous().range.end),
+                     std::get<NAStringToken>(s->val)}
+                );
+            } else if (accept(DOLLAR_CURLY)) {
+                parts.push_back({posIdx(current().range.start), expr()});
+                expect('}');
+            } else {
+                return parts;
+            }
+        }
+    }
+
+    nix::Expr* stripIndentation(
+        const nix::PosIdx pos,
+        nix::SymbolTable& symbols,
+        std::vector<
+            std::pair<nix::PosIdx, std::variant<nix::Expr*, NAStringToken>>>& es
+    ) {
+        if (es.empty())
+            return new nix::ExprString("");
+
+        /* Figure out the minimum indentation.  Note that by design
+           whitespace-only final lines are not taken into account.  (So
+           the " " in "\n ''" is ignored, but the " " in "\n foo''" is.) */
+        bool atStartOfLine =
+            true; /* = seen only whitespace in the current line */
+        size_t minIndent = 1000000;
+        size_t curIndent = 0;
+        for (auto& [i_pos, i] : es) {
+            auto* str = std::get_if<NAStringToken>(&i);
+            if (!str || !str->hasIndentation) {
+                /* Anti-quotations and escaped characters end the current
+                 * start-of-line whitespace. */
+                if (atStartOfLine) {
+                    atStartOfLine = false;
+                    if (curIndent < minIndent)
+                        minIndent = curIndent;
+                }
+                continue;
+            }
+            for (size_t j = 0; j < str->s.length(); ++j) {
+                if (atStartOfLine) {
+                    if (str->s[j] == ' ')
+                        curIndent++;
+                    else if (str->s[j] == '\n') {
+                        /* Empty line, doesn't influence minimum
+                           indentation. */
+                        curIndent = 0;
+                    } else {
+                        atStartOfLine = false;
+                        if (curIndent < minIndent)
+                            minIndent = curIndent;
+                    }
+                } else if (str->s[j] == '\n') {
+                    atStartOfLine = true;
+                    curIndent = 0;
+                }
+            }
+        }
+
+        /* Strip spaces from each line. */
+        auto* es2 = new std::vector<std::pair<nix::PosIdx, nix::Expr*>>;
+        atStartOfLine = true;
+        size_t curDropped = 0;
+        size_t n = es.size();
+        auto i = es.begin();
+        const auto trimExpr = [&](nix::Expr* e) {
+            atStartOfLine = false;
+            curDropped = 0;
+            es2->emplace_back(i->first, e);
+        };
+        const auto trimString = [&](const NAStringToken& t) {
+            std::string s2;
+            for (size_t j = 0; j < t.s.length(); ++j) {
+                if (atStartOfLine) {
+                    if (t.s[j] == ' ') {
+                        if (curDropped++ >= minIndent)
+                            s2 += t.s[j];
+                    } else if (t.s[j] == '\n') {
+                        curDropped = 0;
+                        s2 += t.s[j];
+                    } else {
+                        atStartOfLine = false;
+                        curDropped = 0;
+                        s2 += t.s[j];
+                    }
+                } else {
+                    s2 += t.s[j];
+                    if (t.s[j] == '\n')
+                        atStartOfLine = true;
+                }
+            }
+
+            /* Remove the last line if it is empty and consists only of
+               spaces. */
+            if (n == 1) {
+                std::string::size_type p = s2.find_last_of('\n');
+                if (p != std::string::npos &&
+                    s2.find_first_not_of(' ', p + 1) == std::string::npos)
+                    s2 = std::string(s2, 0, p + 1);
+            }
+
+            es2->emplace_back(i->first, new nix::ExprString(s2));
+        };
+        for (; i != es.end(); ++i, --n) {
+            std::visit(nix::overloaded{trimExpr, trimString}, i->second);
+        }
+
+        /* If this is a single string, then don't do a concatenation. */
+        return es2->size() == 1 &&
+                       dynamic_cast<nix::ExprString*>((*es2)[0].second)
+                   ? (*es2)[0].second
+                   : new nix::ExprConcatStrings(pos, true, es2);
     }
 
     // copy+paste from parser.y

@@ -14,9 +14,20 @@ YY_DECL;
 
 using TokenType = int;
 
+struct NAStringToken {
+    std::string s;
+    bool hasIndentation;
+};
+
 struct Token {
     TokenType type;
-    std::variant<std::monostate, std::string, nix::NixInt, nix::NixFloat> val;
+    std::variant<
+        std::monostate,
+        std::string,
+        nix::NixInt,
+        nix::NixFloat,
+        NAStringToken>
+        val;
     Range range;
 };
 

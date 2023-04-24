@@ -36,6 +36,10 @@ Token Tokenizer::advance() {
         token.val = std::string{std::string_view{yylval.id}};
     } else if (token.type == STR) {
         token.val = std::string{std::string_view{yylval.str}};
+    } else if (token.type == IND_STR) {
+        token.val = NAStringToken{
+            std::string{std::string_view{yylval.str}},
+            yylval.str.hasIndentation};
     } else if (token.type == PATH || token.type == HPATH || token.type == SPATH) {
         token.val = std::string{std::string_view{yylval.path}};
     } else if (token.type == INT) {

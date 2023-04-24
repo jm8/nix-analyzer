@@ -4,8 +4,11 @@ import ./lib/maketest.nix {
     let a = 4; b^
   '';
   expected = ''
-    (let a = 4; in b)
+    (let a = 4; in null)
   '';
-  expectedErrors = ["expected 'IN', got 'ID' 0:11-0:12"];
+  expectedAttrPath = "b";
+  expectedAttrPathIndex = 0;
+  expectedErrors = ["expected '=', got 'EOF' 1:0-1:0"];
+  # probably shouldn't have exprvar
   expectedExprPath = ["ExprVar" "ExprLet"];
 }

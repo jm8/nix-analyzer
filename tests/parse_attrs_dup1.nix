@@ -6,6 +6,6 @@ import ./lib/maketest.nix {
   expected = ''
     { x = 123; y = 456; }
   '';
-  expectedErrors = ["duplicate attr 0:20-0:27"];
+  expectedErrors = ["duplicate attr 0:20-0:21"];
   expectedExprPath = ["ExprAttrs"];
 }
