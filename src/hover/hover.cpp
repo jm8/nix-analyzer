@@ -337,7 +337,7 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
         Location loc = state.positions[attr->second.pos];
         return {{documentationValue(state, v), loc}};
     }
-    return {};
+    return {{documentationValue(state, v)}};
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
