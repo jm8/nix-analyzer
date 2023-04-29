@@ -94,6 +94,22 @@ struct SchemaRoot {
     size_t index;
 };
 
+size_t fileRootIndex(const Analysis& analysis) {
+    for (size_t i = analysis.exprPath.size() - 1; i-- > 0;) {
+        if (dynamic_cast<nix::ExprLambda*>(analysis.exprPath[i].e) ||
+            dynamic_cast<nix::ExprWith*>(analysis.exprPath[i].e) ||
+            dynamic_cast<nix::ExprLet*>(analysis.exprPath[i].e)) {
+            std::cerr << "fileRootIndex < " << i << "\n";
+            continue;
+        }
+        std::cerr << "fileRootIndex == " << i << "\n";
+        return i;
+    }
+    std::cerr << "fileRootIndex == default to 0"
+              << "\n";
+    return 0;
+}
+
 SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
     auto emptySchema = state.allocValue();
     emptySchema->mkAttrs(state.allocBindings(0));
@@ -144,7 +160,7 @@ SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
         state.callFunction(
             *vGetFileSchema, *vFileDescription, *vSchema, nix::noPos
         );
-        return {vSchema, analysis.exprPath.size() - 1};
+        return {vSchema, fileRootIndex(analysis)};
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
         return {emptySchema, 0};
