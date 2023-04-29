@@ -997,6 +997,9 @@ struct Parser {
                 path->push_back(state.symbols.create(""));
                 Range missingIdRange{dotPosition, nextTokenPosition};
                 error("expected ID", missingIdRange);
+                while (!allow({'=', ';', '}', YYEOF})) {
+                    consume();
+                }
                 if (missingIdRange.extended().contains(targetPos)) {
                     analysis.attr = {path->size() - 1, path};
                 }
