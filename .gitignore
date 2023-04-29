@@ -12,3 +12,4 @@ mkderivation-schema.h
 log.txt
 *.nix.h
 .gdbinit
+outputs

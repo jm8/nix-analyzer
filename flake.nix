@@ -53,13 +53,6 @@
             buildPhase = ''
               make
             '';
-            installPhase = ''
-              mkdir -p $out/bin
-              cp nix-analyzer $out/bin
-              cp nix-analyzer-test $out
-              cp parsertest $out
-              find src -name '*.nix' -exec cp --parents '{}' $out ';'
-            '';
           };
           default = nix-analyzer;
         };
