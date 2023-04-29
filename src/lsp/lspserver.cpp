@@ -15,6 +15,7 @@
 #include "common/position.h"
 #include "common/stringify.h"
 #include "completion/completion.h"
+#include "getlambdaarg/getlambdaarg.h"
 #include "hover/hover.h"
 #include "lsp/jsonrpc.h"
 #include "parser/parser.h"
@@ -31,7 +32,12 @@ Analysis analyze(
         state, document.source, document.path, document.basePath, targetPos
     );
     analysis.exprPath.back().e->bindVars(state, state.staticBaseEnv);
+    getLambdaArgs(state, analysis);
     calculateEnvs(state, analysis);
+    for (auto i : analysis.exprPath) {
+        std::cerr << exprTypeName(i.e) << " ";
+    }
+    std::cerr << "\n";
     return analysis;
 }
 

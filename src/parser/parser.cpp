@@ -183,7 +183,9 @@ struct Parser {
         if (lookaheadMatches({'{', ID, ','}) ||
             lookaheadMatches({'{', ID, '?'}) ||
             lookaheadMatches({'{', '}', ':'}) ||
-            lookaheadMatches({'{', '}', '@'})) {
+            lookaheadMatches({'{', '}', '@'}) ||
+            lookaheadMatches({'{', ID, '}', ':'}) ||
+            lookaheadMatches({'{', ID, '}', '@'})) {
             auto start = current().range.start;
             accept('{');
             auto fs = formals();

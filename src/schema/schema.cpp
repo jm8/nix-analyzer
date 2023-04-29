@@ -12,42 +12,9 @@
 #include <utility>
 #include <vector>
 #include "common/analysis.h"
-#include "common/loadfile.h"
+#include "common/evalutil.h"
 #include "common/logging.h"
 #include "hover/hover.h"
-
-nix::Value* makeAttrs(
-    nix::EvalState& state,
-    std::vector<std::pair<std::string_view, nix::Value*>> binds
-) {
-    auto bindings = state.buildBindings(binds.size());
-    for (auto [a, b] : binds) {
-        bindings.insert(state.symbols.create(a), b);
-    }
-    auto result = state.allocValue();
-    result->mkAttrs(bindings.finish());
-    return result;
-}
-
-nix::Value* _nixpkgsValue = nullptr;
-
-nix::Value* nixpkgsValue(nix::EvalState& state) {
-    if (_nixpkgsValue == nullptr) {
-        auto pkgsFunction = state.allocValue();
-        state.evalFile(
-            "/nix/store/xif4dbqvi7bmcwfxiqqhq0nr7ax07liw-source", *pkgsFunction
-        );
-
-        auto arg = state.allocValue();
-        arg->mkAttrs(state.allocBindings(0));
-
-        auto pkgs = state.allocValue();
-        state.callFunction(*pkgsFunction, *arg, *pkgs, nix::noPos);
-
-        _nixpkgsValue = pkgs;
-    }
-    return _nixpkgsValue;
-}
 
 nix::Value* functionDescriptionValue(
     nix::EvalState& state,
@@ -95,7 +62,7 @@ struct SchemaRoot {
 };
 
 size_t fileRootIndex(const Analysis& analysis) {
-    for (size_t i = analysis.exprPath.size() - 1; i-- > 0;) {
+    for (int i = analysis.exprPath.size() - 1; i >= 0; i--) {
         if (dynamic_cast<nix::ExprLambda*>(analysis.exprPath[i].e) ||
             dynamic_cast<nix::ExprWith*>(analysis.exprPath[i].e) ||
             dynamic_cast<nix::ExprLet*>(analysis.exprPath[i].e)) {

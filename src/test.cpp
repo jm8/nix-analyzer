@@ -113,6 +113,8 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
         actualExprPath.push_back(exprTypeName(e.e));
     }
 
+    ASSERT_EQ(actual, expected) << source;
+
     if (hasAttr(state, v, "expectedAttrPath")) {
         ASSERT_TRUE(analysis.attr.has_value());
         auto expectedAttrPath = getString(state, v, "expectedAttrPath");
@@ -142,7 +144,6 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
         ASSERT_FALSE(analysis.arg);
     }
 
-    ASSERT_EQ(actual, expected) << source;
     ASSERT_EQ(actualExprPath, expectedExprPath) << source;
     ASSERT_EQ(actualErrors, expectedErrors) << source;
 }
