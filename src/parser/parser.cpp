@@ -977,7 +977,12 @@ struct Parser {
         auto path = new nix::AttrPath;
 
         while (true) {
-            auto start = current().range.start;
+            Position start;
+            if (path->size() > 0) {
+                start = previous().range.end;
+            } else {
+                start = current().range.start;
+            }
             if (auto id = accept(ID)) {
                 auto name = get<std::string>(id->val);
                 path->push_back(state.symbols.create(name));
