@@ -598,11 +598,12 @@ struct Parser {
         }
         if (auto spath = accept(SPATH)) {
             auto path = get<std::string>(spath->val);
+            auto pathWithoutAngleBrackets = path.substr(1, path.length() - 2);
             auto e = new nix::ExprCall(
                 posIdx(start),
                 new nix::ExprVar(state.symbols.create("__findFile")),
                 {new nix::ExprVar(state.symbols.create("__nixPath")),
-                 new nix::ExprString(path)}
+                 new nix::ExprString(pathWithoutAngleBrackets)}
             );
             visit(e, previous().range);
             return e;
