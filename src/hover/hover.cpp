@@ -323,21 +323,21 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
         return {};
     }
     auto j = getExprForLevel(analysis, var->level);
-    if (!j) {
-        return {};
-    }
-    auto e = analysis.exprPath[*j].e;
-    if (auto let = dynamic_cast<nix::ExprLet*>(e)) {
-        auto attr = let->attrs->attrs.find(var->name);
-        if (attr == let->attrs->attrs.end()) {
-            std::cerr << "didn't find the attr in let";
-            return {};
+    if (j) {
+        auto e = analysis.exprPath[*j].e;
+        if (auto let = dynamic_cast<nix::ExprLet*>(e)) {
+            auto attr = let->attrs->attrs.find(var->name);
+            if (attr == let->attrs->attrs.end()) {
+                std::cerr << "didn't find the attr in let";
+                return {};
+            }
+            std::cerr << "FILE: " << state.positions[attr->second.pos].file
+                      << "\n";
+            Location loc = state.positions[attr->second.pos];
+            return {{documentationValue(state, v), loc}};
         }
-        std::cerr << "FILE: " << state.positions[attr->second.pos].file << "\n";
-        Location loc = state.positions[attr->second.pos];
-        return {{documentationValue(state, v), loc}};
     }
-    return {{documentationValue(state, v)}};
+    return {{documentationValue(state, v), {}}};
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
