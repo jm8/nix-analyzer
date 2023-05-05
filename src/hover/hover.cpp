@@ -336,6 +336,30 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
             Location loc = state.positions[attr->second.pos];
             return {{documentationValue(state, v), loc}};
         }
+        if (auto with = dynamic_cast<nix::ExprWith*>(e)) {
+            auto withChildEnv = analysis.exprPath[*j - 1].env;
+            if (withChildEnv->type != nix::Env::HasWithAttrs) {
+                std::cerr
+                    << "the env of this with should be HasWithAttrs because "
+                       "the expression has been evaluated\n";
+                return {};
+            }
+            nix::Value* attrs = *withChildEnv->values;
+            if (attrs->type() != nix::nAttrs) {
+                std::cerr << "the with expression should be attrs\n";
+                return {};
+            }
+            auto attr = attrs->attrs->find(var->name);
+            Location loc = state.positions[attr->pos];
+            std::stringstream ss;
+            ss << documentationValue(state, v);
+            ss << "\n\n---\n\n```nix\n";
+            // ss << "# line " << state.positions[with->pos].line << "\n";
+            ss << "with ";
+            with->attrs->show(state.symbols, ss);
+            ss << "; /* ... */ \n```";
+            return {{ss.str(), loc}};
+        }
     }
     return {{documentationValue(state, v), {}}};
 }
