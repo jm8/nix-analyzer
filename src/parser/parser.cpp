@@ -26,28 +26,21 @@
 struct Parser {
     nix::EvalState& state;
     Analysis& analysis;
-    std::string source;
     Position targetPos;
     bool justReportedError = false;
 
-    Tokenizer tokenizer = Tokenizer{state, analysis.path, source};
+    Tokenizer tokenizer = Tokenizer{state, analysis.path, analysis.source};
     // tokens[0] == previous()
     // tokens[1] == current() == lookahead(0)
     // tokens[2...] == lookahead(1), lookahead(2), ...
     // tokens.size() >= 4 but may be more
     std::deque<Token> tokens;
 
-    Parser(
-        nix::EvalState& state,
-        Analysis& analysis,
-        std::string source,
-        Position targetPos
-    )
+    Parser(nix::EvalState& state, Analysis& analysis, Position targetPos)
         : state(state),
           analysis(analysis),
-          source(source),
           targetPos(targetPos),
-          tokenizer(state, analysis.path, source),
+          tokenizer(state, analysis.path, analysis.source),
           tokens(4) {
         tokens[0].type = YYEOF;
         tokens[1] = tokenizer.advance();
@@ -1093,13 +1086,13 @@ Analysis parse(
     Analysis analysis;
     analysis.path = path;
     analysis.basePath = basePath;
+    analysis.source = source;
 
-    Parser parser{state, analysis, source, targetPos};
+    Parser parser{state, analysis, targetPos};
     auto e = parser.expr();
     if (analysis.exprPath.empty()) {
         analysis.exprPath.push_back(e);
     }
-
     analysis.exprPath.back().e->bindVars(state, state.staticBaseEnv);
 
     return analysis;

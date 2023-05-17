@@ -4,12 +4,15 @@
 #include <nix/nixexpr.hh>
 #include <nix/pos.hh>
 #include <nix/symbol-table.hh>
+#include <nix/util.hh>
 #include <nix/value.hh>
 #include <boost/algorithm/string/replace.hpp>
 #include <iostream>
 #include <optional>
 #include <ostream>
 #include <sstream>
+#include <string>
+#include <string_view>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
 #include "common/evalutil.h"
@@ -92,6 +95,62 @@ std::string documentationLambda(nix::EvalState& state, nix::Value* v) {
     }
     ss << "`*\n";
     return ss.str();
+}
+
+std::string getUriSource(const Analysis& analysis, std::string_view uri) {
+    std::string_view prefix = "file://";
+    if (uri.starts_with(prefix)) {
+        auto path = uri.substr(prefix.size());
+        if (path == analysis.path) {
+            return analysis.source;
+        }
+        return nix::readFile(std::string{path});
+    }
+    return "";
+}
+
+std::string documentationComment(
+    const Analysis& analysis,
+    const Location& loc
+) {
+    std::cerr << "loc " << loc << "\n";
+    std::string source = getUriSource(analysis, loc.uri);
+    std::istringstream ss{source};
+    std::string line;
+    int linenum = 0;
+    std::stringstream currentComment;
+    auto getLineComment = [](std::string_view s
+                          ) -> std::optional<std::string_view> {
+        auto a = s.find_first_not_of(" \t");
+        if (a == std::string_view::npos) {
+            return "";
+        }
+        if (s[a] != '#') {
+            return {};
+        }
+        auto b = s.find_first_not_of(" \t", a + 1);
+        if (b == std::string_view::npos) {
+            return "";
+        }
+        return s.substr(b);
+    };
+    while (std::getline(ss, line)) {
+        std::cerr << linenum << " " << line << "\n";
+        std::cerr << currentComment.str() << "\n";
+        if (linenum == loc.range.start.line) {
+            return currentComment.str();
+        }
+        if (auto lineComment = getLineComment(line)) {
+            std::cerr << "Line has comment\n";
+            currentComment << *lineComment << "\n";
+            std::cerr << "currentComment = " << currentComment.str() << "\n";
+        } else {
+            std::cerr << "Line hasn't comment\n";
+            currentComment.str("");
+        }
+        linenum++;
+    }
+    return "";
 }
 
 void printValue(
@@ -190,7 +249,11 @@ std::string valueType(nix::Value* v) {
     }
 }
 
-std::string documentationValue(nix::EvalState& state, nix::Value* v) {
+std::string documentationValue(
+    const Analysis& analysis,
+    nix::EvalState& state,
+    nix::Value* v
+) {
     try {
         state.forceValue(*v, nix::noPos);
     } catch (nix::Error& e) {
@@ -204,7 +267,10 @@ std::string documentationValue(nix::EvalState& state, nix::Value* v) {
         return documentationDerivation(state, v);
     }
     if (v->isLambda()) {
-        return documentationLambda(state, v);
+        // return documentationLambda(state, v);
+        return documentationComment(
+            analysis, state.positions[v->lambda.fun->pos]
+        );
     }
 
     std::stringstream ss;
@@ -263,7 +329,7 @@ std::optional<HoverResult> hoverSelect(
         result.definitionPos = loc;
     }
     // result.markdown = ss.str();
-    result.markdown += documentationValue(state, attr->value);
+    result.markdown += documentationValue(analysis, state, attr->value);
     return result;
 }
 
@@ -334,7 +400,7 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
             std::cerr << "FILE: " << state.positions[attr->second.pos].file
                       << "\n";
             Location loc = state.positions[attr->second.pos];
-            return {{documentationValue(state, v), loc}};
+            return {{documentationValue(analysis, state, v), loc}};
         }
         if (auto with = dynamic_cast<nix::ExprWith*>(e)) {
             auto withChildEnv = analysis.exprPath[*j - 1].env;
@@ -352,7 +418,7 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
             auto attr = attrs->attrs->find(var->name);
             Location loc = state.positions[attr->pos];
             std::stringstream ss;
-            ss << documentationValue(state, v);
+            ss << documentationValue(analysis, state, v);
             ss << "\n\n---\n\n```nix\n";
             // ss << "# line " << state.positions[with->pos].line << "\n";
             ss << "with ";
@@ -361,7 +427,7 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
             return {{ss.str(), loc}};
         }
     }
-    return {{documentationValue(state, v), {}}};
+    return {{documentationValue(analysis, state, v), {}}};
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {

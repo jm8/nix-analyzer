@@ -35,6 +35,7 @@ struct Analysis {
     TraceableVector<ExprPathItem> exprPath;
     std::vector<Diagnostic> parseErrors;
     std::string path;
+    std::string source;
     std::string basePath;
     std::optional<ParseResultAttrPath> attr;
     std::optional<nix::Formal> formal;
