@@ -108,6 +108,10 @@ std::optional<CompletionResult> completionAttrsSchema(
     auto attrs = dynamic_cast<nix::ExprAttrs*>(analysis.exprPath.front().e);
     if (!attrs)
         return {};
+    if (analysis.inherit) {
+        // fall back to completionVar
+        return {};
+    }
     std::cerr << "completionAttrsSchema\n";
     auto schema = getSchema(state, analysis);
     state.forceValue(*schema.value, nix::noPos);

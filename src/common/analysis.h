@@ -29,6 +29,12 @@ struct ExprPathItem {
     std::optional<nix::Value*> lambdaArg;
 
     ExprPathItem(nix::Expr* e);
+    ExprPathItem(nix::Expr* e, nix::Env* env);
+    ExprPathItem(
+        nix::Expr* e,
+        nix::Env* env,
+        std::optional<nix::Value*> lambdaArg
+    );
 };
 
 struct Analysis {

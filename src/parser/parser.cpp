@@ -927,7 +927,7 @@ struct Parser {
                 while (auto id = accept(ID)) {
                     auto symbol =
                         state.symbols.create(get<std::string>(id->val));
-                    if (id->range.contains(targetPos)) {
+                    if (id->range.extended().contains(targetPos)) {
                         analysis.inherit = {{symbol, inheritFrom}};
                     }
                     if (attrs->attrs.find(symbol) != attrs->attrs.end()) {
@@ -943,6 +943,12 @@ struct Parser {
                     attrs->attrs.emplace(
                         symbol, nix::ExprAttrs::AttrDef(def, pos, !inheritFrom)
                     );
+                }
+                if (Range{previous().range.end, current().range.start}
+                        .extended()
+                        .contains(targetPos)) {
+                    analysis.inherit = {
+                        {state.symbols.create(""), inheritFrom}};
                 }
             } else {
                 auto attrPathStart = current().range.start;
