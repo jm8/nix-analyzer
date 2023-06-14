@@ -286,6 +286,7 @@ std::optional<HoverResult> hoverSelect(
     nix::EvalState& state,
     Analysis& analysis
 ) {
+    std::cerr << "hover select\n";
     auto select = dynamic_cast<nix::ExprSelect*>(analysis.exprPath.front().e);
     if (!select) {
         return {};
@@ -374,7 +375,6 @@ std::optional<size_t> getExprForLevel(
 }
 
 std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
-    std::cerr << "HOVER VAR CALLED\n";
     auto var = dynamic_cast<nix::ExprVar*>(analysis.exprPath.front().e);
     if (!var) {
         return {};
@@ -436,37 +436,35 @@ std::optional<HoverResult> hoverInherit(
     if (!analysis.inherit)
         return {};
 
-    if (analysis.inherit->e) {
-        return {{"Hover inherit (e)"}};
-    } else {
-        if (auto attrs =
-                dynamic_cast<nix::ExprAttrs*>(analysis.exprPath.front().e)) {
-            auto it = attrs->attrs.find(analysis.inherit->symbol);
-            if (it == attrs->attrs.end()) {
-                return {};
-            }
-            analysis.exprPath.insert(
-                analysis.exprPath.begin(),
-                ExprPathItem{it->second.e, analysis.exprPath.front().env, {}}
-            );
-            auto result = hoverVar(state, analysis);
-            analysis.exprPath.erase(
-                analysis.exprPath.begin(), analysis.exprPath.begin() + 1
-            );
-            return result;
+    if (auto attrs =
+            dynamic_cast<nix::ExprAttrs*>(analysis.exprPath.front().e)) {
+        auto it = attrs->attrs.find(analysis.inherit->symbol);
+        if (it == attrs->attrs.end()) {
+            return {};
         }
+        analysis.exprPath.insert(
+            analysis.exprPath.begin(),
+            ExprPathItem{it->second.e, analysis.exprPath.front().env, {}}
+        );
+        if (analysis.inherit->e) {
+            analysis.attr = {0, new nix::AttrPath{analysis.inherit->symbol}};
+        }
+        analysis.inherit = {};
+        auto result = hover(state, analysis);
+        return result;
     }
     return {};
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
+    std::cerr << stringify(state, analysis.exprPath.front().e) << "\n";
     std::optional<HoverResult> result;
+    if (!result)
+        result = hoverInherit(state, analysis);
     if (!result)
         result = hoverSelect(state, analysis);
     if (!result)
         result = hoverAttr(state, analysis);
-    if (!result)
-        result = hoverInherit(state, analysis);
     if (!result)
         result = hoverVar(state, analysis);
     return result;

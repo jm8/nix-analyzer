@@ -109,8 +109,27 @@ std::optional<CompletionResult> completionAttrsSchema(
     if (!attrs)
         return {};
     if (analysis.inherit) {
-        // fall back to completionVar
-        return {};
+        if (analysis.inherit->e) {
+            // inherit (e) ...
+            CompletionResult result;
+            nix::Value v;
+            try {
+                auto env = analysis.exprPath.front().env;
+                (*analysis.inherit->e)->eval(state, *env, v);
+                state.forceAttrs(v, nix::noPos);
+            } catch (nix::Error& e) {
+                REPORT_ERROR(e);
+                return result;
+            }
+            for (auto [symbol, pos, subValue] : *v.attrs) {
+                result.items.push_back(state.symbols[symbol]);
+            }
+            return result;
+        } else {
+            // inherit ...
+            // fall back to completionVar
+            return {};
+        }
     }
     std::cerr << "completionAttrsSchema\n";
     auto schema = getSchema(state, analysis);

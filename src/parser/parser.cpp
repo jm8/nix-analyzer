@@ -924,7 +924,9 @@ struct Parser {
                     inheritFrom = expr();
                     expect(')');
                 }
+                bool foundInherit = false;
                 while (auto id = accept(ID)) {
+                    foundInherit = true;
                     auto symbol =
                         state.symbols.create(get<std::string>(id->val));
                     if (id->range.extended().contains(targetPos)) {
@@ -949,6 +951,21 @@ struct Parser {
                         .contains(targetPos)) {
                     analysis.inherit = {
                         {state.symbols.create(""), inheritFrom}};
+                }
+                if (!foundInherit && inheritFrom.has_value()) {
+                    // if we don't do this, then for
+                    // {
+                    //    inherit (e) ;
+                    // }
+                    // bindVars will never happen on e and hover and
+                    // autocomplete wont work (throwing undef var error)
+                    auto symbol = state.symbols.create("");
+                    nix::Expr* def =
+                        new nix::ExprSelect(nix::noPos, *inheritFrom, symbol);
+                    attrs->attrs.emplace(
+                        symbol,
+                        nix::ExprAttrs::AttrDef(def, nix::noPos, !inheritFrom)
+                    );
                 }
             } else {
                 auto attrPathStart = current().range.start;
