@@ -18,8 +18,11 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include "calculateenv/calculateenv.h"
 #include "common/position.h"
 #include "common/stringify.h"
+#include "completion/completion.h"
+#include "getlambdaarg/getlambdaarg.h"
 #include "gtest/gtest.h"
 #include "parser/parser.h"
 
@@ -148,6 +151,32 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     ASSERT_EQ(actualErrors, expectedErrors) << source;
 }
 
+void runCompletionTest(nix::EvalState* state, nix::Value* v) {
+    std::cerr << "Running completion test\n";
+
+    auto source = getString(state, v, "source");
+
+    std::string path = "";
+
+    Position targetPos{
+        static_cast<uint32_t>(getInt(state, v, "line")),
+        static_cast<uint32_t>(getInt(state, v, "col")),
+    };
+
+    auto analysis = parse(*state, source, path, "/base-path", targetPos);
+
+    auto expected = getListOfStrings(state, v, "expected");
+
+    analysis.exprPath.back().e->bindVars(*state, state->staticBaseEnv);
+    getLambdaArgs(*state, analysis);
+    calculateEnvs(*state, analysis);
+    auto c = completion(*state, analysis);
+
+    const auto& actual = c.items;
+
+    ASSERT_EQ(actual, expected) << source;
+}
+
 TEST_P(FileTest, A) {
     auto v = state->allocValue();
     state->evalFile(nix::absPath(GetParam()), *v);
@@ -157,8 +186,13 @@ TEST_P(FileTest, A) {
         *v->attrs->get(state->symbols.create("type"))->value, nix::noPos
     );
 
-    ASSERT_EQ(type, "parse");
-    ASSERT_NO_FATAL_FAILURE(runParseTest(state, v));
+    if (type == "parse") {
+        ASSERT_NO_FATAL_FAILURE(runParseTest(state, v));
+    } else if (type == "completion") {
+        ASSERT_NO_FATAL_FAILURE(runCompletionTest(state, v));
+    } else {
+        FAIL() << "Test type must be parse or completion";
+    }
 }
 
 std::vector<std::string> arguments;
