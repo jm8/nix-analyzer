@@ -919,6 +919,7 @@ struct Parser {
         while (allow(INHERIT) || allow(ID)) {
             auto start = current().range.start;
             if (accept(INHERIT)) {
+                // inherited
                 std::optional<nix::Expr*> inheritFrom = {};
                 if (accept('(')) {
                     inheritFrom = expr();
@@ -968,6 +969,7 @@ struct Parser {
                     );
                 }
             } else {
+                // not inherited
                 auto attrPathStart = current().range.start;
                 auto path = attrPath();
                 auto attrPathEnd = previous().range.end;
@@ -984,6 +986,10 @@ struct Parser {
                     {attrPathStart, attrPathEnd},
                     {subExprStart, end}
                 );
+            }
+            if (accept(',')) {
+                error("expected ';', got ','", previous().range);
+                continue;
             }
             if (!expect(';')) {
                 continue;

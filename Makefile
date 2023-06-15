@@ -22,7 +22,7 @@ nix-analyzer-test: ${OBJ} build/test.o
 clean:
 	rm -rf nix-analyzer nix-analyzer-test parsertest build
 
-install:
+install: tests src
 	mkdir -p $(out)/bin
 	cp -f nix-analyzer $(out)/bin
 	cp nix-analyzer-test $(out)

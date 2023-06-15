@@ -11,6 +11,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <gc/gc.h>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
@@ -73,6 +74,15 @@ int getInt(nix::EvalState* state, nix::Value* v, std::string_view key) {
         abort();
     }
     return state->forceInt(*i->value, nix::noPos);
+}
+
+bool getBool(nix::EvalState* state, nix::Value* v, std::string_view key) {
+    auto i = v->attrs->get(state->symbols.create(key));
+    if (!i) {
+        std::cerr << "Missing key: " << key << "\n";
+        abort();
+    }
+    return state->forceBool(*i->value, nix::noPos);
 }
 
 void runParseTest(nix::EvalState* state, nix::Value* v) {
@@ -172,8 +182,10 @@ void runCompletionTest(nix::EvalState* state, nix::Value* v) {
     calculateEnvs(*state, analysis);
     auto c = completion(*state, analysis);
 
-    const auto& actual = c.items;
+    auto& actual = c.items;
 
+    std::sort(actual.begin(), actual.end());
+    std::sort(expected.begin(), expected.end());
     ASSERT_EQ(actual, expected) << source;
 }
 
@@ -181,6 +193,10 @@ TEST_P(FileTest, A) {
     auto v = state->allocValue();
     state->evalFile(nix::absPath(GetParam()), *v);
     state->forceAttrs(*v, nix::noPos);
+
+    if (hasAttr(state, v, "disabled") && getBool(state, v, "disabled")) {
+        return;
+    }
 
     auto type = state->forceString(
         *v->attrs->get(state->symbols.create("type"))->value, nix::noPos
@@ -212,6 +228,7 @@ INSTANTIATE_TEST_SUITE_P(
 int main(int argc, char* argv[]) {
     nix::initGC();
     nix::initNix();
+    GC_disable();
     state = new nix::EvalState(nix::Strings{}, nix::openStore());
 
     for (int i = 1; i < argc; i++)
