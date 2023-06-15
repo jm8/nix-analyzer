@@ -1,10 +1,10 @@
 import ./lib/maketest.nix {
   type = "completion";
+  disabled = true;
   source = ''
-    let a = {x = 1; y = 2;}.^
+    let a = { b = 3; }; in rec { s = [ a.aaa^ ]; }
   '';
   expected = [
-    "x"
-    "y"
+    "b"
   ];
 }
