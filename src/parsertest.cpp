@@ -17,10 +17,9 @@
 #include "common/stringify.h"
 #include "parser/parser.h"
 
-// current progress:
-// 26740 / 27150
+int currentProgress = 26996;
 
-bool verbose = false;
+bool hasArgv = false;
 
 bool check_consistency(nix::EvalState& state, std::string path) {
     std::cout << path << " ";
@@ -42,7 +41,7 @@ bool check_consistency(nix::EvalState& state, std::string path) {
     auto actualS = stringify(state, actual);
     auto expectedS = stringify(state, expected);
 
-    if (verbose) {
+    if (hasArgv) {
         std::cerr << "ACTUAL\n" << actualS << "\n";
         for (auto err : analysis.parseErrors) {
             std::cerr << err.message << " " << err.range << "\n";
@@ -89,7 +88,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::string> paths;
     if (argc >= 2) {
-        verbose = true;
+        hasArgv = true;
         for (int i = 1; i < argc; i++) {
             paths.push_back(argv[i]);
         }
@@ -103,4 +102,12 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << good << " / " << total << "\n";
+
+    if (!hasArgv && good < currentProgress) {
+        return 1;
+    }
+
+    if (hasArgv && good < total) {
+        return 1;
+    }
 }

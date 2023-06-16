@@ -153,8 +153,8 @@ struct Parser {
         LET,
     };
     const std::vector<TokenType> allowedExprStarts{
-        ASSERT, WITH, LET, IF,  ID,  OR_KW, INT,  FLOAT, '"',   IND_STRING_OPEN,
-        REC,    '(',  '{', '[', '-', '!',   PATH, HPATH, SPATH,
+        ASSERT, WITH, LET, IF,  ID,  OR_KW, INT, FLOAT, '"',   IND_STRING_OPEN,
+        REC,    '(',  '{', '[', '+', '-',   '!', PATH,  HPATH, SPATH,
     };
 
     nix::Expr* expr() {
@@ -178,7 +178,8 @@ struct Parser {
             lookaheadMatches({'{', '}', ':'}) ||
             lookaheadMatches({'{', '}', '@'}) ||
             lookaheadMatches({'{', ID, '}', ':'}) ||
-            lookaheadMatches({'{', ID, '}', '@'})) {
+            lookaheadMatches({'{', ID, '}', '@'}) ||
+            lookaheadMatches({'{', ELLIPSIS})) {
             auto start = current().range.start;
             accept('{');
             auto fs = formals();
@@ -292,6 +293,8 @@ struct Parser {
                 return {60, BindingPower::RIGHT};
             case '+':
                 return {80, BindingPower::LEFT};
+            // case '-':
+            //     return {80, BindingPower::LEFT};
             case '*':
                 return {90, BindingPower::LEFT};
             case CONCAT:
@@ -436,18 +439,9 @@ struct Parser {
     nix::Expr* expr_app() {
         auto start = current().range.start;
         auto f = expr_select();
-        if (allow(allowedExprStarts)) {
+        if (allow(allowedExprStarts) && !allow({'+', '-'})) {
             auto call = new nix::ExprCall(posIdx(start), f, {});
-            while (allow(allowedExprStarts)) {
-                // we want
-                // { a = a b c d.e.f = 2; }
-                // to be parsed as
-                // { a = a b c; d.e.f = 2; }
-                // check if looking at potential attrpath
-                // but that breaks "${a b}" so nevermind
-                // if (lookaheadBind()) {
-                //     break;
-                // }
+            while (allow(allowedExprStarts) && !allow({'+', '-'})) {
                 call->args.push_back(expr_select());
             }
             auto end = previous().range.end;
@@ -480,9 +474,7 @@ struct Parser {
         auto start = current().range.start;
         if (!allow(allowedExprStarts)) {
             auto missingStart = previous().range.end;
-            while (!allow({';', '}',    ']', ')', IN,     YYEOF, IMPL,
-                           OR,  AND,    EQ,  NEQ, '<',    '>',   LEQ,
-                           GEQ, UPDATE, '+', '*', CONCAT, '?'})) {
+            while (!allow({';', '}', ']', ')', IN, YYEOF, IMPL})) {
                 consume();
             }
             auto e = missing();
