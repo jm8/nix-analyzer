@@ -13,11 +13,14 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 #include "common/stringify.h"
 #include "parser/parser.h"
 
 // current progress:
-// 23326 / 27150
+// 26219 / 27150
+
+bool verbose = false;
 
 bool check_consistency(nix::EvalState& state, std::string path) {
     std::cout << path << " ";
@@ -39,12 +42,14 @@ bool check_consistency(nix::EvalState& state, std::string path) {
     auto actualS = stringify(state, actual);
     auto expectedS = stringify(state, expected);
 
-    // std::cerr << "ACTUAL\n" << actualS << "\n";
-    // for (auto err : analysis.parseErrors) {
-    //     std::cerr << err.message << " " << err.range << "\n";
-    // }
-    // std::cerr << "\n";
-    // std::cerr << "EXPECTED\n" << expectedS << "\n\n";
+    if (verbose) {
+        std::cerr << "ACTUAL\n" << actualS << "\n";
+        for (auto err : analysis.parseErrors) {
+            std::cerr << err.message << " " << err.range << "\n";
+        }
+        std::cerr << "\n";
+        std::cerr << "EXPECTED\n" << expectedS << "\n\n";
+    }
 
     if (actualS == expectedS) {
         std::cout << "GOOD\n";
@@ -55,6 +60,24 @@ bool check_consistency(nix::EvalState& state, std::string path) {
     };
 }
 
+std::vector<std::string> nixpkgs_paths(nix::EvalState& state) {
+    auto searchPath = state.getSearchPath();
+    auto it = std::find_if(
+        searchPath.begin(),
+        searchPath.end(),
+        [](const nix::SearchPathElem& e) { return e.first == "nixpkgs"; }
+    );
+    assert(it != searchPath.end());
+    std::string nixpkgs = it->second;
+    std::vector<std::string> paths;
+    for (auto f : std::filesystem::recursive_directory_iterator(nixpkgs)) {
+        if (f.path().extension() == ".nix") {
+            paths.push_back(f.path());
+        }
+    }
+    return paths;
+}
+
 int main(int argc, char* argv[]) {
     nix::initGC();
     nix::initNix();
@@ -63,19 +86,19 @@ int main(int argc, char* argv[]) {
 
     int good = 0;
     int total = 0;
-    // std::string nixpkgs = state->findFile("nixpkgs");
-    auto searchPath = state->getSearchPath();
-    auto it = std::find_if(
-        searchPath.begin(),
-        searchPath.end(),
-        [](const nix::SearchPathElem& e) { return e.first == "nixpkgs"; }
-    );
-    assert(it != searchPath.end());
-    std::string nixpkgs = it->second;
-    for (auto f : std::filesystem::recursive_directory_iterator(nixpkgs)) {
-        if (f.path().extension() != ".nix")
-            continue;
-        good += check_consistency(*state, f.path());
+
+    std::vector<std::string> paths;
+    if (argc >= 2) {
+        verbose = true;
+        for (int i = 1; i < argc; i++) {
+            paths.push_back(argv[i]);
+        }
+    } else {
+        paths = nixpkgs_paths(*state);
+    }
+
+    for (auto path : paths) {
+        good += check_consistency(*state, path);
         total++;
     }
 

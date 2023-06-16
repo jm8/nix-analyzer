@@ -3,11 +3,11 @@ import ./lib/maketest.nix {
   source = ''
     ${"''"}
       abc
-      ${"$"}{hello}
+      ${"$"}{hello world}
     ${"''"}
   '';
   expected = ''
-    ("abc\n" + hello + "\n")
+    ("abc\n" + (hello world) + "\n")
   '';
   expectedExprPath = [ "ExprConcatStrings" ];
 }

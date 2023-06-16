@@ -436,7 +436,6 @@ struct Parser {
     nix::Expr* expr_app() {
         auto start = current().range.start;
         auto f = expr_select();
-
         if (allow(allowedExprStarts)) {
             auto call = new nix::ExprCall(posIdx(start), f, {});
             while (allow(allowedExprStarts)) {
@@ -445,8 +444,10 @@ struct Parser {
                 // to be parsed as
                 // { a = a b c; d.e.f = 2; }
                 // check if looking at potential attrpath
-                if (lookaheadBind())
-                    break;
+                // but that breaks "${a b}" so nevermind
+                // if (lookaheadBind()) {
+                //     break;
+                // }
                 call->args.push_back(expr_select());
             }
             auto end = previous().range.end;
@@ -644,7 +645,6 @@ struct Parser {
         if (allow(allowedKeywordExprStarts)) {
             return keyword_expression(false, &Parser::expr_simple);
         }
-        std::cerr << tokenName(current().type) << "\n";
         assert(false);
     }
 
@@ -687,8 +687,11 @@ struct Parser {
                      std::get<NAStringToken>(s->val)}
                 );
             } else if (accept(DOLLAR_CURLY)) {
-                parts.push_back({posIdx(current().range.start), expr()});
+                accept(DOLLAR_CURLY);
+                auto start = current().range.start;
+                auto e = expr();
                 expect('}');
+                parts.push_back({posIdx(start), e});
             } else {
                 return parts;
             }
@@ -1018,6 +1021,17 @@ struct Parser {
                 path->push_back(expr());
                 dynamic = true;
                 expect('}');
+            } else if (accept('"')) {
+                auto e = string_parts();
+                expect('"');
+                auto str = dynamic_cast<nix::ExprString*>(e);
+                if (str) {
+                    path->push_back(state.symbols.create(str->s));
+                    delete str;
+                } else {
+                    path->push_back(e);
+                    dynamic = true;
+                }
             } else {
                 auto dotPosition = previous().range.start;
                 auto nextTokenPosition = current().range.start;
