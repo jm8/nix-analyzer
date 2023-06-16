@@ -1008,11 +1008,16 @@ struct Parser {
             } else {
                 start = current().range.start;
             }
+            bool dynamic = false;
             if (auto id = accept(ID)) {
                 auto name = get<std::string>(id->val);
                 path->push_back(state.symbols.create(name));
             } else if (accept(OR_KW)) {
                 path->push_back(state.symbols.create("or"));
+            } else if (accept(DOLLAR_CURLY)) {
+                path->push_back(expr());
+                dynamic = true;
+                expect('}');
             } else {
                 auto dotPosition = previous().range.start;
                 auto nextTokenPosition = current().range.start;
@@ -1028,7 +1033,7 @@ struct Parser {
                 break;
             }
             auto end = previous().range.end;
-            if (Range{start, end}.extended().contains(targetPos)) {
+            if (!dynamic && Range{start, end}.extended().contains(targetPos)) {
                 analysis.attr = {path->size() - 1, path};
             }
             if (!accept('.')) {
