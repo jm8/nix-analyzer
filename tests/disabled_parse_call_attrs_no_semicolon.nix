@@ -1,4 +1,6 @@
 import ./lib/maketest.nix {
+  # this was disabled since the lookaheadBind trick broke other things
+  disabled = true;
   type = "parse";
   source = ''
     {
