@@ -18,7 +18,7 @@
 #include "parser/parser.h"
 
 // current progress:
-// 26219 / 27150
+// 26740 / 27150
 
 bool verbose = false;
 

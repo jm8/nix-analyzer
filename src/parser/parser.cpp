@@ -253,7 +253,7 @@ struct Parser {
             auto body = (this->*subExpr)();
             result = new nix::ExprWith(posIdx(start), attrs, body);
         } else if (accept(LET)) {
-            auto attrs = binds();
+            auto attrs = binds(false);
             expect(IN);
             auto body = (this->*subExpr)();
             result = new nix::ExprLet(attrs, body);
@@ -606,7 +606,7 @@ struct Parser {
         }
         // '{' binds '}'
         if (accept('{')) {
-            auto e = binds();
+            auto e = binds(true);
             expect('}');
             visit(e, {start, previous().range.end});
             return e;
@@ -614,7 +614,7 @@ struct Parser {
         // 'REC' '{' binds '}'
         if (accept(REC)) {
             expect('{');
-            auto e = binds();
+            auto e = binds(true);
             expect('}');
             e->recursive = true;
             visit(e, {start, previous().range.end});
@@ -898,28 +898,9 @@ struct Parser {
         }
     }
 
-    bool lookaheadBind() {
-        size_t i = 0;
-        if (allow({IN, '}'}))
-            return false;
-        while (lookahead(i).type == ID || lookahead(i).type == OR_KW) {
-            if (lookahead(i + 1).type == '.') {
-                i += 2;
-            } else {
-                i += 1;
-                break;
-            }
-        }
-        if (lookahead(i).type == '=' || lookahead(i).type == IN ||
-            lookahead(i).type == '}') {
-            return true;
-        }
-        return false;
-    }
-
-    nix::ExprAttrs* binds() {
+    nix::ExprAttrs* binds(bool allowDynamic) {
         auto attrs = new nix::ExprAttrs(posIdx(current().range.start));
-        while (allow(INHERIT) || allow(ID)) {
+        while (allow({INHERIT, ID, DOLLAR_CURLY, '"'})) {
             auto start = current().range.start;
             if (accept(INHERIT)) {
                 // inherited
@@ -975,6 +956,13 @@ struct Parser {
                 // not inherited
                 auto attrPathStart = current().range.start;
                 auto path = attrPath();
+                bool isDynamic = false;
+                for (auto el : *path) {
+                    if (!el.symbol) {
+                        isDynamic = true;
+                        break;
+                    }
+                }
                 auto attrPathEnd = previous().range.end;
                 if (!expect('=')) {
                     continue;
@@ -982,13 +970,20 @@ struct Parser {
                 auto subExprStart = current().range.start;
                 auto e = expr();
                 auto end = previous().range.end;
-                addAttr(
-                    attrs,
-                    *path,
-                    e,
-                    {attrPathStart, attrPathEnd},
-                    {subExprStart, end}
-                );
+                if (isDynamic && !allowDynamic) {
+                    error(
+                        "dynamic attrs are not allowed in let",
+                        {attrPathStart, attrPathEnd}
+                    );
+                } else {
+                    addAttr(
+                        attrs,
+                        *path,
+                        e,
+                        {attrPathStart, attrPathEnd},
+                        {subExprStart, end}
+                    );
+                }
             }
             if (accept(',')) {
                 error("expected ';', got ','", previous().range);
