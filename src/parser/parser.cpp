@@ -293,8 +293,8 @@ struct Parser {
                 return {60, BindingPower::RIGHT};
             case '+':
                 return {80, BindingPower::LEFT};
-            // case '-':
-            //     return {80, BindingPower::LEFT};
+            case '-':
+                return {80, BindingPower::LEFT};
             case '*':
                 return {90, BindingPower::LEFT};
             case CONCAT:
@@ -637,6 +637,11 @@ struct Parser {
         if (allow(allowedKeywordExprStarts)) {
             return keyword_expression(false, &Parser::expr_simple);
         }
+        if (allow(IF)) {
+            error("IF not allowed here", current().range);
+            return expr_if();
+        }
+        std::cerr << tokenName(current().type) << "\n";
         assert(false);
     }
 
@@ -902,18 +907,20 @@ struct Parser {
                     expect(')');
                 }
                 bool foundInherit = false;
-                while (auto id = accept(ID)) {
+                while (allow({ID, OR_KW})) {
+                    auto token = consume();
                     foundInherit = true;
-                    auto symbol =
-                        state.symbols.create(get<std::string>(id->val));
-                    if (id->range.extended().contains(targetPos)) {
+                    auto symbol = state.symbols.create(
+                        token.type == OR_KW ? "or" : get<std::string>(token.val)
+                    );
+                    if (token.range.extended().contains(targetPos)) {
                         analysis.inherit = {{symbol, inheritFrom}};
                     }
                     if (attrs->attrs.find(symbol) != attrs->attrs.end()) {
-                        error("duplicate attr", id->range);
+                        error("duplicate attr", token.range);
                         continue;
                     }
-                    auto pos = posIdx(id->range.start);
+                    auto pos = posIdx(token.range.start);
                     nix::Expr* def =
                         inheritFrom ? (nix::Expr*)new nix::ExprSelect(
                                           pos, *inheritFrom, symbol
