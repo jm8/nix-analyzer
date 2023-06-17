@@ -65,38 +65,6 @@ std::string documentationDerivation(nix::EvalState& state, nix::Value* v) {
     }
 }
 
-std::string documentationLambda(nix::EvalState& state, nix::Value* v) {
-    assert(v->isLambda());
-
-    nix::ExprLambda* lambda = v->lambda.fun;
-    Location loc{state.positions[v->lambda.fun->pos]};
-    std::stringstream ss;
-    ss << "### lambda `" << state.symbols[lambda->name] << "` *`";
-    if (lambda->hasFormals()) {
-        auto sep = "";
-        ss << "{ ";
-        for (auto formal : lambda->formals->formals) {
-            ss << sep << state.symbols[formal.name];
-            ss << "?";
-            sep = ", ";
-        }
-        if (lambda->formals->ellipsis) {
-            ss << sep << "...";
-        }
-        ss << " }";
-    } else {
-        nix::ExprLambda* curr = lambda;
-        auto sep = "";
-        while (curr) {
-            ss << sep << state.symbols[curr->arg];
-            curr = dynamic_cast<nix::ExprLambda*>(curr->body);
-            sep = " ";
-        }
-    }
-    ss << "`*\n";
-    return ss.str();
-}
-
 std::string getUriSource(const Analysis& analysis, std::string_view uri) {
     std::string_view prefix = "file://";
     if (uri.starts_with(prefix)) {
@@ -151,6 +119,43 @@ std::string documentationComment(
         linenum++;
     }
     return "";
+}
+
+std::string documentationLambda(
+    nix::EvalState& state,
+    const Analysis& analysis,
+    nix::Value* v
+) {
+    assert(v->isLambda());
+
+    nix::ExprLambda* lambda = v->lambda.fun;
+    Location loc{state.positions[v->lambda.fun->pos]};
+    std::stringstream ss;
+    ss << "### lambda `" << state.symbols[lambda->name] << "` *`";
+    if (lambda->hasFormals()) {
+        auto sep = "";
+        ss << "{ ";
+        for (auto formal : lambda->formals->formals) {
+            ss << sep << state.symbols[formal.name];
+            ss << "?";
+            sep = ", ";
+        }
+        if (lambda->formals->ellipsis) {
+            ss << sep << "...";
+        }
+        ss << " }";
+    } else {
+        nix::ExprLambda* curr = lambda;
+        auto sep = "";
+        while (curr) {
+            ss << sep << state.symbols[curr->arg];
+            curr = dynamic_cast<nix::ExprLambda*>(curr->body);
+            sep = " ";
+        }
+    }
+    ss << "`*\n\n";
+    ss << documentationComment(analysis, state.positions[v->lambda.fun->pos]);
+    return ss.str();
 }
 
 void printValue(
@@ -267,10 +272,7 @@ std::string documentationValue(
         return documentationDerivation(state, v);
     }
     if (v->isLambda()) {
-        // return documentationLambda(state, v);
-        return documentationComment(
-            analysis, state.positions[v->lambda.fun->pos]
-        );
+        return documentationLambda(state, analysis, v);
     }
 
     std::stringstream ss;

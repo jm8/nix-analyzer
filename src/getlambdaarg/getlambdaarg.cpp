@@ -19,7 +19,7 @@ std::optional<size_t> topLambdaIndex(const Analysis& analysis) {
 }
 
 nix::Value* getFileLambdaArg(nix::EvalState& state, const Analysis& analysis) {
-    return makeAttrs(state, {{"pkgs", nixpkgsValue(state)}});
+    return nixpkgsValue(state);
 }
 
 void getLambdaArgs(nix::EvalState& state, Analysis& analysis) {
