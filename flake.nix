@@ -35,7 +35,7 @@
               "-isystem${pkgs.nlohmann_json}/include"
               "-isystem${pkgs.boehmgc.dev}/include"
               "-L${pkgs.boehmgc}/lib"
-              "-lgc -lgccpp"
+              "-lgc"
               "-isystem${pkgs.gtest.dev}/include"
               "-L${pkgs.gtest}/lib"
               "-isystem${pkgs.nlohmann_json}/include"
