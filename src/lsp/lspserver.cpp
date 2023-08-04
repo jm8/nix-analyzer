@@ -15,6 +15,7 @@
 #include "common/position.h"
 #include "common/stringify.h"
 #include "completion/completion.h"
+#include "format/format.hpp"
 #include "getlambdaarg/getlambdaarg.h"
 #include "hover/hover.h"
 #include "lsp/jsonrpc.h"
@@ -94,6 +95,7 @@ void LspServer::run() {
                                      {"workspaceDiagnostics", false},
                                  }},
                                 {"definitionProvider", true},
+                                {"documentFormattingProvider", true},
                             },
                         },
                     },
@@ -161,6 +163,25 @@ void LspServer::run() {
                     request.id,
                     {{"kind", "full"}, {"items", diagnostics}},
                 });
+            } else if (request.method == "textDocument/formatting") {
+                std::string uri = request.params["textDocument"]["uri"];
+                const auto& document = documents[uri];
+                auto formatted = formatNix(document.source);
+                if (formatted) {
+                    std::cerr << "formatting successful\n";
+                    std::cerr << *formatted << "\n";
+                    conn.write(Response{
+                        request.id,
+                        {
+                            {
+                                {"range", Range{{0, 0}, {99999, 0}}},
+                                {"newText", *formatted},
+                            },
+                        }});
+                } else {
+                    conn.write(Response{
+                        request.id, nlohmann::json::value_t::null});
+                }
             }
         } else if (holds_alternative<Response>(message)) {
             std::cerr << "<-- response\n";

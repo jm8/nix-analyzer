@@ -32,6 +32,7 @@
               "-lnixmain -lnixexpr -lnixfetchers -lnixstore -lnixutil"
               "-isystem${pkgs.boost.dev}/include"
               "-L${pkgs.boost}/lib"
+              "-lboost_filesystem"
               "-isystem${pkgs.nlohmann_json}/include"
               "-isystem${pkgs.boehmgc.dev}/include"
               "-L${pkgs.boehmgc}/lib"
