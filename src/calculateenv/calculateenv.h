@@ -1,5 +1,5 @@
 #pragma once
-#include "config.h"
+#include "na_config.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include "common/analysis.h"
@@ -16,3 +16,11 @@ nix::Env* updateEnv(
 
 // initializes analysis.exprPath[].env
 void calculateEnvs(nix::EvalState& state, Analysis& analysis);
+
+nix::Env* updateEnv(
+    nix::EvalState& state,
+    nix::Expr* parent,
+    nix::Expr* child,
+    nix::Env* up,
+    std::optional<nix::Value*> lambdaArg
+);

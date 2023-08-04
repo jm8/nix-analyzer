@@ -1,5 +1,5 @@
 #pragma once
-#include "config.h"
+#include "na_config.h"
 #include <nix/parser-tab.hh>
 // lexer-tab must be included after parser-tab
 #include <nix/lexer-tab.hh>

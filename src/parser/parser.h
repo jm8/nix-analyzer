@@ -1,5 +1,5 @@
 #pragma once
-#include "config.h"
+#include "na_config.h"
 #include <nix/nixexpr.hh>
 #include <memory>
 #include <string>

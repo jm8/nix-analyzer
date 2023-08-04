@@ -1,4 +1,4 @@
-#include "config.h"
+#include "na_config.h"
 #include <nix/shared.hh>
 #include <nix/store-api.hh>
 #include <gc/gc.h>

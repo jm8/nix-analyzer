@@ -1,5 +1,5 @@
 #pragma once
-#include "config.h"
+#include "na_config.h"
 #include <cassert>
 #include <cstddef>
 #include <istream>

@@ -1,4 +1,4 @@
-#include "config.h"
+#include "na_config.h"
 #include <nix/nixexpr.hh>
 #include <fstream>
 #include <sstream>

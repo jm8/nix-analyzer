@@ -1,4 +1,4 @@
-#include "config.h"
+#include "na_config.h"
 #include <optional>
 #include <string>
 #include "common/analysis.h"

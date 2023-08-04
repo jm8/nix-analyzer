@@ -1,5 +1,5 @@
 #pragma once
-#include "config.h"
+#include "na_config.h"
 #include <nix/error.hh>
 #include <nix/eval.hh>
 #include <nix/parser-tab.hh>

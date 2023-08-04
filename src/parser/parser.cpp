@@ -1132,6 +1132,7 @@ Analysis parse(
 
     Parser parser{state, analysis, targetPos};
     auto e = parser.expr();
+    parser.expect(YYEOF);
     if (analysis.exprPath.empty()) {
         analysis.exprPath.push_back(e);
     }

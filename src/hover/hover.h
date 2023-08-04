@@ -1,5 +1,5 @@
 #pragma once
-#include "config.h"
+#include "na_config.h"
 #include <optional>
 #include <string>
 #include "common/position.h"

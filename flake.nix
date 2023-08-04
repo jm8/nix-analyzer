@@ -28,6 +28,7 @@
             CFLAGS = [
               "--std=c++20"
               "-isystem${nixfork.packages.${system}.default.dev}/include"
+              "-I${nixfork.packages.${system}.default.dev}/include/nix" # needed for flake.hh
               "-L${nixfork.packages.${system}.default}/lib"
               "-lnixmain -lnixexpr -lnixfetchers -lnixstore -lnixutil"
               "-isystem${pkgs.boost.dev}/include"
@@ -68,6 +69,7 @@
             nativeBuildInputs = with pkgs; [
               gdb
               valgrind
+              bear
             ];
             inherit nixpkgs;
             NIX_PATH = "nixpkgs=${nixpkgs}";

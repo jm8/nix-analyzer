@@ -1,4 +1,4 @@
-#include "config.h"
+#include "na_config.h"
 #include <nlohmann/json.hpp>
 #include <optional>
 #include "position.h"
