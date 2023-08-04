@@ -17,9 +17,12 @@
 nix::Value* evaluateFlake(
     nix::EvalState& state,
     nix::Expr* flake,
-    std::optional<std::string_view> lockFile,
+    std::optional<std::string_view> lockFileSource,
     std::vector<Diagnostic>& diagnostics
 ) {
+    using namespace nix::flake;
+    // 1. PARSE FLAKE FILE based on function getFlake
+
     auto v = state.allocValue();
     v->mkNull();
 
@@ -34,9 +37,12 @@ nix::Value* evaluateFlake(
         return v;
     }
 
+    std::map<nix::FlakeId, FlakeInput> inputs;
+
     const auto sDescription = state.symbols.create("description");
     const auto sInputs = state.symbols.create("inputs");
     const auto sOutputs = state.symbols.create("outputs");
+    const auto sNixConfig = state.symbols.create("nixConfig");
 
     bool outputsFound = false;
     for (auto [symbol, attr] : flakeAttrs->attrs) {
@@ -49,10 +55,7 @@ nix::Value* evaluateFlake(
                 );
                 continue;
             }
-        }
-        if (symbol == sInputs) {
-            std::cerr << "encounter sInputs"
-                      << "\n";
+        } else if (symbol == sInputs) {
             auto inputsAttrs = dynamic_cast<nix::ExprAttrs*>(attr.e);
             if (!inputsAttrs) {
                 diagnostics.push_back(
@@ -69,7 +72,7 @@ nix::Value* evaluateFlake(
                 std::cerr << "parsing flake input "
                           << stringify(state, inputValue) << "\n";
                 try {
-                    auto flakeInput = nix::flake::parseFlakeInput(
+                    auto flakeInput = parseFlakeInput(
                         state,
                         state.symbols[inputName],
                         inputValue,
@@ -84,8 +87,34 @@ nix::Value* evaluateFlake(
                     );
                 }
             }
+        } else if (symbol == sOutputs) {
+            auto subEnv = updateEnv(state, flake, attr.e, &env, {});
+            auto function =
+                evaluateWithDiagnostics(state, attr.e, *subEnv, diagnostics);
+            if (function->type() != nix::nFunction) {
+                diagnostics.push_back(
+                    {"expected a function", Location{state, attr.e}.range}
+                );
+                continue;
+            }
+        } else if (symbol == sNixConfig) {
+            // ignore for now
+        } else {
+            diagnostics.push_back(
+                {"unsupported attribute '" + state.symbols[symbol] + "'",
+                 Location{state, attr.e}.range}
+            );
         }
     }
 
-    return v;
+    // 2. GENERATE IN-MEMORY LOCK FILE based on lockFlake
+
+    std::map<InputPath, FlakeInput> overrides;
+    std::set<InputPath> overridesUsed, updatesUsed;
+
+    LockFile oldLockFile;
+    if (lockFileSource) {
+        oldLockFile = LockFile{*lockFileSource, ""};
+    }
+    LockFile newLockFile;
 }
