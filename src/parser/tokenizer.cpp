@@ -42,6 +42,8 @@ Token Tokenizer::advance() {
             yylval.str.hasIndentation};
     } else if (token.type == PATH || token.type == HPATH || token.type == SPATH) {
         token.val = std::string{std::string_view{yylval.path}};
+    } else if (token.type == URI) {
+        token.val = std::string{std::string_view{yylval.uri}};
     } else if (token.type == INT) {
         token.val = yylval.n;
     } else if (token.type == FLOAT) {

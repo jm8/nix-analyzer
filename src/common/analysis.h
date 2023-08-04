@@ -47,5 +47,6 @@ struct Analysis {
     std::optional<ParseResultAttrPath> attr;
     std::optional<nix::Formal> formal;
     bool arg;
+    bool uri;
     std::optional<ParseResultInherit> inherit;
 };

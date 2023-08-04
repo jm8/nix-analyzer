@@ -153,8 +153,9 @@ struct Parser {
         LET,
     };
     const std::vector<TokenType> allowedExprStarts{
-        ASSERT, WITH, LET, IF,  ID,  OR_KW, INT, FLOAT, '"',   IND_STRING_OPEN,
-        REC,    '(',  '{', '[', '+', '-',   '!', PATH,  HPATH, SPATH,
+        ASSERT,          WITH, LET, IF,  ID,  OR_KW, INT, URI, FLOAT, '"',
+        IND_STRING_OPEN, REC,  '(', '{', '[', '+',   '-', '!', PATH,  HPATH,
+        SPATH,
     };
 
     nix::Expr* expr() {
@@ -531,6 +532,16 @@ struct Parser {
         if (auto token = accept(FLOAT)) {
             auto e = new nix::ExprFloat(get<nix::NixFloat>(token->val));
             visit(e, {start, previous().range.end});
+            return e;
+        }
+        // URI
+        if (auto token = accept(URI)) {
+            auto e = new nix::ExprString(get<std::string>(token->val));
+            Range range{start, previous().range.end};
+            visit(e, range);
+            if (range.contains(targetPos)) {
+                analysis.uri = true;
+            }
             return e;
         }
         // '"' string_parts '"'
