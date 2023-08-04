@@ -48,6 +48,19 @@ std::string getString(
     return std::string{state->forceString(*i->value, nix::noPos)};
 }
 
+std::string getStringDefault(
+    nix::EvalState* state,
+    nix::Value* v,
+    std::string_view key,
+    std::string defaultValue
+) {
+    auto i = v->attrs->get(state->symbols.create(key));
+    if (!i) {
+        return defaultValue;
+    }
+    return std::string{state->forceString(*i->value, nix::noPos)};
+}
+
 std::vector<std::string> getListOfStrings(
     nix::EvalState* state,
     nix::Value* v,
@@ -88,7 +101,7 @@ bool getBool(nix::EvalState* state, nix::Value* v, std::string_view key) {
 void runParseTest(nix::EvalState* state, nix::Value* v) {
     auto source = getString(state, v, "source");
 
-    std::string path = "";
+    auto path = getStringDefault(state, v, "path", "");
 
     Position targetPos{
         static_cast<uint32_t>(getInt(state, v, "line")),
@@ -166,7 +179,7 @@ void runCompletionTest(nix::EvalState* state, nix::Value* v) {
 
     auto source = getString(state, v, "source");
 
-    std::string path = "";
+    auto path = getStringDefault(state, v, "path", "");
 
     Position targetPos{
         static_cast<uint32_t>(getInt(state, v, "line")),

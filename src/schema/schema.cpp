@@ -117,7 +117,7 @@ SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
     bindings.insert(state.symbols.create("pkgs"), nixpkgsValue(state));
 
     auto vPath = state.allocValue();
-    vPath->mkPath(analysis.path);
+    vPath->mkString(analysis.path);
     bindings.insert(state.symbols.create("path"), vPath);
 
     vFileDescription->mkAttrs(bindings.finish());
@@ -198,6 +198,11 @@ std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
 
 Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
     auto schemas = attrSubschemas(state, *this);
+    auto attrsOfAttr =
+        schemas->attrs->get(state.symbols.create("_nixAnalyzerAttrsOf"));
+    if (attrsOfAttr) {
+        return {attrsOfAttr->value};
+    }
     auto attr = schemas->attrs->get(symbol);
     if (!attr) {
         auto emptySchema = state.allocValue();

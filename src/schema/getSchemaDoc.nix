@@ -5,15 +5,13 @@
   getDoc = schema: (
     if schema ? _type
     then ''
-      option `${builtins.concatStringsSep "." schema.loc}`
+      option `${builtins.concatStringsSep "." schema._nixAnalyzerLoc}`
       ${schema.description.text or ""}
 
       *Type:* ${schema.type.description}
     ''
-    # (builtins.toString schema.example)
-    # (builtins.toString schema.default)
     else let
-      attrs = builtins.filter (x: x != "_nixAnalyzerLoc") (pkgs.lib.attrNames schema);
+      attrs = builtins.filter (x: !builtins.elem x ["_nixAnalyzerLoc" "_module"]) (pkgs.lib.attrNames schema);
       options = builtins.filter (x: schema.${x} ? _type) attrs;
       submodules = builtins.filter (x: !(schema.${x} ? _type)) attrs;
     in ''
