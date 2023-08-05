@@ -590,6 +590,7 @@ struct Parser {
                     sparts->es->begin(), {posIdx(start), pathExpr}
                 );
                 visit(sparts, {start, previous().range.end});
+                expect(PATH_END);
                 return sparts;
             }
             expect(PATH_END);
