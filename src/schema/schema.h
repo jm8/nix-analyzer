@@ -12,7 +12,7 @@ struct Analysis;
 
 // A Schema represents what attrs should be in an attrset
 struct Schema {
-    // should be either a "type" (like in nixos modules) or an attrset mapping
+    // should be either a nixos modules option or an attrset mapping
     // to other Schemas
     nix::Value* value;
 
@@ -20,6 +20,7 @@ struct Schema {
     std::optional<HoverResult> hover(nix::EvalState& state);
 
     Schema attrSubschema(nix::EvalState& state, nix::Symbol symbol);
+    Schema functionSubschema(nix::EvalState& state);
 };
 
 Schema getSchema(nix::EvalState& state, const Analysis& analysis);

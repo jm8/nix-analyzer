@@ -11,14 +11,18 @@
       *Type:* ${schema.type.description}
     ''
     else let
-      attrs = builtins.filter (x: !builtins.elem x ["_nixAnalyzerLoc" "_module"]) (pkgs.lib.attrNames schema);
-      options = builtins.filter (x: schema.${x} ? _type) attrs;
-      submodules = builtins.filter (x: !(schema.${x} ? _type)) attrs;
+      subschemas = (import ./getAttrSubschemas.nix) {
+        parent = schema;
+        inherit pkgs;
+      };
+      attrs = builtins.filter (x: !builtins.elem x ["_nixAnalyzerLoc" "_module"]) (pkgs.lib.attrNames subschemas);
+      options = builtins.filter (x: subschemas.${x} ? _type) attrs;
+      submodules = builtins.filter (x: !(subschemas.${x} ? _type)) attrs;
     in ''
         module `${builtins.concatStringsSep "." schema._nixAnalyzerLoc}`
-      ${builtins.concatStringsSep "\n\n" (map (x: "#### " + (getDoc schema.${x})) options)}
+      ${builtins.concatStringsSep "\n\n" (map (x: "#### " + (getDoc subschemas.${x})) options)}
 
-      ${builtins.concatStringsSep "\n\n" (map (x: "#### module `${builtins.concatStringsSep "." (schema._nixAnalyzerLoc ++ [x])}`") submodules)}
+      ${builtins.concatStringsSep "\n\n" (map (x: "#### module `${builtins.concatStringsSep "." (subschemas._nixAnalyzerLoc ++ [x])}`") submodules)}
     ''
   );
 in

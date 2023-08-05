@@ -154,6 +154,8 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                 return {emptySchema};
             }
             current = current.attrSubschema(state, *subname);
+        } else if (auto lambda = dynamic_cast<nix::ExprAttrs*>(child)) {
+            current = current.functionSubschema(state);
         }
     }
     return current;
@@ -208,18 +210,43 @@ Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
     return {attr->value};
 }
 
-std::optional<HoverResult> Schema::hover(nix::EvalState& state) {
-    state.forceValue(*value, nix::noPos);
-    auto vFunction = loadFile(state, "schema/getSchemaDoc.nix");
-    auto vArg = makeAttrs(
-        state,
-        {
-            {"pkgs", nixpkgsValue(state)},
-            {"schema", value},
-        }
-    );
-    auto vRes = state.allocValue();
+Schema Schema::functionSubschema(nix::EvalState& state) {
     try {
+        state.forceValue(*value, nix::noPos);
+        std::cerr << "functionSchema for " << stringify(state, value) << "\n";
+        auto vFunction = loadFile(state, "schema/getFunctionSubschema.nix");
+        auto vArg = makeAttrs(
+            state,
+            {
+                {"pkgs", nixpkgsValue(state)},
+                {"schema", value},
+            }
+        );
+        auto vRes = state.allocValue();
+        state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
+        state.forceValue(*vRes, nix::noPos);
+        std::cerr << "vres = " << stringify(state, vRes) << "\n";
+        return {vRes};
+    } catch (nix::Error& e) {
+        REPORT_ERROR(e);
+        auto emptySchema = state.allocValue();
+        emptySchema->mkAttrs(state.allocBindings(0));
+        return {emptySchema};
+    }
+}
+
+std::optional<HoverResult> Schema::hover(nix::EvalState& state) {
+    try {
+        state.forceValue(*value, nix::noPos);
+        auto vFunction = loadFile(state, "schema/getSchemaDoc.nix");
+        auto vArg = makeAttrs(
+            state,
+            {
+                {"pkgs", nixpkgsValue(state)},
+                {"schema", value},
+            }
+        );
+        auto vRes = state.allocValue();
         state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
         state.forceValue(*vRes, nix::noPos);
         if (vRes->type() == nix::nNull) {
