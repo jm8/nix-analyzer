@@ -4,7 +4,22 @@
   pkgs,
   ...
 }:
-with lib; {
+with lib; let
+  systemTo = elemType:
+    types.submodule {
+      options = listToAttrs (
+        forEach systems.flakeExposed
+        (system: {
+          name = system;
+          value = mkOption {
+            type = elemType;
+          };
+        })
+      );
+    };
+  attrsOfWithDefault = elemType:
+    (types.attrsOf elemType) // {_nixAnalyzerIncludeDefault = true;};
+in {
   options = {
     inputs = mkOption {
       type = types.attrsOf (types.submodule ({
@@ -86,11 +101,9 @@ with lib; {
     outputs = mkOption {
       type = types.functionTo (types.submodule {
         options = {
-          a = mkOption {
-            type = types.str;
-          };
-          b = mkOption {
-            type = types.str;
+          packages = mkOption {
+            type = systemTo (attrsOfWithDefault types.package);
+            description = "Packages";
           };
         };
       });

@@ -20,12 +20,16 @@ in (
         options = parent.type.nestedTypes.elemType.getSubOptions [];
         optionsWithLocs = addLocToAttrs {
           attrs = options;
-          parentLoc = parent._nixAnalyzerLoc ++ ["<?>"];
+          parentLoc = parent._nixAnalyzerLoc ++ ["<name>"];
         };
-      in {
-        _nixAnalyzerLoc = parent._nixAnalyzerLoc ++ ["<?>"];
-        _nixAnalyzerAttrsOf = optionsWithLocs // {_nixAnalyzerLoc = parent._nixAnalyzerLoc ++ ["<?>"];};
-      }
+      in
+        {
+          _nixAnalyzerLoc = parent._nixAnalyzerLoc ++ ["<name>"];
+          _nixAnalyzerAttrsOf = optionsWithLocs // {_nixAnalyzerLoc = parent._nixAnalyzerLoc ++ ["<name>"];};
+        }
+        // (pkgs.lib.optionalAttrs (parent.type._nixAnalyzerIncludeDefault or false) {
+          default = optionsWithLocs // {_nixAnalyzerLoc = parent._nixAnalyzerLoc ++ ["<name>"];};
+        })
       else if parent.type.name == "submodule"
       then
         addLocToAttrs {

@@ -213,7 +213,6 @@ Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
 Schema Schema::functionSubschema(nix::EvalState& state) {
     try {
         state.forceValue(*value, nix::noPos);
-        std::cerr << "functionSchema for " << stringify(state, value) << "\n";
         auto vFunction = loadFile(state, "schema/getFunctionSubschema.nix");
         auto vArg = makeAttrs(
             state,
@@ -225,7 +224,6 @@ Schema Schema::functionSubschema(nix::EvalState& state) {
         auto vRes = state.allocValue();
         state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
         state.forceValue(*vRes, nix::noPos);
-        std::cerr << "vres = " << stringify(state, vRes) << "\n";
         return {vRes};
     } catch (nix::Error& e) {
         REPORT_ERROR(e);
@@ -238,6 +236,7 @@ Schema Schema::functionSubschema(nix::EvalState& state) {
 std::optional<HoverResult> Schema::hover(nix::EvalState& state) {
     try {
         state.forceValue(*value, nix::noPos);
+        std::cerr << "hover of schema " << stringify(state, value) << "\n";
         auto vFunction = loadFile(state, "schema/getSchemaDoc.nix");
         auto vArg = makeAttrs(
             state,
