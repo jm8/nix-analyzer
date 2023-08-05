@@ -2,8 +2,10 @@
 #include "na_config.h"
 #include <nix/nixexpr.hh>
 #include <nix/symbol-table.hh>
+#include <nix/value.hh>
 #include <nlohmann/json.hpp>
 #include <vector>
+#include "common/document.h"
 #include "common/position.h"
 #include "schema/schema.h"
 
@@ -49,4 +51,5 @@ struct Analysis {
     bool arg;
     bool uri;
     std::optional<ParseResultInherit> inherit;
+    FileInfo* fileInfo;
 };

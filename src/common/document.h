@@ -1,3 +1,4 @@
+#pragma once
 #include "na_config.h"
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -19,11 +20,17 @@ inline void from_json(
     json.at("text").get_to(contentChange.text);
 }
 
+struct FileInfo {
+    std::optional<nix::Value*> flakeInputs;
+};
+
 struct Document {
     std::string uri;
     std::string source;
     std::string path;
     std::string basePath;
+
+    FileInfo fileInfo;
 
     void applyContentChange(ContentChange contentChange);
 };

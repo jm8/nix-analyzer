@@ -26,14 +26,11 @@
 
 using namespace nlohmann::json_literals;
 
-Analysis analyze(
-    nix::EvalState& state,
-    const Document document,
-    Position targetPos
-) {
+Analysis analyze(nix::EvalState& state, Document document, Position targetPos) {
     auto analysis = parse(
         state, document.source, document.path, document.basePath, targetPos
     );
+    analysis.fileInfo = &document.fileInfo;
     analysis.exprPath.back().e->bindVars(state, state.staticBaseEnv);
     getLambdaArgs(state, analysis);
     calculateEnvs(state, analysis);
@@ -51,8 +48,10 @@ std::vector<Diagnostic> computeDiagnostics(
     auto analysis = analyze(state, document, {});
     auto v = state.allocValue();
     auto diagnostics = analysis.parseErrors;
-    if (document.uri.ends_with("flake.nix")) {
-        evaluateFlake(state, analysis.exprPath.back().e, {}, diagnostics);
+    if (document.uri.ends_with("/flake.nix")) {
+        computeFlakeDiagnostics(
+            state, document.path, analysis.exprPath.back().e, diagnostics
+        );
     } else {
         evaluateWithDiagnostics(
             state,
@@ -189,18 +188,29 @@ void LspServer::run() {
                 std::string uri = notification.params["textDocument"]["uri"];
                 std::string path =
                     uri.substr(std::string_view{"file://"}.size());
-                documents[uri] = {
+                auto& document = documents[uri] = {
                     uri,
                     notification.params["textDocument"]["text"]
                         .get<std::string>(),
                     path,
                     nix::dirOf(path)};
+                if (document.path.ends_with("/flake.nix")) {
+                    document.fileInfo.flakeInputs = {
+                        getFlakeLambdaArg(state, document.path)};
+                }
             } else if (notification.method == "textDocument/didChange") {
                 std::string uri = notification.params["textDocument"]["uri"];
                 auto& document = documents[uri];
                 for (auto contentChange :
                      notification.params["contentChanges"]) {
                     document.applyContentChange(contentChange);
+                }
+            } else if (notification.method == "textDocument/didSave") {
+                std::string uri = notification.params["textDocument"]["uri"];
+                auto& document = documents[uri];
+                if (document.path.ends_with("/flake.nix")) {
+                    document.fileInfo.flakeInputs = {
+                        getFlakeLambdaArg(state, document.path)};
                 }
             }
         }

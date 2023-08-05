@@ -5,9 +5,11 @@
 #include <vector>
 #include "common/analysis.h"
 
-nix::Value* evaluateFlake(
+void computeFlakeDiagnostics(
     nix::EvalState& state,
+    std::string_view path,
     nix::Expr* flake,
-    std::optional<std::string_view> lockFile,
     std::vector<Diagnostic>& diagnostics
 );
+
+nix::Value* getFlakeLambdaArg(nix::EvalState& state, std::string_view path);

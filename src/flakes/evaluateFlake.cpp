@@ -1,43 +1,43 @@
 #include "na_config.h"
 #include "evaluateFlake.h"
 #include <nix/eval.hh>
+#include <nix/fetchers.hh>
 #include <nix/flake/flake.hh>
+#include <nix/flake/flakeref.hh>
 #include <nix/flake/lockfile.hh>
 #include <nix/nixexpr.hh>
 #include <nix/pos.hh>
+#include <nix/url.hh>
 #include <nix/value.hh>
 #include <iostream>
+#include <string_view>
 #include <vector>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
+#include "common/evalutil.h"
+#include "common/logging.h"
 #include "common/position.h"
 #include "common/stringify.h"
 #include "evaluation/evaluation.h"
 
-nix::Value* evaluateFlake(
+void computeFlakeDiagnostics(
     nix::EvalState& state,
-    nix::Expr* flake,
-    std::optional<std::string_view> lockFileSource,
+    std::string_view path,
+    nix::Expr* flakeExpr,
     std::vector<Diagnostic>& diagnostics
 ) {
-    using namespace nix::flake;
-    // 1. PARSE FLAKE FILE based on function getFlake
-
-    auto v = state.allocValue();
-    v->mkNull();
-
     auto& env = state.baseEnv;
 
-    auto flakeAttrs = dynamic_cast<nix::ExprAttrs*>(flake);
+    auto flakeAttrs = dynamic_cast<nix::ExprAttrs*>(flakeExpr);
 
     if (!flakeAttrs) {
         diagnostics.push_back(
-            {"must be an attribute set", Location(state, flake).range}
+            {"must be an attribute set", Location(state, flakeExpr).range}
         );
-        return v;
+        return;
     }
 
-    std::map<nix::FlakeId, FlakeInput> inputs;
+    std::map<nix::FlakeId, nix::flake::FlakeInput> inputs;
 
     const auto sDescription = state.symbols.create("description");
     const auto sInputs = state.symbols.create("inputs");
@@ -63,7 +63,7 @@ nix::Value* evaluateFlake(
                 );
                 continue;
             }
-            auto subEnv = updateEnv(state, flake, inputsAttrs, &env, {});
+            auto subEnv = updateEnv(state, flakeExpr, inputsAttrs, &env, {});
 
             for (auto [inputName, inputAttr] : inputsAttrs->attrs) {
                 auto inputValue = evaluateWithDiagnostics(
@@ -72,7 +72,7 @@ nix::Value* evaluateFlake(
                 std::cerr << "parsing flake input "
                           << stringify(state, inputValue) << "\n";
                 try {
-                    auto flakeInput = parseFlakeInput(
+                    auto flakeInput = nix::flake::parseFlakeInput(
                         state,
                         state.symbols[inputName],
                         inputValue,
@@ -80,6 +80,7 @@ nix::Value* evaluateFlake(
                         {},
                         {"root"}
                     );
+                    inputs.emplace(state.symbols[symbol], flakeInput);
                 } catch (nix::Error& err) {
                     diagnostics.push_back(
                         {nix::filterANSIEscapes(err.msg(), true),
@@ -88,7 +89,7 @@ nix::Value* evaluateFlake(
                 }
             }
         } else if (symbol == sOutputs) {
-            auto subEnv = updateEnv(state, flake, attr.e, &env, {});
+            auto subEnv = updateEnv(state, flakeExpr, attr.e, &env, {});
             auto function =
                 evaluateWithDiagnostics(state, attr.e, *subEnv, diagnostics);
             if (function->type() != nix::nFunction) {
@@ -106,15 +107,53 @@ nix::Value* evaluateFlake(
             );
         }
     }
+}
 
-    // 2. GENERATE IN-MEMORY LOCK FILE based on lockFlake
+nix::Value* getFlakeLambdaArg(nix::EvalState& state, std::string_view path) {
+    try {
+        // TODO: this uses the saved flake.nix, not what is currently
+        // in the editor.
+        // this will be fixed easily when nix implements file system abstraction
+        nix::fetchers::Attrs attrs;
+        attrs.insert_or_assign("type", "path");
+        std::string directoryPath(
+            path.begin(), path.end() - std::string_view{"/flake.nix"}.length()
+        );
+        attrs.insert_or_assign("path", directoryPath);
 
-    std::map<InputPath, FlakeInput> overrides;
-    std::set<InputPath> overridesUsed, updatesUsed;
+        auto originalRef = nix::FlakeRef(
+            nix::fetchers::Input::fromAttrs(std::move(attrs)), ""
+        );
 
-    LockFile oldLockFile;
-    if (lockFileSource) {
-        oldLockFile = LockFile{*lockFileSource, ""};
+        auto [tree, lockedRef] = originalRef.fetchTree(state.store);
+        state.allowPath(tree.storePath);
+
+        nix::flake::LockFlags x;
+
+        auto lockedFlake = nix::flake::lockFlake(
+            state, lockedRef, nix::flake::LockFlags{.writeLockFile = false}
+        );
+        std::cerr << "Put flake in " << lockedRef.to_string() << "\n";
+
+        auto vGetFlakeInputs = loadFile(state, "flakes/getFlakeInputs.nix");
+        auto vRes = state.allocValue();
+        auto vLockFileString = state.allocValue();
+        vLockFileString->mkString(lockedFlake.lockFile.to_string());
+        state.callFunction(
+            *vGetFlakeInputs, *vLockFileString, *vRes, nix::noPos
+        );
+
+        std::cerr << "Flake lambda arg = " << stringify(state, vRes) << "\n";
+
+        return vRes;
+    } catch (nix::Error& err) {
+        REPORT_ERROR(err);
+        // diagnostics.push_back(
+        //     {nix::filterANSIEscapes(err.msg(), true),
+        //      Location{state, flakeExpr}.range}
+        // );
+        auto v = state.allocValue();
+        v->mkNull();
+        return v;
     }
-    LockFile newLockFile;
 }
