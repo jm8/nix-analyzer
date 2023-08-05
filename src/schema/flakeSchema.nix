@@ -101,9 +101,67 @@ in {
     outputs = mkOption {
       type = types.functionTo (types.submodule {
         options = {
-          packages = mkOption {
+          checks = mkOption {
             type = systemTo (attrsOfWithDefault types.package);
-            description = "Packages";
+            description = mdDoc "Executed by `nix flake check`";
+          };
+          packages = mkOption {
+            type = systemTo (attrsOf types.package);
+            description = mdDoc "Executed by `nix build .#<name>`";
+          };
+          apps = mkOption {
+            type = systemTo (attrsOfWithDefault (types.submodule {
+              options = {
+                type = mkOption {
+                  type = types.enum ["app"];
+                };
+                program = mkOption {
+                  type = types.path;
+                };
+              };
+            }));
+            description = mdDoc "Executed by `nix run .#<name>``";
+          };
+          formatter = mkOption {
+            type = systemTo types.package;
+            description = mdDoc "Formatter (alejandra, nixfmt or nixpkgs-fmt)`";
+          };
+          legacyPackages = mkOption {
+            type = systemTo (attrsOf types.package);
+            description = mdDoc "Used for nixpkgs packages, also accessible via `nix build .#<name>`";
+          };
+          overlays = mkOption {
+            type = attrsOfWithDefault types.raw;
+            description = mdDoc "Overlays, consumed by other flakes";
+          };
+          nixosModules = mkOption {
+            type = attrsOfWithDefault types.raw;
+            description = mdDoc "Nixos modules, consumed by other flakes";
+          };
+          nixosConfigurations = mkOption {
+            type = attrsOf types.raw;
+            description = mdDoc "Used with `nixos-rebuild --flake .#<hostname>`";
+          };
+          devShells = mkOption {
+            type = systemTo (attrsOfWithDefault types.package);
+            description = mdDoc "Used by `nix develop .#<name>`";
+          };
+          hydraJobs = mkOption {
+            type = attrsOf (systemTo types.package);
+            description = mdDoc "Hydra build jobs";
+          };
+          templates = mkOption {
+            type = attrsOfWithDefault (types.submodule {
+              options = {
+                path = mkOption {
+                  type = types.path;
+                };
+                description = mkOption {
+                  type = types.str;
+                };
+              };
+            });
+            description = "Used by `nix flake init -t <flake>#<name>`";
           };
         };
       });

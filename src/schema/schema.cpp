@@ -162,16 +162,16 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
 }
 
 static nix::Value* attrSubschemas(nix::EvalState& state, Schema parent) {
-    auto vFunction = loadFile(state, "schema/getAttrSubschemas.nix");
-    auto vArg = makeAttrs(
-        state,
-        {
-            {"pkgs", nixpkgsValue(state)},
-            {"parent", parent.value},
-        }
-    );
     auto vRes = state.allocValue();
     try {
+        auto vFunction = loadFile(state, "schema/getAttrSubschemas.nix");
+        auto vArg = makeAttrs(
+            state,
+            {
+                {"pkgs", nixpkgsValue(state)},
+                {"parent", parent.value},
+            }
+        );
         state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
         state.forceAttrs(*vRes, nix::noPos);
     } catch (nix::Error& e) {
