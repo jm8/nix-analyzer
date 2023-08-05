@@ -4,7 +4,7 @@
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
 #include <nix/parser-tab.hh>
-#include <nix/pos.hh>
+
 #include <nix/symbol-table.hh>
 #include <nix/util.hh>
 #include <nix/value.hh>

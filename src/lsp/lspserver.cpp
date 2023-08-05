@@ -50,7 +50,7 @@ std::vector<Diagnostic> computeDiagnostics(
     auto v = state.allocValue();
     auto diagnostics = analysis.parseErrors;
     if (document.uri.ends_with("/flake.nix")) {
-        computeFlakeDiagnostics(
+        parseFlakeInputs(
             state, document.path, analysis.exprPath.back().e, diagnostics
         );
     } else {
@@ -75,7 +75,12 @@ void LspServer::run() {
 
             std::cerr << "getting flake inputs for  " << input.path << "\n";
 
-            auto lockFile = lockFlake(state, input.path);
+            auto analysis = parse(
+                state, input.source, input.path, nix::dirOf(input.path), {}
+            );
+
+            auto lockFile =
+                lockFlake(state, analysis.exprPath.back().e, input.path);
 
             if (lockFile) {
                 std::cerr << "successfully got flake inputs\n";
@@ -222,8 +227,8 @@ void LspServer::run() {
                     path,
                     nix::dirOf(path)};
                 if (document.path.ends_with("/flake.nix")) {
-                    fetcherInputChannel
-                        << FetcherInput{document.uri, document.path};
+                    fetcherInputChannel << FetcherInput{
+                        document.uri, document.source, document.path};
                 }
             } else if (notification.method == "textDocument/didChange") {
                 std::string uri = notification.params["textDocument"]["uri"];
@@ -236,8 +241,8 @@ void LspServer::run() {
                 std::string uri = notification.params["textDocument"]["uri"];
                 auto& document = documents[uri];
                 if (document.path.ends_with("/flake.nix")) {
-                    fetcherInputChannel
-                        << FetcherInput{document.uri, document.path};
+                    fetcherInputChannel << FetcherInput{
+                        document.uri, document.source, document.path};
                 }
             }
         }

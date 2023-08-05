@@ -1,11 +1,12 @@
 #include "na_config.h"
+#include <nix/flake/flake.hh>
 #include <nix/value.hh>
 #include <string>
 #include <string_view>
 #include <vector>
 #include "common/analysis.h"
 
-void computeFlakeDiagnostics(
+nix::flake::FlakeInputs parseFlakeInputs(
     nix::EvalState& state,
     std::string_view path,
     nix::Expr* flake,
@@ -14,6 +15,7 @@ void computeFlakeDiagnostics(
 
 std::optional<std::string> lockFlake(
     nix::EvalState& state,
+    nix::Expr* flakeExpr,
     std::string_view path
 );
 

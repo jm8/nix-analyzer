@@ -3,7 +3,6 @@
 #include <nix/error.hh>
 #include <nix/eval.hh>
 #include <nix/parser-tab.hh>
-#include <nix/pos.hh>
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>

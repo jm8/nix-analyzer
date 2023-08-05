@@ -32,7 +32,6 @@ nix::Env* updateEnv(
                 env2->values[displ] = state.allocValue();
                 env2->values[displ]->mkNull();
             }
-            env2->values[displ]->definitionPos = attrDef.pos;
             displ++;
             if (attrDef.e == child && attrDef.inherited)
                 useSuperEnv = true;
@@ -129,7 +128,6 @@ nix::Env* updateEnv(
                 vAttr->mkNull();
             }
             env2->values[displ] = vAttr;
-            env2->values[displ]->definitionPos = i.second.pos;
             displ++;
         }
         return env2;

@@ -13,6 +13,7 @@
 
 struct FetcherInput {
     std::string uri;
+    std::string source;
     std::string path;
 };
 

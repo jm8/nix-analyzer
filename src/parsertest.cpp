@@ -1,7 +1,7 @@
 #include "na_config.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
-#include <nix/pos.hh>
+
 #include <nix/shared.hh>
 #include <nix/store-api.hh>
 #include <nix/types.hh>

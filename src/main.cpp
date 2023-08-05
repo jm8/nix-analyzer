@@ -1,6 +1,7 @@
 #include "na_config.h"
 #include <nix/shared.hh>
 #include <nix/store-api.hh>
+#include <flake/flake.hh>
 #include <gc/gc.h>
 #include <iostream>
 #include <memory>
@@ -8,6 +9,7 @@
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
 #include "common/stringify.h"
+#include "flakes/evaluateFlake.h"
 #include "lsp/jsonrpc.h"
 #include "lsp/lspserver.h"
 #include "parser/parser.h"

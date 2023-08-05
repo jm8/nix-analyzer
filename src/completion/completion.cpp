@@ -1,6 +1,5 @@
 #include "completion.h"
 #include <nix/nixexpr.hh>
-#include <nix/pos.hh>
 #include <nix/value.hh>
 #include <iostream>
 #include <optional>

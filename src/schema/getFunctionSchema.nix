@@ -9,6 +9,4 @@ then {
 }
 else if pkgs.lib.isFunction function
 then pkgs.lib.functionArgs function
-else
-  {myNameIs = name;}
-  attrs: attrs // {here = true;}
+else {}
