@@ -4,10 +4,12 @@
 #include <nix/util.hh>
 #include <algorithm>
 #include <iostream>
+#include <msd/channel.hpp>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <sstream>
+#include <thread>
 #include <variant>
 #include "calculateenv/calculateenv.h"
 #include "common/analysis.h"
@@ -15,6 +17,7 @@
 #include "common/position.h"
 #include "common/stringify.h"
 #include "completion/completion.h"
+#include "eval.hh"
 #include "evaluation/evaluation.h"
 #include "flakes/evaluateFlake.h"
 #include "format/format.hpp"
@@ -23,6 +26,8 @@
 #include "lsp/jsonrpc.h"
 #include "parser/parser.h"
 #include "schema/schema.h"
+#include "store-api.hh"
+#include "types.hh"
 
 using namespace nlohmann::json_literals;
 
@@ -64,7 +69,36 @@ std::vector<Diagnostic> computeDiagnostics(
 }
 
 void LspServer::run() {
+    std::thread fetcherThread([&fetcherInputChannel = this->fetcherInputChannel,
+                               &fetcherOutputChannel =
+                                   this->fetcherOutputChannel] {
+        nix::EvalState state(nix::Strings{}, nix::openStore());
+        while (true) {
+            FetcherInput input;
+            fetcherInputChannel >> input;
+
+            std::cerr << "getting flake inputs for  " << input.path << "\n";
+
+            auto lockFile = lockFlake(state, input.path);
+
+            if (lockFile) {
+                std::cerr << "sending the output\n";
+                fetcherOutputChannel << FetcherOutput{input.uri, *lockFile};
+            } else {
+                std::cerr << "failed at getting the lock file\n";
+            }
+        }
+    });
+
     while (true) {
+        if (!fetcherOutputChannel.empty()) {
+            FetcherOutput output;
+            fetcherOutputChannel >> output;
+
+            std::cerr << "got some output for uri " << output.uri << "\n";
+            documents[output.uri].fileInfo.flakeInputs =
+                getFlakeLambdaArg(state, output.lockFileString);
+        }
         Message message = conn.read();
         if (holds_alternative<Request>(message)) {
             auto request = get<Request>(message);
@@ -195,8 +229,8 @@ void LspServer::run() {
                     path,
                     nix::dirOf(path)};
                 if (document.path.ends_with("/flake.nix")) {
-                    document.fileInfo.flakeInputs = {
-                        getFlakeLambdaArg(state, document.path)};
+                    fetcherInputChannel
+                        << FetcherInput{document.uri, document.path};
                 }
             } else if (notification.method == "textDocument/didChange") {
                 std::string uri = notification.params["textDocument"]["uri"];
@@ -209,8 +243,8 @@ void LspServer::run() {
                 std::string uri = notification.params["textDocument"]["uri"];
                 auto& document = documents[uri];
                 if (document.path.ends_with("/flake.nix")) {
-                    document.fileInfo.flakeInputs = {
-                        getFlakeLambdaArg(state, document.path)};
+                    fetcherInputChannel
+                        << FetcherInput{document.uri, document.path};
                 }
             }
         }

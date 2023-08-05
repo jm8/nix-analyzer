@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "cpp-channel": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1686420961,
+        "narHash": "sha256-ZD/msnoY/9qFy6pAaETkVDJ0ERwXLsXUIXYye33OmlE=",
+        "owner": "andreiavrammsd",
+        "repo": "cpp-channel",
+        "rev": "33e6f098bb195cfc4d2cc66600506ba343225dac",
+        "type": "github"
+      },
+      "original": {
+        "owner": "andreiavrammsd",
+        "repo": "cpp-channel",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "locked": {
         "lastModified": 1667395993,
@@ -28,22 +44,6 @@
       "original": {
         "owner": "kristapsdz",
         "repo": "lowdown",
-        "type": "github"
-      }
-    },
-    "lspcppsrc": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1672893220,
-        "narHash": "sha256-lM2kSNg/cxEiBAZxzMG+SoRjz5MMUTmx4WlcxDQFRyw=",
-        "owner": "kuafuwang",
-        "repo": "LspCpp",
-        "rev": "6a3a4e02f8b6e2a30f0fe8c0f8497680ce3b49f5",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kuafuwang",
-        "repo": "LspCpp",
         "type": "github"
       }
     },
@@ -116,8 +116,8 @@
     },
     "root": {
       "inputs": {
+        "cpp-channel": "cpp-channel",
         "flake-utils": "flake-utils",
-        "lspcppsrc": "lspcppsrc",
         "nixfork": "nixfork",
         "nixpkgs": "nixpkgs_2"
       }

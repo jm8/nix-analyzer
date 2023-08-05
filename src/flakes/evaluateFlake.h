@@ -12,4 +12,9 @@ void computeFlakeDiagnostics(
     std::vector<Diagnostic>& diagnostics
 );
 
-nix::Value* getFlakeLambdaArg(nix::EvalState& state, std::string_view path);
+std::optional<std::string> lockFlake(
+    nix::EvalState& state,
+    std::string_view path
+);
+
+nix::Value* getFlakeLambdaArg(nix::EvalState& state, std::string_view lockFile);

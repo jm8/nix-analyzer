@@ -109,11 +109,13 @@ void computeFlakeDiagnostics(
     }
 }
 
-nix::Value* getFlakeLambdaArg(nix::EvalState& state, std::string_view path) {
+std::optional<std::string> lockFlake(
+    nix::EvalState& state,
+    std::string_view path
+) {
     try {
         // TODO: this uses the saved flake.nix, not what is currently
         // in the editor.
-        // this will be fixed easily when nix implements file system abstraction
         nix::fetchers::Attrs attrs;
         attrs.insert_or_assign("type", "path");
         std::string directoryPath(
@@ -135,23 +137,41 @@ nix::Value* getFlakeLambdaArg(nix::EvalState& state, std::string_view path) {
         );
         std::cerr << "Put flake in " << lockedRef.to_string() << "\n";
 
+        auto result = lockedFlake.lockFile.to_string();
+
+        // this should download everything to the nix store on this thread so
+        // that it will be fast for the other thread
+        getFlakeLambdaArg(state, result);
+
+        return result;
+    } catch (nix::Error& err) {
+        REPORT_ERROR(err);
+        return {};
+    }
+}
+
+nix::Value* getFlakeLambdaArg(
+    nix::EvalState& state,
+    std::string_view lockFile
+) {
+    try {
+        std::cerr << "getting flake lambda args based on lockfile " << lockFile
+                  << "\n";
         auto vGetFlakeInputs = loadFile(state, "flakes/getFlakeInputs.nix");
         auto vRes = state.allocValue();
         auto vLockFileString = state.allocValue();
-        vLockFileString->mkString(lockedFlake.lockFile.to_string());
+        vLockFileString->mkString(lockFile);
+
         state.callFunction(
             *vGetFlakeInputs, *vLockFileString, *vRes, nix::noPos
         );
 
-        std::cerr << "Flake lambda arg = " << stringify(state, vRes) << "\n";
+        std::cerr << "got flake lambda args: " << stringify(state, vRes)
+                  << "\n";
 
         return vRes;
     } catch (nix::Error& err) {
         REPORT_ERROR(err);
-        // diagnostics.push_back(
-        //     {nix::filterANSIEscapes(err.msg(), true),
-        //      Location{state, flakeExpr}.range}
-        // );
         auto v = state.allocValue();
         v->mkNull();
         return v;

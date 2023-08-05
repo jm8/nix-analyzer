@@ -155,7 +155,9 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                 std::cerr
                     << "Failed to find the child in the parent attrs so don't "
                        "know the symbol\n";
-                return {};
+                auto emptySchema = state.allocValue();
+                emptySchema->mkAttrs(state.allocBindings(0));
+                return {emptySchema};
             }
             current = current.attrSubschema(state, *subname);
         }

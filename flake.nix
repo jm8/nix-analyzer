@@ -4,8 +4,8 @@
   inputs.nixpkgs.url = "github:nixos/nixpkgs";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.nixfork.url = "github:jm8/nix";
-  inputs.lspcppsrc = {
-    url = "github:kuafuwang/LspCpp";
+  inputs.cpp-channel = {
+    url = "github:andreiavrammsd/cpp-channel";
     flake = false;
   };
 
@@ -14,7 +14,7 @@
     nixpkgs,
     flake-utils,
     nixfork,
-    lspcppsrc,
+    cpp-channel,
   }:
     flake-utils.lib.eachDefaultSystem (
       system: let
@@ -41,6 +41,7 @@
               "-isystem${pkgs.gtest.dev}/include"
               "-L${pkgs.gtest}/lib"
               "-isystem${pkgs.nlohmann_json}/include"
+              "-isystem${cpp-channel}/include"
             ];
             buildInputs = with pkgs; [
               boost

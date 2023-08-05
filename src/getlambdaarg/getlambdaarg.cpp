@@ -27,7 +27,7 @@ std::optional<size_t> flakeLambdaIndex(
     nix::EvalState& state,
     const Analysis& analysis
 ) {
-    if (!analysis.path.ends_with("flake.nix"))
+    if (!analysis.path.ends_with("/flake.nix"))
         return {};
     if (analysis.exprPath.size() < 2)
         return {};
@@ -47,6 +47,8 @@ std::optional<size_t> flakeLambdaIndex(
 
 void getLambdaArgs(nix::EvalState& state, Analysis& analysis) {
     std::cerr << "GETLAMBDAARGS\n";
+    std::cerr << "Get lambda args called whilst flake inputs is "
+              << bool(analysis.fileInfo->flakeInputs) << "\n";
     if (auto i = flakeLambdaIndex(state, analysis)) {
         for (auto x : analysis.exprPath) {
             std::cerr << exprTypeName(x.e) << " ";
