@@ -1,7 +1,6 @@
 #include "na_config.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
-
 #include <nix/shared.hh>
 #include <nix/store-api.hh>
 #include <nix/types.hh>
@@ -20,9 +19,11 @@
 #include <string_view>
 #include <vector>
 #include "calculateenv/calculateenv.h"
+#include "common/document.h"
 #include "common/position.h"
 #include "common/stringify.h"
 #include "completion/completion.h"
+#include "flakes/evaluateFlake.h"
 #include "getlambdaarg/getlambdaarg.h"
 #include "gtest/gtest.h"
 #include "parser/parser.h"
@@ -189,6 +190,15 @@ void runCompletionTest(nix::EvalState* state, nix::Value* v) {
     auto expected = getListOfStrings(state, v, "expected");
 
     analysis.exprPath.back().e->bindVars(*state, state->staticBaseEnv);
+    FileInfo fileInfo;
+    analysis.fileInfo = &fileInfo;
+    if (analysis.path.ends_with("/flake.nix")) {
+        auto lockFile = lockFlake(*state, analysis.exprPath.back().e, path);
+        if (lockFile) {
+            analysis.fileInfo->flakeInputs =
+                getFlakeLambdaArg(*state, *lockFile);
+        }
+    }
     getLambdaArgs(*state, analysis);
     calculateEnvs(*state, analysis);
     auto c = completion(*state, analysis);
