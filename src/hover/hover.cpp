@@ -81,7 +81,6 @@ std::string documentationComment(
     const Analysis& analysis,
     const Location& loc
 ) {
-    std::cerr << "loc " << loc << "\n";
     std::string source = getUriSource(analysis, loc.uri);
     std::istringstream ss{source};
     std::string line;
@@ -103,17 +102,12 @@ std::string documentationComment(
         return s.substr(b);
     };
     while (std::getline(ss, line)) {
-        std::cerr << linenum << " " << line << "\n";
-        std::cerr << currentComment.str() << "\n";
         if (linenum == loc.range.start.line) {
             return currentComment.str();
         }
         if (auto lineComment = getLineComment(line)) {
-            std::cerr << "Line has comment\n";
             currentComment << *lineComment << "\n";
-            std::cerr << "currentComment = " << currentComment.str() << "\n";
         } else {
-            std::cerr << "Line hasn't comment\n";
             currentComment.str("");
         }
         linenum++;
@@ -288,7 +282,6 @@ std::optional<HoverResult> hoverSelect(
     nix::EvalState& state,
     Analysis& analysis
 ) {
-    std::cerr << "hover select\n";
     auto select = dynamic_cast<nix::ExprSelect*>(analysis.exprPath.front().e);
     if (!select) {
         return {};
@@ -310,7 +303,6 @@ std::optional<HoverResult> hoverSelect(
         prefixPath.size() > 0
             ? new nix::ExprSelect(nix::noPos, select->e, prefixPath, nullptr)
             : select->e;
-    std::cerr << stringify(state, prefix) << "\n";
     auto vAttrs = state.allocValue();
     try {
         auto env = analysis.exprPath.front().env;
@@ -343,7 +335,6 @@ std::optional<HoverResult> hoverAttr(
         return {};
     }
     if (!analysis.attr) {
-        std::cerr << "hover of attrs without analysis.attr\n";
         return {};
     }
     auto prefixPath = analysis.attr->attrPath;
@@ -398,8 +389,6 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
                 std::cerr << "didn't find the attr in let";
                 return {};
             }
-            std::cerr << "FILE: " << state.positions[attr->second.pos].file
-                      << "\n";
             Location loc = state.positions[attr->second.pos];
             return {{documentationValue(analysis, state, v), loc}};
         }
@@ -459,7 +448,6 @@ std::optional<HoverResult> hoverInherit(
 }
 
 std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
-    std::cerr << stringify(state, analysis.exprPath.front().e) << "\n";
     std::optional<HoverResult> result;
     if (!result)
         result = hoverInherit(state, analysis);

@@ -66,14 +66,10 @@ size_t fileRootIndex(const Analysis& analysis) {
         if (dynamic_cast<nix::ExprLambda*>(analysis.exprPath[i].e) ||
             dynamic_cast<nix::ExprWith*>(analysis.exprPath[i].e) ||
             dynamic_cast<nix::ExprLet*>(analysis.exprPath[i].e)) {
-            std::cerr << "fileRootIndex < " << i << "\n";
             continue;
         }
-        std::cerr << "fileRootIndex == " << i << "\n";
         return i;
     }
-    std::cerr << "fileRootIndex == default to 0"
-              << "\n";
     return 0;
 }
 
@@ -142,8 +138,6 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
     for (int i = schemaRoot.index; i >= 1; i--) {
         auto parent = analysis.exprPath[i].e;
         auto child = analysis.exprPath[i - 1].e;
-        std::cerr << "Get schema:: " << stringify(state, parent) << " -> "
-                  << stringify(state, child) << "\n";
         if (auto attrs = dynamic_cast<nix::ExprAttrs*>(parent)) {
             std::optional<nix::Symbol> subname;
             for (auto [symbol, attrDef] : attrs->attrs) {
@@ -216,7 +210,6 @@ Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
 
 std::optional<HoverResult> Schema::hover(nix::EvalState& state) {
     state.forceValue(*value, nix::noPos);
-    std::cerr << "calling documentation on " << stringify(state, value) << "\n";
     auto vFunction = loadFile(state, "schema/getSchemaDoc.nix");
     auto vArg = makeAttrs(
         state,

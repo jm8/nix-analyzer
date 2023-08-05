@@ -13,7 +13,6 @@ nix::Env* updateEnv(
     std::optional<nix::Value*> lambdaArg
 ) {
     if (auto let = dynamic_cast<nix::ExprLet*>(parent)) {
-        std::cerr << "Updating env from exprLet\n";
         nix::Env* env2 = &state.allocEnv(let->attrs->attrs.size());
         env2->up = up;
 

@@ -18,7 +18,6 @@ std::optional<CompletionResult> completionSelect(
     auto select = dynamic_cast<nix::ExprSelect*>(analysis.exprPath.front().e);
     if (!select)
         return {};
-    std::cerr << "completionSelect\n";
     nix::Value v;
     auto prefixPath = select->attrPath;
     auto attrIndex =
@@ -28,11 +27,9 @@ std::optional<CompletionResult> completionSelect(
         prefixPath.size() > 0
             ? new nix::ExprSelect(nix::noPos, select->e, prefixPath, nullptr)
             : select->e;
-    std::cerr << stringify(state, prefix) << "\n";
     CompletionResult result;
     try {
         auto env = analysis.exprPath.front().env;
-        std::cerr << env << "\n";
         prefix->eval(state, *analysis.exprPath.front().env, v);
         state.forceAttrs(v, nix::noPos);
     } catch (nix::Error& e) {
@@ -49,7 +46,6 @@ std::optional<CompletionResult> completionVar(
     nix::EvalState& state,
     Analysis& analysis
 ) {
-    std::cerr << "completionVar\n";
     auto e = analysis.exprPath.front().e;
     const nix::StaticEnv* se = &*state.getStaticEnv(*e);
     CompletionResult result;
@@ -131,17 +127,12 @@ std::optional<CompletionResult> completionAttrsSchema(
             return {};
         }
     }
-    std::cerr << "completionAttrsSchema\n";
     auto schema = getSchema(state, analysis);
     state.forceValue(*schema.value, nix::noPos);
-    std::cerr << "base schema: " << stringify(state, schema.value) << "\n";
     if (analysis.attr) {
         auto& attrPath = *analysis.attr->attrPath;
         for (size_t i = 0; i < analysis.attr->index; i++) {
-            std::cerr << "subattr " << state.symbols[attrPath[i].symbol]
-                      << "\n";
             if (!attrPath[i].symbol) {
-                std::cerr << "completion of attrsSchema with dynamic attr\n";
                 return {};
             }
             schema = schema.attrSubschema(state, attrPath[i].symbol);
@@ -155,8 +146,6 @@ std::optional<CompletionResult> completionAttrsSchema(
 }
 
 CompletionResult completion(nix::EvalState& state, Analysis& analysis) {
-    std::cerr << "completing " << exprTypeName(analysis.exprPath.front().e)
-              << "\n";
     std::optional<CompletionResult> result;
     if (!result.has_value())
         result = completionSelect(state, analysis);

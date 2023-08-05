@@ -39,10 +39,6 @@ Analysis analyze(nix::EvalState& state, Document document, Position targetPos) {
     analysis.exprPath.back().e->bindVars(state, state.staticBaseEnv);
     getLambdaArgs(state, analysis);
     calculateEnvs(state, analysis);
-    for (auto i : analysis.exprPath) {
-        std::cerr << exprTypeName(i.e) << " ";
-    }
-    std::cerr << "\n";
     return analysis;
 }
 
@@ -82,10 +78,10 @@ void LspServer::run() {
             auto lockFile = lockFlake(state, input.path);
 
             if (lockFile) {
-                std::cerr << "sending the output\n";
+                std::cerr << "successfully got flake inputs\n";
                 fetcherOutputChannel << FetcherOutput{input.uri, *lockFile};
             } else {
-                std::cerr << "failed at getting the lock file\n";
+                std::cerr << "failed to get flake inputs\n";
             }
         }
     });
@@ -95,7 +91,6 @@ void LspServer::run() {
             FetcherOutput output;
             fetcherOutputChannel >> output;
 
-            std::cerr << "got some output for uri " << output.uri << "\n";
             documents[output.uri].fileInfo.flakeInputs =
                 getFlakeLambdaArg(state, output.lockFileString);
         }
@@ -195,8 +190,6 @@ void LspServer::run() {
                 const auto& document = documents[uri];
                 auto formatted = formatNix(document.source);
                 if (formatted) {
-                    std::cerr << "formatting successful\n";
-                    std::cerr << *formatted << "\n";
                     conn.write(Response{
                         request.id,
                         {

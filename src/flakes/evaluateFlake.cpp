@@ -69,8 +69,6 @@ void computeFlakeDiagnostics(
                 auto inputValue = evaluateWithDiagnostics(
                     state, inputAttr.e, *subEnv, diagnostics
                 );
-                std::cerr << "parsing flake input "
-                          << stringify(state, inputValue) << "\n";
                 try {
                     auto flakeInput = nix::flake::parseFlakeInput(
                         state,
@@ -135,7 +133,6 @@ std::optional<std::string> lockFlake(
         auto lockedFlake = nix::flake::lockFlake(
             state, lockedRef, nix::flake::LockFlags{.writeLockFile = false}
         );
-        std::cerr << "Put flake in " << lockedRef.to_string() << "\n";
 
         auto result = lockedFlake.lockFile.to_string();
 
@@ -155,8 +152,6 @@ nix::Value* getFlakeLambdaArg(
     std::string_view lockFile
 ) {
     try {
-        std::cerr << "getting flake lambda args based on lockfile " << lockFile
-                  << "\n";
         auto vGetFlakeInputs = loadFile(state, "flakes/getFlakeInputs.nix");
         auto vRes = state.allocValue();
         auto vLockFileString = state.allocValue();
@@ -165,9 +160,6 @@ nix::Value* getFlakeLambdaArg(
         state.callFunction(
             *vGetFlakeInputs, *vLockFileString, *vRes, nix::noPos
         );
-
-        std::cerr << "got flake lambda args: " << stringify(state, vRes)
-                  << "\n";
 
         return vRes;
     } catch (nix::Error& err) {

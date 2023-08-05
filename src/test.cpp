@@ -175,8 +175,6 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
 }
 
 void runCompletionTest(nix::EvalState* state, nix::Value* v) {
-    std::cerr << "Running completion test\n";
-
     auto source = getString(state, v, "source");
 
     auto path = getStringDefault(state, v, "path", "");
