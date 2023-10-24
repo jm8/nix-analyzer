@@ -42,12 +42,14 @@
               "-L${pkgs.gtest}/lib"
               "-isystem${pkgs.nlohmann_json}/include"
               "-isystem${cpp-channel}/include"
+              ''-DHOMEMANAGERPATH="\"${pkgs.home-manager.src}\""''
             ];
             buildInputs = with pkgs; [
               boost
               nixfork.packages.x86_64-linux.default
               boehmgc
               gtest
+              home-manager
             ];
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook

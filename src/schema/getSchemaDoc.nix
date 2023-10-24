@@ -6,7 +6,7 @@
     if schema ? _type
     then ''
       option `${builtins.concatStringsSep "." schema._nixAnalyzerLoc}`
-      ${schema.description.text or ""}
+      ${schema.description.text or schema.description or ""}
 
       *Type:* ${schema.type.description}
     ''

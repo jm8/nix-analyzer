@@ -106,17 +106,21 @@ SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
     }
 
     auto vGetFileSchema = loadFile(state, "schema/getFileSchema.nix");
-    auto vFileDescription = state.allocValue();
-
-    auto bindings = state.buildBindings(2);
-
-    bindings.insert(state.symbols.create("pkgs"), nixpkgsValue(state));
 
     auto vPath = state.allocValue();
     vPath->mkString(analysis.path);
-    bindings.insert(state.symbols.create("path"), vPath);
 
-    vFileDescription->mkAttrs(bindings.finish());
+    auto vHomeManager = state.allocValue();
+    vHomeManager->mkString(HOMEMANAGERPATH);
+
+    auto vFileDescription = makeAttrs(
+        state,
+        {
+            {"pkgs", nixpkgsValue(state)},
+            {"path", vPath},
+            {"home_manager", vHomeManager},
+        }
+    );
 
     try {
         auto vSchema = state.allocValue();
