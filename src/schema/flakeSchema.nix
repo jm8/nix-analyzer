@@ -106,7 +106,7 @@ in {
             description = mdDoc "Executed by `nix flake check`";
           };
           packages = mkOption {
-            type = systemTo (attrsOf types.package);
+            type = systemTo (attrsOfWithDefault types.package);
             description = mdDoc "Executed by `nix build .#<name>`";
           };
           apps = mkOption {
@@ -127,7 +127,7 @@ in {
             description = mdDoc "Formatter (alejandra, nixfmt or nixpkgs-fmt)`";
           };
           legacyPackages = mkOption {
-            type = systemTo (attrsOf types.package);
+            type = systemTo (types.attrsOf types.package);
             description = mdDoc "Used for nixpkgs packages, also accessible via `nix build .#<name>`";
           };
           overlays = mkOption {
@@ -139,7 +139,7 @@ in {
             description = mdDoc "Nixos modules, consumed by other flakes";
           };
           nixosConfigurations = mkOption {
-            type = attrsOf types.raw;
+            type = types.attrsOf types.raw;
             description = mdDoc "Used with `nixos-rebuild --flake .#<hostname>`";
           };
           devShells = mkOption {
@@ -147,7 +147,7 @@ in {
             description = mdDoc "Used by `nix develop .#<name>`";
           };
           hydraJobs = mkOption {
-            type = attrsOf (systemTo types.package);
+            type = types.attrsOf (systemTo types.package);
             description = mdDoc "Hydra build jobs";
           };
           templates = mkOption {

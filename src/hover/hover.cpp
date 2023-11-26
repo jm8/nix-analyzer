@@ -419,6 +419,39 @@ std::optional<HoverResult> hoverVar(nix::EvalState& state, Analysis& analysis) {
     return {{documentationValue(analysis, state, v), {}}};
 }
 
+std::optional<HoverResult> hoverFormal(
+    nix::EvalState& state,
+    Analysis& analysis
+) {
+    if (!analysis.formal) {
+        return {};
+    }
+
+    if (!analysis.exprPath.front().lambdaArg) {
+        return {};
+    }
+    auto lambdaArg = *analysis.exprPath.front().lambdaArg;
+    auto attr = lambdaArg->attrs->get(analysis.formal->name);
+    if (!attr) {
+        return {};
+    }
+
+    return {{documentationValue(analysis, state, attr->value)}};
+}
+
+std::optional<HoverResult> hoverArg(nix::EvalState& state, Analysis& analysis) {
+    if (!analysis.arg) {
+        return {};
+    }
+
+    if (!analysis.exprPath.front().lambdaArg) {
+        return {};
+    }
+    auto lambdaArg = *analysis.exprPath.front().lambdaArg;
+
+    return {{documentationValue(analysis, state, lambdaArg)}};
+}
+
 std::optional<HoverResult> hoverInherit(
     nix::EvalState& state,
     Analysis& analysis
@@ -454,6 +487,10 @@ std::optional<HoverResult> hover(nix::EvalState& state, Analysis& analysis) {
         result = hoverSelect(state, analysis);
     if (!result)
         result = hoverAttr(state, analysis);
+    if (!result)
+        result = hoverFormal(state, analysis);
+    if (!result)
+        result = hoverArg(state, analysis);
     if (!result)
         result = hoverVar(state, analysis);
     return result;
