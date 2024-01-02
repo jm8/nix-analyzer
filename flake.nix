@@ -3,7 +3,6 @@
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.nixfork.url = "github:jm8/nix";
   inputs.cpp-channel = {
     url = "github:andreiavrammsd/cpp-channel";
     flake = false;
@@ -13,7 +12,6 @@
     self,
     nixpkgs,
     flake-utils,
-    nixfork,
     cpp-channel,
   }:
     flake-utils.lib.eachDefaultSystem (
@@ -27,9 +25,9 @@
             src = ./.;
             CFLAGS = [
               "--std=c++20"
-              "-isystem${nixfork.packages.${system}.default.dev}/include"
-              "-I${nixfork.packages.${system}.default.dev}/include/nix" # needed for flake.hh
-              "-L${nixfork.packages.${system}.default}/lib"
+              "-isystem${pkgs.nix.dev}/include"
+              "-I${pkgs.nix.dev}/include/nix" # needed for flake.hh
+              "-L${pkgs.nix}/lib"
               "-lnixmain -lnixexpr -lnixfetchers -lnixstore -lnixutil"
               "-isystem${pkgs.boost.dev}/include"
               "-L${pkgs.boost}/lib"
@@ -76,10 +74,6 @@
             ];
             inherit nixpkgs;
             NIX_PATH = "nixpkgs=${nixpkgs}";
-            shellHook = ''
-              echo directory ${nixfork} > ./.gdbinit
-              echo set debug-file-directory ${nixfork.packages.${system}.default.debug}/lib/debug >> ./.gdbinit
-            '';
           };
         };
       }
