@@ -1,3 +1,4 @@
+#include "na_config.h"
 #include <iostream>
 
 int main() {
