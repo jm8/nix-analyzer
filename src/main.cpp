@@ -3,6 +3,7 @@
 #include "canon-path.hh"
 #include "eval.hh"
 #include "input-accessor.hh"
+#include "parser/parser.h"
 #include "search-path.hh"
 #include "shared.hh"
 #include "store-api.hh"
@@ -20,8 +21,11 @@ int main() {
     auto& state = *stateptr;
     nix::Value v;
     state.eval(
-        state.parseExprFromString(
-            "2 + 2", nix::SourcePath{nix::CanonPath{"/"}}
+        parse(
+            state,
+            nix::SourcePath{nix::CanonPath{"/"}},
+            nix::SourcePath{nix::CanonPath{"/"}},
+            "2+2"
         ),
         v
     );
