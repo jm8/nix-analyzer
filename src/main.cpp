@@ -25,7 +25,7 @@ int main() {
             state,
             nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
             nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
-            "2+2"
+            "let x = 13; in x*x"
         ),
         v
     );

@@ -35,7 +35,7 @@ Tokenizer::Tokenizer(
     nix::EvalState& state,
     nix::SourcePath path,
     nix::SourcePath basePath,
-    std::string source
+    std::string source_
 )
     : data(nix::ParseData{
           state,
@@ -44,7 +44,7 @@ Tokenizer::Tokenizer(
           basePath,
           nix::Pos::Origin(path),
           {}}),
-      source(source),
+      source(source_),
       lastEnd() {
     source.append("\0\0", 2);
 
