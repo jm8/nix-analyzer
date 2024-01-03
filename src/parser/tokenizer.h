@@ -4,6 +4,7 @@
 // lexer-tab must be included after parser-tab
 #include <nix/lexer-tab.hh>
 #include <nix/value.hh>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <variant>
@@ -21,6 +22,7 @@ struct NAStringToken {
 
 struct Token {
     TokenType type;
+    TokenIndex index;
     std::variant<
         std::monostate,
         std::string,

@@ -30,6 +30,14 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Position, line, character);
 
 std::ostream& operator<<(std::ostream& os, const Position& position);
 
+using TokenIndex = size_t;
+
+// Range of tokens in a document. Start and end are *inclusive*.
+struct TokenRange {
+    TokenIndex start;
+    TokenIndex end;
+};
+
 // Range in a document (end exclusive)
 struct Range {
     Position start;

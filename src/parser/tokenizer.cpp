@@ -19,6 +19,7 @@ struct Tokenizer {
     YYLTYPE yylloc;
     YYSTYPE yylval;
     Position lastEnd;
+    TokenIndex index;
     bool done = false;
 
     Tokenizer(
@@ -45,6 +46,7 @@ Tokenizer::Tokenizer(
           nix::Pos::Origin(path),
           {}}),
       source(source_),
+      index(0),
       lastEnd() {
     source.append("\0\0", 2);
 
@@ -54,13 +56,17 @@ Tokenizer::Tokenizer(
 
 Token Tokenizer::advance() {
     if (done)
-        return {YYEOF, {}, {{lastEnd.line + 1, 0}, {lastEnd.line + 1, 0}}};
+        return {
+            YYEOF, index, {}, {{lastEnd.line + 1, 0}, {lastEnd.line + 1, 0}}};
     Token token;
+    token.index = index;
+    index++;
     token.type =
         static_cast<TokenType>(yylex(&yylval, &yylloc, scanner, &data));
     if (token.type == 0) {
         done = true;
-        return {YYEOF, {}, {{lastEnd.line + 1, 0}, {lastEnd.line + 1, 0}}};
+        return {
+            YYEOF, index, {}, {{lastEnd.line + 1, 0}, {lastEnd.line + 1, 0}}};
     }
     if (token.type == ID) {
         token.val = std::string{std::string_view{yylval.id}};
@@ -96,85 +102,83 @@ Tokenizer::~Tokenizer() {
 
 std::string tokenName(TokenType type) {
     switch (type) {
-        case -2:
+        case YYEMPTY:
             return "YYEMPTY";
-        case 0:
-            return "EOF";
-        case 256:
+        case YYEOF:
+            return "YYEOF";
+        case YYerror:
             return "YYerror";
-        case 257:
+        case YYUNDEF:
             return "YYUNDEF";
-        case 258:
+        case ID:
             return "ID";
-        case 259:
-            return "ATTRPATH";
-        case 260:
+        case STR:
             return "STR";
-        case 261:
+        case IND_STR:
             return "IND_STR";
-        case 262:
+        case INT:
             return "INT";
-        case 263:
+        case FLOAT:
             return "FLOAT";
-        case 264:
+        case PATH:
             return "PATH";
-        case 265:
+        case HPATH:
             return "HPATH";
-        case 266:
+        case SPATH:
             return "SPATH";
-        case 267:
+        case PATH_END:
             return "PATH_END";
-        case 268:
+        case URI:
             return "URI";
-        case 269:
+        case IF:
             return "IF";
-        case 270:
+        case THEN:
             return "THEN";
-        case 271:
+        case ELSE:
             return "ELSE";
-        case 272:
+        case ASSERT:
             return "ASSERT";
-        case 273:
+        case WITH:
             return "WITH";
-        case 274:
+        case LET:
             return "LET";
-        case 275:
+        case IN:
             return "IN";
-        case 276:
+        case REC:
             return "REC";
-        case 277:
+        case INHERIT:
             return "INHERIT";
-        case 278:
+        case EQ:
             return "EQ";
-        case 279:
+        case NEQ:
             return "NEQ";
-        case 280:
+        case AND:
             return "AND";
-        case 281:
+        case OR:
             return "OR";
-        case 282:
+        case IMPL:
             return "IMPL";
-        case 283:
+        case OR_KW:
             return "OR_KW";
-        case 284:
+        case DOLLAR_CURLY:
             return "DOLLAR_CURLY";
-        case 285:
+        case IND_STRING_OPEN:
             return "IND_STRING_OPEN";
-        case 286:
+        case IND_STRING_CLOSE:
             return "IND_STRING_CLOSE";
-        case 287:
+        case ELLIPSIS:
             return "ELLIPSIS";
-        case 288:
+        case LEQ:
             return "LEQ";
-        case 289:
+        case GEQ:
             return "GEQ";
-        case 290:
+        case UPDATE:
             return "UPDATE";
-        case 291:
+        case NOT:
             return "NOT";
-        case 292:
+        case CONCAT:
             return "CONCAT";
-        case 293:
+        case NEGATE:
             return "NEGATE";
         default:
             return std::string(1, type);

@@ -4,9 +4,10 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "documents/documents.h"
 #include "position/position.h"
 
-nix::Expr* parse(
+Document parse(
     nix::EvalState& state,
     nix::SourcePath path,
     nix::SourcePath basePath,
