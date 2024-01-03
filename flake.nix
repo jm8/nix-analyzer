@@ -2,6 +2,7 @@
   description = "A helpful nix language server";
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs";
+  inputs.nix.url = "github:nixos/nix?rev=83f5622545a2fc31eb7e7d5105f64ed6dd3058b3";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.cpp-channel = {
     url = "github:andreiavrammsd/cpp-channel";
@@ -11,6 +12,7 @@
   outputs = {
     self,
     nixpkgs,
+    nix,
     flake-utils,
     cpp-channel,
   }:
@@ -25,9 +27,9 @@
             src = ./.;
             CFLAGS = [
               "--std=c++20"
-              "-isystem${pkgs.nix.dev}/include"
-              "-I${pkgs.nix.dev}/include/nix" # needed for flake.hh
-              "-L${pkgs.nix}/lib"
+              "-isystem${nix.packages.${system}.default.dev}/include"
+              "-I${nix.packages.${system}.default.dev}/include/nix" # needed for flake.hh
+              "-L${nix.packages.${system}.default}/lib"
               "-lnixmain -lnixexpr -lnixfetchers -lnixstore -lnixutil"
               "-isystem${pkgs.boost.dev}/include"
               "-L${pkgs.boost}/lib"

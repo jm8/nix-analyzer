@@ -23,8 +23,8 @@ int main() {
     state.eval(
         parse(
             state,
-            nix::SourcePath{nix::CanonPath{"/"}},
-            nix::SourcePath{nix::CanonPath{"/"}},
+            nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
+            nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
             "2+2"
         ),
         v

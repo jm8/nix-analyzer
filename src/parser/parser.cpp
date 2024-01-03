@@ -551,7 +551,7 @@ struct Parser {
                     path += "/";
                 }
             };
-            nix::Expr* pathExpr = new nix::ExprPath(path);
+            nix::Expr* pathExpr = new nix::ExprPath(state.rootFS, path);
             // if there are interpolated parts add them
             visit(pathExpr, {start, previous().range.end});
             if (auto sparts =
