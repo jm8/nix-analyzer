@@ -50,6 +50,7 @@
               boehmgc
               gtest
               home-manager
+              catch2
             ];
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
