@@ -198,5 +198,7 @@ std::vector<Token> tokenize(
         tokens.push_back(token);
         token = tokenizer.advance();
     }
+    // push one EOF token
+    tokens.push_back(token);
     return tokens;
 }

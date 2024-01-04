@@ -26,15 +26,12 @@ int main() {
         state,
         nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
         nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
-        "let x = 4; in x"
+        "let x = 4; in "
     );
     for (auto& token : document.tokens) {
         std::cout << token.index << " " << tokenName(token.type) << "\n";
     }
-    auto root_data = document.exprData.at(document.root);
-    std::cout << root_data.range.start << " .. " << root_data.range.end << "\n";
-
-    auto var = dynamic_cast<nix::ExprLet*>(document.root)->body;
-    auto var_data = document.exprData[var];
-    std::cout << var_data.range.start << " .. " << var_data.range.end << "\n";
+    for (auto& err : document.parseErrors) {
+        std::cout << err.msg << " " << err.range << "\n";
+    }
 }

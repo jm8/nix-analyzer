@@ -26,7 +26,7 @@ struct Parser {
     nix::EvalState& state;
     nix::SourcePath path;
     nix::SourcePath basePath;
-    std::unordered_map<nix::Expr*, ExprData>& exprData;
+    Document& document;
     bool justReportedError = false;
 
     std::vector<Token> tokens;
@@ -38,20 +38,23 @@ struct Parser {
         nix::SourcePath path,
         nix::SourcePath basePath,
         std::string_view source,
-        std::unordered_map<nix::Expr*, ExprData>& exprData
+        Document& document
     )
         : state(state),
           path(path),
           basePath(path),
           tokens(tokenize(state, path, basePath, std::string{source})),
-          exprData(exprData) {}
+          document(document) {}
 
     Token previous() { return lookahead(-1); }
     Token current() { return lookahead(0); }
     Token lookahead(int i) {
         const auto j = index + i;
-        if (j < 0 || j >= tokens.size()) {
-            return Token{YYEOF, {}, {}};
+        if (j < 0) {
+            return Token{YYEOF, 0, {}, {{0, 0}, {0, 0}}};
+        }
+        if (j >= tokens.size()) {
+            return tokens.back();
         }
         return tokens[j];
     }
@@ -118,11 +121,13 @@ struct Parser {
     void error(std::string msg, Range range) {
         if (justReportedError)
             return;
-        // analysis.parseErrors.push_back({msg, range});
+        document.parseErrors.push_back({msg, range});
         justReportedError = true;
     }
 
-    void visit(nix::Expr* e, TokenRange range) { exprData[e] = {range}; }
+    void visit(nix::Expr* e, TokenRange range) {
+        document.exprData[e] = {range};
+    }
 
     // GRAMMAR
 
@@ -1093,13 +1098,13 @@ Document parse(
     nix::SourcePath basePath,
     std::string_view source
 ) {
-    std::unordered_map<nix::Expr*, ExprData> exprData;
-    Parser parser{state, path, basePath, source, exprData};
+    Document document{path};
+    Parser parser{state, path, basePath, source, document};
     auto e = parser.expr();
+    document.root = e;
+    document.tokens = parser.tokens;
     parser.expect(YYEOF);
     e->bindVars(state, state.staticBaseEnv);
-
-    Document document{path, std::move(parser.tokens), std::move(exprData), e};
 
     return document;
 }
