@@ -1,18 +1,20 @@
 #include "na_config.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
-
 #include <nix/shared.hh>
 #include <nix/store-api.hh>
 #include <nix/types.hh>
 #include <nix/util.hh>
 #include <nix/value.hh>
 #include <algorithm>
+#include <atomic>
 #include <cstdlib>
+#include <execution>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <pstl/glue_execution_defs.h>
 #include <string>
 #include <vector>
 #include "canon-path.hh"
@@ -108,9 +110,6 @@ int main(int argc, char* argv[]) {
     auto state =
         std::make_unique<nix::EvalState>(nix::SearchPath{}, nix::openStore());
 
-    int good = 0;
-    int total = 0;
-
     std::vector<std::string> paths;
     if (argc >= 2) {
         hasArgv = true;
@@ -121,10 +120,15 @@ int main(int argc, char* argv[]) {
         paths = nixpkgs_paths(*state);
     }
 
-    for (auto path : paths) {
-        good += check_consistency(*state, path);
-        total++;
-    }
+    int total = paths.size();
+    int good;
+
+    std::for_each(
+        std::execution::par,
+        paths.begin(),
+        paths.end(),
+        [&](std::string path) { good += check_consistency(*state, path); }
+    );
 
     std::cout << good << " / " << total << "\n";
 

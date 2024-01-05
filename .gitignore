@@ -13,3 +13,4 @@ log.txt
 *.nix.h
 .gdbinit
 outputs
+parsertest*.txt
