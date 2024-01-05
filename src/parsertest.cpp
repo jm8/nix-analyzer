@@ -1,83 +1,138 @@
 #include "na_config.h"
-// #include <nix/eval.hh>
-// #include <nix/nixexpr.hh>
+#include <nix/eval.hh>
+#include <nix/nixexpr.hh>
 
-// #include <nix/shared.hh>
-// #include <nix/store-api.hh>
-// #include <nix/types.hh>
-// #include <nix/util.hh>
-// #include <nix/value.hh>
-// #include <algorithm>
-// #include <filesystem>
-// #include <fstream>
-// #include <iostream>
-// #include <memory>
-// #include <string>
-// #include <vector>
-// #include "common/stringify.h"
-// #include "parser/parser.h"
-
-// int currentProgress = 26996;
-
-// bool hasArgv = false;
-
-// bool check_consistency(nix::EvalState& state, std::string path) {
-//     std::cout << path << " ";
-//     std::cout.flush();
-
-//     std::string source = nix::readFile(path);
-
-//     if (source.size() > 100000) {
-//         std::cout << "skipping\n";
-//         return false;
-//     }
-//     auto basePath = nix::absPath(nix::dirOf(path));
-
-//     auto analysis = parse(state, source, path, basePath, {});
-//     nix::Expr* actual = analysis.exprPath.back().e;
-
-//     nix::Expr* expected = state.parseExprFromString(source, basePath);
-
-//     auto actualS = stringify(state, actual);
-//     auto expectedS = stringify(state, expected);
-
-//     if (hasArgv) {
-//         std::cerr << "ACTUAL\n" << actualS << "\n";
-//         for (auto err : analysis.parseErrors) {
-//             std::cerr << err.message << " " << err.range << "\n";
-//         }
-//         std::cerr << "\n";
-//         std::cerr << "EXPECTED\n" << expectedS << "\n\n";
-//     }
-
-//     if (actualS == expectedS) {
-//         std::cout << "GOOD\n";
-//         return true;
-//     } else {
-//         std::cout << "BAD\n";
-//         return false;
-//     };
-// }
-
-// std::vector<std::string> nixpkgs_paths(nix::EvalState& state) {
-//     auto searchPath = state.getSearchPath();
-//     auto it = std::find_if(
-//         searchPath.begin(),
-//         searchPath.end(),
-//         [](const nix::SearchPathElem& e) { return e.first == "nixpkgs"; }
-//     );
-//     assert(it != searchPath.end());
-//     std::string nixpkgs = it->second;
-//     std::vector<std::string> paths;
-//     for (auto f : std::filesystem::recursive_directory_iterator(nixpkgs)) {
-//         if (f.path().extension() == ".nix") {
-//             paths.push_back(f.path());
-//         }
-//     }
-//     return paths;
-// }
-
+#include <nix/shared.hh>
+#include <nix/store-api.hh>
+#include <nix/types.hh>
+#include <nix/util.hh>
+#include <nix/value.hh>
+#include <algorithm>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
+#include "canon-path.hh"
+#include "error.hh"
+#include "input-accessor.hh"
+#include "parser/parser.h"
+#include "search-path.hh"
+#include "stringify/stringify.h"
+
+int currentProgress = 26996;
+
+bool hasArgv = false;
+
+bool check_consistency(nix::EvalState& state, std::string path) {
+    std::cout << path << " ";
+    std::cout.flush();
+
+    std::string source = nix::readFile(path);
+
+    if (source.size() > 100000) {
+        std::cout << "skipping\n";
+        return false;
+    }
+    auto basePath = nix::absPath(nix::dirOf(path));
+
+    auto document = parse(
+        state,
+        nix::SourcePath{state.rootFS, nix::CanonPath{path}},
+        nix::SourcePath{state.rootFS, nix::CanonPath{basePath}},
+        source
+    );
+    nix::Expr* actual = document.root;
+
+    nix::Expr* expected;
+    try {
+        expected = state.parseExprFromString(
+            source, nix::SourcePath{state.rootFS, nix::CanonPath{basePath}}
+        );
+    } catch (nix::Error& e) {
+        std::cout << "ITSSUPPOSEDTOERR\n";
+        return true;
+    }
+
+    auto actualS = stringify(state, actual);
+    auto expectedS = stringify(state, expected);
+
+    if (hasArgv) {
+        std::cerr << "ACTUAL\n" << actualS << "\n";
+        for (auto err : document.parseErrors) {
+            std::cerr << err.msg << " " << err.range << "\n";
+        }
+        std::cerr << "\n";
+        std::cerr << "EXPECTED\n" << expectedS << "\n\n";
+    }
+
+    if (document.parseErrors.size() > 0) {
+        std::cout << "ERR ";
+        if (hasArgv)
+            for (auto& err : document.parseErrors)
+                std::cerr << err.msg << " " << err.range << "\n";
+    }
+
+    if (actualS == expectedS) {
+        std::cout << "GOOD\n";
+        return true;
+    } else {
+        std::cout << "BAD\n";
+        return false;
+    };
+}
+
+std::vector<std::string> nixpkgs_paths(nix::EvalState& state) {
+    auto searchPath = state.getSearchPath();
+    auto it = std::find_if(
+        searchPath.elements.begin(),
+        searchPath.elements.end(),
+        [](const nix::SearchPath::Elem& e) { return e.prefix.s == "nixpkgs"; }
+    );
+    assert(it != searchPath.elements.end());
+    std::string nixpkgs = it->path.s;
+    std::vector<std::string> paths;
+    for (auto f : std::filesystem::recursive_directory_iterator(nixpkgs)) {
+        if (f.is_regular_file() && f.path().extension() == ".nix") {
+            paths.push_back(f.path());
+        }
+    }
+    return paths;
+}
+
 int main(int argc, char* argv[]) {
-    std::cout << "Hello from parsertest!\n";
+    nix::initGC();
+    nix::initNix();
+    auto state =
+        std::make_unique<nix::EvalState>(nix::SearchPath{}, nix::openStore());
+
+    int good = 0;
+    int total = 0;
+
+    std::vector<std::string> paths;
+    if (argc >= 2) {
+        hasArgv = true;
+        for (int i = 1; i < argc; i++) {
+            paths.push_back(argv[i]);
+        }
+    } else {
+        paths = nixpkgs_paths(*state);
+    }
+
+    for (auto path : paths) {
+        good += check_consistency(*state, path);
+        total++;
+    }
+
+    std::cout << good << " / " << total << "\n";
+
+    if (!hasArgv && good < currentProgress) {
+        return 1;
+    }
+
+    if (hasArgv && good < total) {
+        return 1;
+    }
 }
