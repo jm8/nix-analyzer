@@ -1103,9 +1103,10 @@ Document parse(
     Parser parser{state, path, basePath, source, document};
     auto e = parser.expr();
     parser.expect(YYEOF);
-    bindVars(state, document, state.staticBaseEnv, e);
-    document.root = e;
     document.tokens = parser.tokens;
+    document.root = e;
+
+    bindVars(state, document, state.staticBaseEnv, e);
 
     return document;
 }

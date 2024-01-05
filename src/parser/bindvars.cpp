@@ -52,7 +52,7 @@ void bindVars(
     }
 
     if (auto e = dynamic_cast<nix::ExprSelect*>(expr)) {
-        bindVars(state, document, env, e);
+        bindVars(state, document, env, e->e);
         if (e->def)
             bindVars(state, document, env, e->def);
         for (auto& i : e->attrPath)
@@ -61,7 +61,7 @@ void bindVars(
     }
 
     if (auto e = dynamic_cast<nix::ExprOpHasAttr*>(expr)) {
-        bindVars(state, document, env, e);
+        bindVars(state, document, env, e->e);
         for (auto& i : e->attrPath)
             if (!i.symbol)
                 bindVars(state, document, env, i.expr);
@@ -136,8 +136,8 @@ void bindVars(
 
     if (auto e = dynamic_cast<nix::ExprCall*>(expr)) {
         bindVars(state, document, env, e->fun);
-        for (auto e : e->args)
-            bindVars(state, document, env, e);
+        for (auto item : e->args)
+            bindVars(state, document, env, item);
     }
 
     if (auto e = dynamic_cast<nix::ExprLet*>(expr)) {
@@ -190,7 +190,7 @@ void bindVars(
     }
 
     if (auto e = dynamic_cast<nix::ExprOpNot*>(expr)) {
-        bindVars(state, document, env, e);
+        bindVars(state, document, env, e->e);
     }
 
     if (auto e = dynamic_cast<nix::ExprConcatStrings*>(expr)) {
