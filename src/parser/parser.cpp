@@ -18,10 +18,12 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "file-system.hh"
 #include "input-accessor.hh"
 #include "parser/bindvars.h"
 #include "parser/tokenizer.h"
 #include "position/position.h"
+#include "users.hh"
 
 struct Parser {
     nix::EvalState& state;
@@ -43,7 +45,7 @@ struct Parser {
     )
         : state(state),
           path(path),
-          basePath(path),
+          basePath(basePath),
           tokens(tokenize(state, path, basePath, std::string{source})),
           document(document) {}
 
@@ -454,6 +456,16 @@ struct Parser {
         }
     }
 
+    nix::Path absPath(nix::Path path, nix::Path dir, Range range) {
+        try {
+            return nix::absPath(path, dir);
+        } catch (nix::Error& e) {
+            std::cerr << "Caught symlink error\n";
+            document.parseErrors.push_back({e.info().msg.str(), range});
+            return nix::absPath(path, dir, true);
+        }
+    }
+
     nix::Expr* expr_simple() {
         auto start = current();
         if (!allow(allowedExprStarts)) {
@@ -548,11 +560,13 @@ struct Parser {
             if (start.type == HPATH) {
                 // remove leading slash
                 p.erase(0, 1);
-                path = nix::getHome() + p;
+                path = nix::Path{absPath(p, nix::getHome(), start.range)};
             } else {
                 // PATH
-                path = nix::absPath(
-                    get<std::string>(start.val), basePath.path.abs()
+                path = absPath(
+                    get<std::string>(start.val),
+                    basePath.path.abs(),
+                    start.range
                 );
                 // add back trailing slash to first segment
                 if (p.ends_with('/') && p.length() > 1) {

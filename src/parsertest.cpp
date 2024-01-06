@@ -28,31 +28,26 @@ int currentProgress = 26996;
 
 bool hasArgv = false;
 
-bool check_consistency(nix::EvalState& state, std::string path) {
-    std::cout << path << " ";
+bool check_consistency(nix::EvalState& state, std::string path_str) {
+    std::cout << path_str << " ";
     std::cout.flush();
 
-    std::string source = nix::readFile(path);
+    auto path = nix::SourcePath{state.rootFS, nix::CanonPath{path_str}};
+    auto basePath = path.parent();
+
+    std::string source = path.resolveSymlinks().readFile();
 
     if (source.size() > 100000) {
         std::cout << "skipping\n";
         return false;
     }
-    auto basePath = nix::absPath(nix::dirOf(path));
 
-    auto document = parse(
-        state,
-        nix::SourcePath{state.rootFS, nix::CanonPath{path}},
-        nix::SourcePath{state.rootFS, nix::CanonPath{basePath}},
-        source
-    );
+    auto document = parse(state, path, basePath, source);
     nix::Expr* actual = document.root;
 
     nix::Expr* expected;
     try {
-        expected = state.parseExprFromString(
-            source, nix::SourcePath{state.rootFS, nix::CanonPath{basePath}}
-        );
+        expected = state.parseExprFromString(source, basePath);
     } catch (nix::Error& e) {
         std::cout << "ITSSUPPOSEDTOERR\n";
         return true;
