@@ -1,12 +1,12 @@
 #pragma once
+#include <nix/input-accessor.hh>
+#include <nix/nixexpr.hh>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include "fmt.hh"
-#include "input-accessor.hh"
-#include "nixexpr.hh"
 #include "parser/tokenizer.h"
 #include "position/position.h"
 

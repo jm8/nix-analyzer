@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 #include "canon-path.hh"
+#include "common/stringify.h"
 #include "eval.hh"
 #include "input-accessor.hh"
 #include "nixexpr.hh"
@@ -9,7 +10,6 @@
 #include "search-path.hh"
 #include "shared.hh"
 #include "store-api.hh"
-#include "stringify/stringify.h"
 
 #define CATCH_CONFIG_RUNNER
 #include <catch2/catch.hpp>

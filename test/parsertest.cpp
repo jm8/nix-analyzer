@@ -18,11 +18,11 @@
 #include <string>
 #include <vector>
 #include "canon-path.hh"
+#include "common/stringify.h"
 #include "error.hh"
 #include "input-accessor.hh"
 #include "parser/parser.h"
 #include "search-path.hh"
-#include "stringify/stringify.h"
 
 int currentProgress = 26996;
 
