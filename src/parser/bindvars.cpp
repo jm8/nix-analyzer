@@ -4,14 +4,17 @@
 #include "nixexpr.hh"
 
 // Copy+paste of Expr::bindVars modified to not throw exception
+// Sets exprData staticEnv and parent
 
 void bindVars(
     nix::EvalState& state,
     Document& document,
     std::shared_ptr<nix::StaticEnv> env,
-    nix::Expr* expr
+    nix::Expr* expr,
+    std::optional<nix::Expr*> parent
 ) {
     document.exprData[expr].staticEnv = env;
+    document.exprData[expr].parent = parent;
 
     if (auto e = dynamic_cast<nix::ExprVar*>(expr)) {
         /* Check whether the variable appears in the environment.  If so,
@@ -52,19 +55,19 @@ void bindVars(
     }
 
     if (auto e = dynamic_cast<nix::ExprSelect*>(expr)) {
-        bindVars(state, document, env, e->e);
+        bindVars(state, document, env, e->e, expr);
         if (e->def)
-            bindVars(state, document, env, e->def);
+            bindVars(state, document, env, e->def, expr);
         for (auto& i : e->attrPath)
             if (!i.symbol)
-                bindVars(state, document, env, i.expr);
+                bindVars(state, document, env, i.expr, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprOpHasAttr*>(expr)) {
-        bindVars(state, document, env, e->e);
+        bindVars(state, document, env, e->e, expr);
         for (auto& i : e->attrPath)
             if (!i.symbol)
-                bindVars(state, document, env, i.expr);
+                bindVars(state, document, env, i.expr, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprAttrs*>(expr)) {
@@ -84,27 +87,28 @@ void bindVars(
                     state,
                     document,
                     i.second.inherited ? env : newEnv,
-                    i.second.e
+                    i.second.e,
+                    expr
                 );
 
             for (auto& i : e->dynamicAttrs) {
-                bindVars(state, document, newEnv, i.nameExpr);
-                bindVars(state, document, newEnv, i.valueExpr);
+                bindVars(state, document, newEnv, i.nameExpr, expr);
+                bindVars(state, document, newEnv, i.valueExpr, expr);
             }
         } else {
             for (auto& i : e->attrs)
-                bindVars(state, document, env, i.second.e);
+                bindVars(state, document, env, i.second.e, expr);
 
             for (auto& i : e->dynamicAttrs) {
-                bindVars(state, document, env, i.nameExpr);
-                bindVars(state, document, env, i.valueExpr);
+                bindVars(state, document, env, i.nameExpr, expr);
+                bindVars(state, document, env, i.valueExpr, expr);
             }
         }
     }
 
     if (auto e = dynamic_cast<nix::ExprList*>(expr)) {
         for (auto& i : e->elems)
-            bindVars(state, document, env, i);
+            bindVars(state, document, env, i, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprLambda*>(expr)) {
@@ -128,16 +132,16 @@ void bindVars(
 
             for (auto& i : e->formals->formals)
                 if (i.def)
-                    bindVars(state, document, newEnv, i.def);
+                    bindVars(state, document, newEnv, i.def, expr);
         }
 
-        bindVars(state, document, newEnv, e->body);
+        bindVars(state, document, newEnv, e->body, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprCall*>(expr)) {
-        bindVars(state, document, env, e->fun);
+        bindVars(state, document, env, e->fun, expr);
         for (auto item : e->args)
-            bindVars(state, document, env, item);
+            bindVars(state, document, env, item, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprLet*>(expr)) {
@@ -153,10 +157,14 @@ void bindVars(
 
         for (auto& i : e->attrs->attrs)
             bindVars(
-                state, document, i.second.inherited ? env : newEnv, i.second.e
+                state,
+                document,
+                i.second.inherited ? env : newEnv,
+                i.second.e,
+                expr
             );
 
-        bindVars(state, document, newEnv, e->body);
+        bindVars(state, document, newEnv, e->body, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprWith*>(expr)) {
@@ -173,29 +181,29 @@ void bindVars(
                 break;
             }
 
-        bindVars(state, document, env, e->attrs);
+        bindVars(state, document, env, e->attrs, expr);
         auto newEnv = std::make_shared<nix::StaticEnv>(e, env.get());
-        bindVars(state, document, newEnv, e->body);
+        bindVars(state, document, newEnv, e->body, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprIf*>(expr)) {
-        bindVars(state, document, env, e->cond);
-        bindVars(state, document, env, e->then);
-        bindVars(state, document, env, e->else_);
+        bindVars(state, document, env, e->cond, expr);
+        bindVars(state, document, env, e->then, expr);
+        bindVars(state, document, env, e->else_, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprAssert*>(expr)) {
-        bindVars(state, document, env, e->cond);
-        bindVars(state, document, env, e->body);
+        bindVars(state, document, env, e->cond, expr);
+        bindVars(state, document, env, e->body, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprOpNot*>(expr)) {
-        bindVars(state, document, env, e->e);
+        bindVars(state, document, env, e->e, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprConcatStrings*>(expr)) {
         for (auto& i : *e->es)
-            bindVars(state, document, env, i.second);
+            bindVars(state, document, env, i.second, expr);
     }
 
     if (auto e = dynamic_cast<nix::ExprPos*>(expr)) {

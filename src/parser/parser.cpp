@@ -1110,10 +1110,10 @@ struct Parser {
 Document parse(
     nix::EvalState& state,
     nix::SourcePath path,
-    nix::SourcePath basePath,
     std::string_view source
 ) {
     Document document{path};
+    auto basePath = path.parent();
     Parser parser{state, path, basePath, source, document};
     auto e = parser.expr();
     parser.expect(YYEOF);

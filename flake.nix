@@ -43,6 +43,7 @@
               "-isystem${pkgs.nlohmann_json}/include"
               "-isystem${cpp-channel}/include"
               ''-DHOMEMANAGERPATH="\"${pkgs.home-manager.src}\""''
+              "-I${pkgs.catch2}/include"
             ];
             buildInputs = with pkgs; [
               boost

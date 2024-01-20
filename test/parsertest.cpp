@@ -42,7 +42,7 @@ bool check_consistency(nix::EvalState& state, std::string path_str) {
         return false;
     }
 
-    auto document = parse(state, path, basePath, source);
+    auto document = parse(state, path, source);
     nix::Expr* actual = document.root;
 
     nix::Expr* expected;

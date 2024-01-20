@@ -24,8 +24,7 @@ int main() {
     auto& state = *stateptr;
     auto document = parse(
         state,
-        nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
-        nix::SourcePath{state.rootFS, nix::CanonPath{"/"}},
+        nix::SourcePath{state.rootFS, nix::CanonPath{"/default.nix"}},
         "let x = 4; in "
     );
     for (auto& token : document.tokens) {

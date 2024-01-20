@@ -7,9 +7,17 @@
 #include "documents/documents.h"
 #include "position/position.h"
 
+struct ParseExprData {
+    TokenRange range;
+    std::shared_ptr<nix::StaticEnv> staticEnv;
+};
+
+struct ParseResult {
+    std::unordered_map<nix::Expr*, ParseExprData> parseExprData;
+};
+
 Document parse(
     nix::EvalState& state,
     nix::SourcePath path,
-    nix::SourcePath basePath,
     std::string_view source
 );

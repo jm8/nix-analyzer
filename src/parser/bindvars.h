@@ -9,5 +9,6 @@ void bindVars(
     nix::EvalState& state,
     Document& document,
     std::shared_ptr<nix::StaticEnv> staticEnv,
-    nix::Expr* e
+    nix::Expr* e,
+    std::optional<nix::Expr*> parent = {}
 );
