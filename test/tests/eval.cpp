@@ -1,4 +1,4 @@
-#include "eval.hh"
+#include <nix/eval.hh>
 #include <catch2/catch.hpp>
 #include <memory>
 #include "parser/parser.h"

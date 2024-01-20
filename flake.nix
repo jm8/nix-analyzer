@@ -47,11 +47,11 @@
             ];
             buildInputs = with pkgs; [
               boost
-              nixfork.packages.x86_64-linux.default
               boehmgc
               gtest
               home-manager
               catch2
+              nix.packages.${system}.default
             ];
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
