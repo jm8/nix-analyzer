@@ -1112,7 +1112,7 @@ Document parse(
     nix::SourcePath path,
     std::string_view source
 ) {
-    Document document{path};
+    Document document{state, path};
     auto basePath = path.parent();
     Parser parser{state, path, basePath, source, document};
     auto e = parser.expr();
