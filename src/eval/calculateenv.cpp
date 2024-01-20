@@ -3,13 +3,15 @@
 #include <iostream>
 #include "common/logging.h"
 #include "common/stringify.h"
+#include "documents/documents.h"
 
 nix::Env* updateEnv(
-    nix::EvalState& state,
+    Document& document,
     nix::Expr* parent,
     nix::Expr* child,
     nix::Env* up
 ) {
+    auto& state = document.state;
     if (auto let = dynamic_cast<nix::ExprLet*>(parent)) {
         nix::Env* env2 = &state.allocEnv(let->attrs->attrs.size());
         env2->up = up;
@@ -21,15 +23,8 @@ nix::Env* updateEnv(
         bool useSuperEnv = false;
 
         for (auto& [symbol, attrDef] : let->attrs->attrs) {
-            try {
-                env2->values[displ] = attrDef.e->maybeThunk(
-                    state, attrDef.inherited ? *up : *env2
-                );
-            } catch (nix::Error& e) {
-                REPORT_ERROR(e);
-                env2->values[displ] = state.allocValue();
-                env2->values[displ]->mkNull();
-            }
+            env2->values[displ] =
+                document.thunk(attrDef.e, attrDef.inherited ? up : env2);
             displ++;
             if (attrDef.e == child && attrDef.inherited)
                 useSuperEnv = true;
@@ -80,13 +75,7 @@ nix::Env* updateEnv(
                 if (!j) {
                     nix::Value* val;
                     if (i.def) {
-                        try {
-                            val = i.def->maybeThunk(state, *env2);
-                        } catch (nix::Error& e) {
-                            REPORT_ERROR(e);
-                            val = state.allocValue();
-                            val->mkNull();
-                        }
+                        val = document.thunk(i.def, env2);
                     } else {
                         val = state.allocValue();
                         val->mkNull();
@@ -116,15 +105,7 @@ nix::Env* updateEnv(
         nix::Displacement displ = 0;
         for (auto& i : exprAttrs->attrs) {
             nix::Value* vAttr;
-            try {
-                vAttr = i.second.e->maybeThunk(
-                    state, i.second.inherited ? *up : *env2
-                );
-            } catch (nix::Error& e) {
-                REPORT_ERROR(e);
-                vAttr = state.allocValue();
-                vAttr->mkNull();
-            }
+            vAttr = document.thunk(i.second.e, i.second.inherited ? up : env2);
             env2->values[displ] = vAttr;
             displ++;
         }

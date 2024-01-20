@@ -10,6 +10,7 @@
 #include "fmt.hh"
 #include "parser/tokenizer.h"
 #include "position/position.h"
+#include "value.hh"
 
 struct Diagnostic {
     std::string msg;
@@ -21,6 +22,7 @@ struct ExprData {
     std::shared_ptr<nix::StaticEnv> staticEnv;
     std::optional<nix::Expr*> parent;
     std::optional<nix::Env*> env;
+    std::optional<nix::Value*> v;
 };
 
 // Represents an immutable document at a particular time
@@ -36,4 +38,5 @@ struct Document {
 
     std::shared_ptr<nix::StaticEnv> getStaticEnv(nix::Expr* e);
     nix::Env* getEnv(nix::Expr* e);
+    nix::Value* thunk(nix::Expr* e, nix::Env* env);
 };

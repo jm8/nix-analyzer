@@ -20,5 +20,12 @@ nix::Env* Document::getEnv(nix::Expr* e) {
     if (!data.parent) {
         return &state.baseEnv;
     }
-    return updateEnv(state, *data.parent, e, getEnv(*data.parent));
+    return updateEnv(*this, *data.parent, e, getEnv(*data.parent));
+}
+
+nix::Value* Document::thunk(nix::Expr* e, nix::Env* env) {
+    exprData[e].env = env;
+    auto v = e->maybeThunk(state, *env);
+    exprData[e].v = v;
+    return v;
 }
