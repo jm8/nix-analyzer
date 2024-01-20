@@ -3,7 +3,7 @@
 #include <iostream>
 #include "common/logging.h"
 #include "common/stringify.h"
-#include "documents/documents.h"
+#include "document/document.h"
 
 nix::Env* updateEnv(
     Document& document,

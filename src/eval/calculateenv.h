@@ -2,7 +2,7 @@
 #include "na_config.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
-#include "documents/documents.h"
+#include "document/document.h"
 
 // returns the environment used to evaluate child
 // (child must be a direct child of parent)

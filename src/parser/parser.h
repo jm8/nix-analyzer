@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "documents/documents.h"
+#include "document/document.h"
 #include "position/position.h"
 
 struct ParseExprData {

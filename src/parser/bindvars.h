@@ -1,7 +1,7 @@
 #include "na_config.h"
 #include <memory>
 #include <vector>
-#include "documents/documents.h"
+#include "document/document.h"
 #include "eval.hh"
 #include "nixexpr.hh"
 
