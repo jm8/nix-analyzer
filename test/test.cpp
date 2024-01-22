@@ -14,7 +14,7 @@
 #define CATCH_CONFIG_RUNNER
 #include <catch2/catch.hpp>
 
-std::unique_ptr<nix::EvalState> stateptr;
+std::shared_ptr<nix::EvalState> stateptr;
 
 nix::SourcePath path(std::string p) {
     auto& state = *stateptr;
@@ -25,7 +25,11 @@ int main(int argc, char** argv) {
     nix::initGC();
     nix::initNix();
 
-    stateptr =
-        std::make_unique<nix::EvalState>(nix::SearchPath{}, nix::openStore());
+    stateptr = std::allocate_shared<nix::EvalState>(
+        traceable_allocator<nix::EvalState>(),
+        nix::SearchPath{},
+        nix::openStore(),
+        nullptr
+    );
     return Catch::Session().run(argc, argv);
 }

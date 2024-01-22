@@ -5,8 +5,6 @@
 #include "parser/parser.h"
 #include "test.h"
 
-extern std::unique_ptr<nix::EvalState> stateptr;
-
 TEST_CASE("parent and staticenv") {
     auto& state = *stateptr;
     auto document = parse(state, path("/default.nix"), "let x = 4; in x");
