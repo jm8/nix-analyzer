@@ -9,14 +9,16 @@
 
 struct ParseExprData {
     TokenRange range;
-    std::shared_ptr<nix::StaticEnv> staticEnv;
 };
 
 struct ParseResult {
-    std::unordered_map<nix::Expr*, ParseExprData> parseExprData;
+    std::vector<Token> tokens;
+    std::vector<Diagnostic> parseErrors;
+    std::unordered_map<nix::Expr*, ParseExprData> exprData;
+    nix::Expr* root;
 };
 
-Document parse(
+ParseResult parse(
     nix::EvalState& state,
     nix::SourcePath path,
     std::string_view source

@@ -1,3 +1,4 @@
+#include "na_config.h"
 #include "parser.h"
 #include <nix/attr-set.hh>
 #include <nix/error.hh>
@@ -20,7 +21,6 @@
 #include <vector>
 #include "file-system.hh"
 #include "input-accessor.hh"
-#include "parser/bindvars.h"
 #include "parser/tokenizer.h"
 #include "position/position.h"
 #include "users.hh"
@@ -29,7 +29,7 @@ struct Parser {
     nix::EvalState& state;
     nix::SourcePath path;
     nix::SourcePath basePath;
-    Document& document;
+    ParseResult& result;
     bool justReportedError = false;
 
     std::vector<Token> tokens;
@@ -41,13 +41,13 @@ struct Parser {
         nix::SourcePath path,
         nix::SourcePath basePath,
         std::string_view source,
-        Document& document
+        ParseResult& result
     )
         : state(state),
           path(path),
           basePath(basePath),
           tokens(tokenize(state, path, basePath, std::string{source})),
-          document(document) {}
+          result(result) {}
 
     Token previous() { return lookahead(-1); }
     Token current() { return lookahead(0); }
@@ -124,13 +124,11 @@ struct Parser {
     void error(std::string msg, Range range) {
         if (justReportedError)
             return;
-        document.parseErrors.push_back({msg, range});
+        result.parseErrors.push_back({msg, range});
         justReportedError = true;
     }
 
-    void visit(nix::Expr* e, TokenRange range) {
-        document.exprData[e] = {range};
-    }
+    void visit(nix::Expr* e, TokenRange range) { result.exprData[e] = {range}; }
 
     // GRAMMAR
 
@@ -461,7 +459,7 @@ struct Parser {
             return nix::absPath(path, dir);
         } catch (nix::Error& e) {
             std::cerr << "Caught symlink error\n";
-            document.parseErrors.push_back({e.info().msg.str(), range});
+            result.parseErrors.push_back({e.info().msg.str(), range});
             return nix::absPath(path, dir, true);
         }
     }
@@ -1107,20 +1105,18 @@ struct Parser {
     }
 };
 
-Document parse(
+ParseResult parse(
     nix::EvalState& state,
     nix::SourcePath path,
     std::string_view source
 ) {
-    Document document{state, path};
+    ParseResult result;
     auto basePath = path.parent();
-    Parser parser{state, path, basePath, source, document};
+    Parser parser{state, path, basePath, source, result};
     auto e = parser.expr();
     parser.expect(YYEOF);
-    document.tokens = parser.tokens;
-    document.root = e;
+    result.tokens = parser.tokens;
+    result.root = e;
 
-    bindVars(state, document, state.staticBaseEnv, e);
-
-    return document;
+    return result;
 }

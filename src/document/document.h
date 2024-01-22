@@ -1,4 +1,5 @@
 #pragma once
+#include "na_config.h"
 #include <nix/input-accessor.hh>
 #include <nix/nixexpr.hh>
 #include <iostream>
@@ -25,18 +26,38 @@ struct ExprData {
     std::optional<nix::Value*> v;
 };
 
-// Represents an immutable document at a particular time
+// Represents an nix source file at a particular time with particular import
 struct Document {
+   private:
     nix::EvalState& state;
     nix::SourcePath path;
+    std::string source;
+
     std::vector<Token> tokens;
     std::vector<Diagnostic> parseErrors;
     std::unordered_map<nix::Expr*, ExprData> exprData;
-    nix::Expr* root;
+    std::optional<nix::Expr*> root;
+
+   private:
+    // initialize tokens, parseErrors, exprData, root
+    void _parse();
+
+   public:
+    Document(nix::EvalState& state, nix::SourcePath path, std::string source);
 
     Range tokenRangeToRange(TokenRange tokenRange);
 
+    nix::Expr* getRoot();
     std::shared_ptr<nix::StaticEnv> getStaticEnv(nix::Expr* e);
     nix::Env* getEnv(nix::Expr* e);
+    std::optional<nix::Expr*> getParent(nix::Expr* e);
     nix::Value* thunk(nix::Expr* e, nix::Env* env);
+
+   private:
+    nix::Env* updateEnv(nix::Expr* parent, nix::Expr* child, nix::Env* up);
+    void bindVars(
+        std::shared_ptr<nix::StaticEnv> staticEnv,
+        nix::Expr* e,
+        std::optional<nix::Expr*> parent = {}
+    );
 };

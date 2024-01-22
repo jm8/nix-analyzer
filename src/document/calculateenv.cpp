@@ -1,17 +1,15 @@
-#include "eval/calculateenv.h"
+#include "na_config.h"
 #include <nix/eval.hh>
 #include <iostream>
 #include "common/logging.h"
 #include "common/stringify.h"
 #include "document/document.h"
 
-nix::Env* updateEnv(
-    Document& document,
+nix::Env* Document::updateEnv(
     nix::Expr* parent,
     nix::Expr* child,
     nix::Env* up
 ) {
-    auto& state = document.state;
     if (auto let = dynamic_cast<nix::ExprLet*>(parent)) {
         nix::Env* env2 = &state.allocEnv(let->attrs->attrs.size());
         env2->up = up;
@@ -24,7 +22,7 @@ nix::Env* updateEnv(
 
         for (auto& [symbol, attrDef] : let->attrs->attrs) {
             env2->values[displ] =
-                document.thunk(attrDef.e, attrDef.inherited ? up : env2);
+                thunk(attrDef.e, attrDef.inherited ? up : env2);
             displ++;
             if (attrDef.e == child && attrDef.inherited)
                 useSuperEnv = true;
@@ -75,7 +73,7 @@ nix::Env* updateEnv(
                 if (!j) {
                     nix::Value* val;
                     if (i.def) {
-                        val = document.thunk(i.def, env2);
+                        val = thunk(i.def, env2);
                     } else {
                         val = state.allocValue();
                         val->mkNull();
@@ -105,7 +103,7 @@ nix::Env* updateEnv(
         nix::Displacement displ = 0;
         for (auto& i : exprAttrs->attrs) {
             nix::Value* vAttr;
-            vAttr = document.thunk(i.second.e, i.second.inherited ? up : env2);
+            vAttr = thunk(i.second.e, i.second.inherited ? up : env2);
             env2->values[displ] = vAttr;
             displ++;
         }

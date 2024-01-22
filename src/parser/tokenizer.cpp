@@ -1,3 +1,4 @@
+#include "na_config.h"
 #include "tokenizer.h"
 #include <nix/error.hh>
 #include <nix/eval.hh>
