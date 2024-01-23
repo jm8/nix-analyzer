@@ -19,12 +19,6 @@ Install using the flake:
 ```
 
 ### Vscode
-1. Install [jnoortheen.nix-ide](https://marketplace.visualstudio.com/items?itemName=jnoortheen.nix-ide). 
+1. Install [jnoortheen.nix-ide](https://marketplace.visualstudio.com/items?itemName=jnoortheen.nix-ide).
 2. Nix: Enable Language Server
 3. Set Server Path to nix-analyzer
-
-## Development
-
-This uses a fork of nix with minor changes to the parser and interpreter: [jm8/nix](https://github.com/jm8/nix).
-
-Also uses [kuafuwang/LspCpp](https://github.com/kuafuwang/LspCpp).
