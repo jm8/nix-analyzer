@@ -58,6 +58,9 @@ nix::Env* Document::getEnv(nix::Expr* e) {
 }
 
 nix::Value* Document::thunk(nix::Expr* e, nix::Env* env) {
+    if (exprData[e].v) {
+        return exprData[e].v.value();
+    }
     exprData[e].env = env;
     auto v = e->maybeThunk(state, *env);
     exprData[e].v = v;
