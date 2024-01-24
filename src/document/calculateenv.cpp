@@ -8,7 +8,8 @@
 nix::Env* Document::updateEnv(
     nix::Expr* parent,
     nix::Expr* child,
-    nix::Env* up
+    nix::Env* up,
+    std::optional<nix::Value*> lambdaArg
 ) {
     if (auto let = dynamic_cast<nix::ExprLet*>(parent)) {
         nix::Env* env2 = &state.allocEnv(let->attrs->attrs.size());
@@ -37,12 +38,12 @@ nix::Env* Document::updateEnv(
         env2->up = up;
 
         nix::Value* arg;
-        // if (lambdaArg) {
-        // arg = *lambdaArg;
-        // } else {
-        arg = state.allocValue();
-        arg->mkNull();
-        // }
+        if (lambdaArg) {
+            arg = *lambdaArg;
+        } else {
+            arg = state.allocValue();
+            arg->mkNull();
+        }
 
         nix::Displacement displ = 0;
 

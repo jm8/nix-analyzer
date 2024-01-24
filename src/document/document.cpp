@@ -54,15 +54,25 @@ nix::Env* Document::getEnv(nix::Expr* e) {
     if (!data.parent) {
         return &state.baseEnv;
     }
-    return updateEnv(*data.parent, e, getEnv(*data.parent));
+    return updateEnv(*data.parent, e, getEnv(*data.parent), {});
 }
 
 nix::Value* Document::thunk(nix::Expr* e, nix::Env* env) {
-    if (exprData[e].v) {
+    if (exprData[e].env == env && exprData[e].v) {
         return exprData[e].v.value();
     }
     exprData[e].env = env;
     auto v = e->maybeThunk(state, *env);
     exprData[e].v = v;
     return v;
+}
+
+nix::Value* Document::eval(nix::Expr* e, nix::Env* env) {
+    auto value = thunk(e, env);
+    try {
+        state.forceValue(*value, nix::noPos);
+    } catch (nix::Error& e) {
+        value->mkNull();
+    }
+    return value;
 }

@@ -52,9 +52,15 @@ struct Document {
     nix::Env* getEnv(nix::Expr* e);
     std::optional<nix::Expr*> getParent(nix::Expr* e);
     nix::Value* thunk(nix::Expr* e, nix::Env* env);
+    nix::Value* eval(nix::Expr* e, nix::Env* env);
 
    private:
-    nix::Env* updateEnv(nix::Expr* parent, nix::Expr* child, nix::Env* up);
+    nix::Env* updateEnv(
+        nix::Expr* parent,
+        nix::Expr* child,
+        nix::Env* up,
+        std::optional<nix::Value*> lambdaArg
+    );
     void bindVars(
         std::shared_ptr<nix::StaticEnv> staticEnv,
         nix::Expr* e,
