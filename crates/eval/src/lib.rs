@@ -1,14 +1,10 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+use value::{EnvId, ValueId};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod db;
+mod value;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+#[salsa::jar(db = Db)]
+pub struct Jar(ValueId, EnvId);
+
+pub trait Db: salsa::DbWithJar<Jar> {}
+impl<DB> Db for DB where DB: ?Sized + salsa::DbWithJar<Jar> {}

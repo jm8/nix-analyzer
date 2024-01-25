@@ -1,4 +1,4 @@
-use rowan::{GreenNodeBuilder, NodeOrToken};
+pub use ustr::Ustr as Symbol;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[allow(non_camel_case_types)]
@@ -102,30 +102,21 @@ type SyntaxToken = rowan::SyntaxToken<Lang>;
 #[allow(unused)]
 type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 
-fn print(indent: usize, element: SyntaxElement) {
-    let kind: SyntaxKind = element.kind().into();
-    print!("{:indent$}", "", indent = indent);
-    match element {
-        NodeOrToken::Node(node) => {
-            println!("- {:?}", kind);
-            for child in node.children_with_tokens() {
-                print(indent + 2, child);
-            }
-        }
-
-        NodeOrToken::Token(token) => println!("- {:?} {:?}", token.text(), kind),
-    }
+#[derive(PartialEq, Eq, Hash, Clone)]
+#[repr(transparent)]
+pub struct Expr {
+    pub(crate) node: SyntaxNode,
 }
 
 macro_rules! ast_node {
     ($ast:ident, $kind:ident) => {
-        #[derive(PartialEq, Eq, Hash)]
+        #[derive(PartialEq, Eq, Hash, Clone)]
         #[repr(transparent)]
-        struct $ast(SyntaxNode);
+        pub struct $ast(Expr);
         impl $ast {
             #[allow(unused)]
-            fn cast(node: SyntaxNode) -> Option<Self> {
-                if node.kind() == $kind {
+            fn cast(node: Expr) -> Option<Self> {
+                if node.node.kind() == $kind {
                     Some(Self(node))
                 } else {
                     None
@@ -165,6 +156,7 @@ ast_node!(ExprBlackhole, EXPR_BLACKHOLE);
 
 #[test]
 fn test_syntax() {
+    use rowan::GreenNodeBuilder;
     let syntax1 = {
         let mut builder = GreenNodeBuilder::new();
 
