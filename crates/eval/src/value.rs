@@ -1,15 +1,20 @@
 use std::collections::HashMap;
-use syntax::Symbol;
+use syntax::{Expr, Symbol};
 
 #[salsa::interned]
 pub struct ValueId {
     kind: ValueKind,
 }
 
+#[salsa::interned]
+pub struct ExprId {
+    expr: Expr,
+}
+
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
-enum ValueKind {
+pub enum ValueKind {
     Int(i64),
-    Thunk(ValueId, EnvId),
+    Thunk(ExprId, EnvId),
 }
 
 #[salsa::tracked]

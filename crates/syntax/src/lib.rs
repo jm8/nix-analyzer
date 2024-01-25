@@ -72,8 +72,6 @@ enum SyntaxKind {
     EXPR_CONCAT_STRINGS,
     EXPR_POS,
     EXPR_BLACKHOLE,
-
-    ROOT,
 }
 use SyntaxKind::*;
 
@@ -88,7 +86,6 @@ enum Lang {}
 impl rowan::Language for Lang {
     type Kind = SyntaxKind;
     fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
-        assert!(raw.0 <= SyntaxKind::ROOT as u16);
         unsafe { std::mem::transmute::<u16, SyntaxKind>(raw.0) }
     }
     fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
@@ -102,7 +99,7 @@ type SyntaxToken = rowan::SyntaxToken<Lang>;
 #[allow(unused)]
 type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Debug, Hash, Clone)]
 #[repr(transparent)]
 pub struct Expr {
     pub(crate) node: SyntaxNode,
@@ -110,23 +107,27 @@ pub struct Expr {
 
 macro_rules! ast_node {
     ($ast:ident, $kind:ident) => {
-        #[derive(PartialEq, Eq, Hash, Clone)]
+        #[derive(PartialEq, Eq, Hash, Clone, Debug)]
         #[repr(transparent)]
         pub struct $ast(Expr);
         impl $ast {
             #[allow(unused)]
-            fn cast(node: Expr) -> Option<Self> {
-                if node.node.kind() == $kind {
-                    Some(Self(node))
+            pub fn cast(expr: Expr) -> Option<Self> {
+                if expr.node.kind() == $kind {
+                    Some(Self(expr))
                 } else {
                     None
                 }
+            }
+
+            #[allow(unused)]
+            pub fn expr(&self) -> &Expr {
+                &self.0
             }
         }
     };
 }
 
-ast_node!(Root, ROOT);
 ast_node!(ExprInt, EXPR_INT);
 ast_node!(ExprFloat, EXPR_FLOAT);
 ast_node!(ExprString, EXPR_STRING);
@@ -154,52 +155,101 @@ ast_node!(ExprConcatStrings, EXPR_CONCAT_STRINGS);
 ast_node!(ExprPos, EXPR_POS);
 ast_node!(ExprBlackhole, EXPR_BLACKHOLE);
 
-#[test]
-fn test_syntax() {
+impl ExprInt {
+    pub fn value(&self) -> i64 {
+        self.0
+            .node
+            .children_with_tokens()
+            .find(|token| token.kind() == TOKEN_INT)
+            .unwrap()
+            .to_string()
+            .parse()
+            .unwrap()
+    }
+}
+
+impl ExprVar {
+    pub fn name(&self) -> Symbol {
+        self.0
+            .node
+            .children_with_tokens()
+            .find(|token| token.kind() == TOKEN_INT)
+            .unwrap()
+            .to_string()
+            .parse()
+            .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
     use rowan::GreenNodeBuilder;
-    let syntax1 = {
-        let mut builder = GreenNodeBuilder::new();
 
-        builder.start_node(EXPR_LIST.into());
+    #[test]
+    fn test_green_node_id() {
+        let syntax1 = {
+            let mut builder = GreenNodeBuilder::new();
 
-        builder.start_node(EXPR_INT.into());
-        builder.token(TOKEN_INT.into(), "10");
-        builder.finish_node();
+            builder.start_node(EXPR_LIST.into());
 
-        builder.start_node(EXPR_INT.into());
-        builder.token(TOKEN_INT.into(), "20");
-        builder.finish_node();
+            builder.start_node(EXPR_INT.into());
+            builder.token(TOKEN_INT.into(), "10");
+            builder.finish_node();
 
-        builder.finish_node();
+            builder.start_node(EXPR_INT.into());
+            builder.token(TOKEN_INT.into(), "20");
+            builder.finish_node();
 
-        let green_node = builder.finish();
-        SyntaxNode::new_root(green_node)
-    };
+            builder.finish_node();
 
-    let syntax2 = {
-        let mut builder = GreenNodeBuilder::new();
+            let green_node = builder.finish();
+            SyntaxNode::new_root(green_node)
+        };
 
-        builder.start_node(EXPR_LIST.into());
+        let syntax2 = {
+            let mut builder = GreenNodeBuilder::new();
 
-        builder.start_node(EXPR_INT.into());
-        builder.token(TOKEN_INT.into(), "5");
-        builder.finish_node();
+            builder.start_node(EXPR_LIST.into());
 
-        builder.start_node(EXPR_INT.into());
-        builder.token(TOKEN_INT.into(), "20");
-        builder.finish_node();
+            builder.start_node(EXPR_INT.into());
+            builder.token(TOKEN_INT.into(), "5");
+            builder.finish_node();
 
-        builder.finish_node();
+            builder.start_node(EXPR_INT.into());
+            builder.token(TOKEN_INT.into(), "20");
+            builder.finish_node();
 
-        let green_node = builder.finish();
-        SyntaxNode::new_root(syntax1.replace_with(green_node))
-    };
+            builder.finish_node();
 
-    let a1 = syntax1.children().nth(0).unwrap();
-    let b1 = syntax1.children().nth(1).unwrap();
-    let a2 = syntax2.children().nth(0).unwrap();
-    let b2 = syntax2.children().nth(1).unwrap();
+            let green_node = builder.finish();
+            SyntaxNode::new_root(syntax1.replace_with(green_node))
+        };
 
-    assert_ne!(a1.green(), a2.green());
-    assert_eq!(b1.green(), b2.green());
+        let a1 = syntax1.children().nth(0).unwrap();
+        let b1 = syntax1.children().nth(1).unwrap();
+        let a2 = syntax2.children().nth(0).unwrap();
+        let b2 = syntax2.children().nth(1).unwrap();
+
+        assert_ne!(a1.green(), a2.green());
+        assert_eq!(b1.green(), b2.green());
+    }
+
+    #[test]
+    fn test_ast() {
+        let expr = {
+            let mut builder = GreenNodeBuilder::new();
+
+            builder.start_node(EXPR_INT.into());
+            builder.token(TOKEN_INT.into(), "10");
+            builder.finish_node();
+
+            let green_node = builder.finish();
+            Expr {
+                node: SyntaxNode::new_root(green_node),
+            }
+        };
+        let expr_int = ExprInt::cast(expr).unwrap();
+        assert_eq!(expr_int.value(), 10);
+    }
 }
