@@ -6,4 +6,5 @@ edition = "2021"
 
 [dependencies]
 salsa = { git = "https://github.com/salsa-rs/salsa.git", package = "salsa-2022" }
+sorted-vec = "0.8.3"
 syntax = { path = "../syntax" }
