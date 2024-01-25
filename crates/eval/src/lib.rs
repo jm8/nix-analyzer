@@ -1,8 +1,8 @@
-use eval::{force_value, maybe_thunk};
+use evaluation::{eval, maybe_thunk};
 use value::{lookup_bindings, lookup_env, BindingsId, EnvId, ExprId, ValueId};
 
 mod db;
-mod eval;
+mod evaluation;
 mod tests;
 mod value;
 
@@ -14,7 +14,7 @@ pub struct Jar(
     BindingsId,
     lookup_bindings,
     lookup_env,
-    force_value,
+    eval,
     maybe_thunk,
     InputExpr,
 );
