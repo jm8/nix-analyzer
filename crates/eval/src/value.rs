@@ -1,21 +1,22 @@
+use rnix::ast::Expr;
 use sorted_vec::SortedVec;
-use std::collections::HashMap;
-use syntax::{Expr, Symbol};
+type Symbol = ustr::Ustr;
 
 #[salsa::interned]
 pub struct ValueId {
-    kind: ValueKind,
+    pub kind: ValueKind,
 }
 
 #[salsa::interned]
 pub struct ExprId {
-    expr: Expr,
+    pub expr: Option<Expr>,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum ValueKind {
     Int(i64),
     Thunk(ExprId, EnvId),
+    Error,
 }
 
 #[salsa::interned]
