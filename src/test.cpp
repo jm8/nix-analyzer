@@ -109,7 +109,7 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
         static_cast<uint32_t>(getInt(state, v, "col")),
     };
 
-    auto analysis = parse(*state, source, path, "/base-path", targetPos);
+    auto analysis = parse(*state, source, path, "/base-path", targetPos, {});
     ASSERT_FALSE(analysis.exprPath.empty()) << source;
 
     auto expected = getString(state, v, "expected");
@@ -185,20 +185,20 @@ void runCompletionTest(nix::EvalState* state, nix::Value* v) {
         static_cast<uint32_t>(getInt(state, v, "col")),
     };
 
-    auto analysis = parse(*state, source, path, "/base-path", targetPos);
+    FileInfo fileInfo;
+    if (path.ends_with("/flake.nix")) {
+        auto analysis1 = parse(*state, source, path, "/base-path", targetPos, {});
+        auto lockFile = lockFlake(*state, analysis1.exprPath.back().e, path);
+        if (lockFile) {
+            fileInfo.flakeInputs =
+                getFlakeLambdaArg(*state, *lockFile);
+        }
+    }
+    auto analysis = parse(*state, source, path, "/base-path", targetPos, fileInfo);
 
     auto expected = getListOfStrings(state, v, "expected");
 
     analysis.exprPath.back().e->bindVars(*state, state->staticBaseEnv);
-    FileInfo fileInfo;
-    analysis.fileInfo = &fileInfo;
-    if (analysis.path.ends_with("/flake.nix")) {
-        auto lockFile = lockFlake(*state, analysis.exprPath.back().e, path);
-        if (lockFile) {
-            analysis.fileInfo->flakeInputs =
-                getFlakeLambdaArg(*state, *lockFile);
-        }
-    }
     getLambdaArgs(*state, analysis);
     calculateEnvs(*state, analysis);
     auto c = completion(*state, analysis);

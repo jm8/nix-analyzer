@@ -47,8 +47,8 @@ std::optional<size_t> flakeLambdaIndex(
 
 void getLambdaArgs(nix::EvalState& state, Analysis& analysis) {
     if (auto i = flakeLambdaIndex(state, analysis)) {
-        if (analysis.fileInfo && analysis.fileInfo->flakeInputs) {
-            analysis.exprPath[*i].lambdaArg = *analysis.fileInfo->flakeInputs;
+        if (analysis.fileInfo.flakeInputs) {
+            analysis.exprPath[*i].lambdaArg = *analysis.fileInfo.flakeInputs;
         } else {
             std::cerr << "flakeInputs is null\n";
         }

@@ -41,15 +41,16 @@ struct ExprPathItem {
 };
 
 struct Analysis {
+    const FileInfo &fileInfo;
+    std::string path;
+    std::string basePath;
+    std::string source;
+
     TraceableVector<ExprPathItem> exprPath;
     std::vector<Diagnostic> parseErrors;
-    std::string path;
-    std::string source;
-    std::string basePath;
     std::optional<ParseResultAttrPath> attr;
     std::optional<nix::Formal> formal;
     bool arg;
     bool uri;
     std::optional<ParseResultInherit> inherit;
-    FileInfo* fileInfo;
 };

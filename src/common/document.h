@@ -20,8 +20,13 @@ inline void from_json(
     json.at("text").get_to(contentChange.text);
 }
 
+// FileInfo has state that is stored for a file across multiple things
 struct FileInfo {
     std::optional<nix::Value*> flakeInputs;
+
+    // ftype is a value like this
+    // { }
+    std::optional<nix::Value*> ftype;
 };
 
 struct Document {

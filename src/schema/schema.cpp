@@ -76,63 +76,6 @@ size_t fileRootIndex(const Analysis& analysis) {
 SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
     auto emptySchema = state.allocValue();
     emptySchema->mkAttrs(state.allocBindings(0));
-    if (analysis.exprPath.empty())
-        return {emptySchema, 0};
-
-    auto vGetFunctionSchema = loadFile(state, "schema/getFunctionSchema.nix");
-
-    for (size_t i = 1; i < analysis.exprPath.size(); i++) {
-        nix::ExprCall* call;
-        if ((call = dynamic_cast<nix::ExprCall*>(analysis.exprPath[i].e)) &&
-            analysis.exprPath[i - 1].e != call->fun) {
-            try {
-                auto pkgs = nixpkgsValue(state);
-                auto vFunctionDescription = functionDescriptionValue(
-                    state, call->fun, *analysis.exprPath[i].env, pkgs
-                );
-                auto vSchema = state.allocValue();
-                state.callFunction(
-                    *vGetFunctionSchema,
-                    *vFunctionDescription,
-                    *vSchema,
-                    nix::noPos
-                );
-                return {vSchema, i};
-            } catch (nix::Error& e) {
-                REPORT_ERROR(e);
-                return {emptySchema, 0};
-            }
-        }
-    }
-
-    auto vGetFileSchema = loadFile(state, "schema/getFileSchema.nix");
-
-    auto vPath = state.allocValue();
-    vPath->mkString(analysis.path);
-
-    auto vHomeManager = state.allocValue();
-    vHomeManager->mkString(HOMEMANAGERPATH);
-
-    auto vFileDescription = makeAttrs(
-        state,
-        {
-            {"pkgs", nixpkgsValue(state)},
-            {"path", vPath},
-            {"home_manager", vHomeManager},
-        }
-    );
-
-    try {
-        auto vSchema = state.allocValue();
-        state.callFunction(
-            *vGetFileSchema, *vFileDescription, *vSchema, nix::noPos
-        );
-        return {vSchema, fileRootIndex(analysis)};
-    } catch (nix::Error& e) {
-        REPORT_ERROR(e);
-        return {emptySchema, 0};
-    }
-
     return {emptySchema, 0};
 }
 

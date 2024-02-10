@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 #include "common/analysis.h"
+#include "common/document.h"
 #include "common/position.h"
 #include "common/stringify.h"
 #include "parser/tokenizer.h"
@@ -1135,12 +1136,15 @@ Analysis parse(
     std::string source,
     nix::Path path,
     nix::Path basePath,
-    Position targetPos
+    Position targetPos,
+    const FileInfo &fileInfo
 ) {
-    Analysis analysis;
-    analysis.path = path;
-    analysis.basePath = basePath;
-    analysis.source = source;
+    Analysis analysis{
+        fileInfo,
+        path,
+        basePath,
+        source
+    };
 
     Parser parser{state, analysis, targetPos};
     auto e = parser.expr();

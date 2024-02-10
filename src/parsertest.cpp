@@ -33,7 +33,7 @@ bool check_consistency(nix::EvalState& state, std::string path) {
     }
     auto basePath = nix::absPath(nix::dirOf(path));
 
-    auto analysis = parse(state, source, path, basePath, {});
+    auto analysis = parse(state, source, path, basePath, {}, {});
     nix::Expr* actual = analysis.exprPath.back().e;
 
     nix::Expr* expected = state.parseExprFromString(source, basePath);

@@ -33,9 +33,8 @@ using namespace nlohmann::json_literals;
 
 Analysis analyze(nix::EvalState& state, Document document, Position targetPos) {
     auto analysis = parse(
-        state, document.source, document.path, document.basePath, targetPos
+        state, document.source, document.path, document.basePath, targetPos, document.fileInfo
     );
-    analysis.fileInfo = &document.fileInfo;
     analysis.exprPath.back().e->bindVars(state, state.staticBaseEnv);
     getLambdaArgs(state, analysis);
     calculateEnvs(state, analysis);
@@ -76,7 +75,7 @@ void LspServer::run() {
             std::cerr << "getting flake inputs for  " << input.path << "\n";
 
             auto analysis = parse(
-                state, input.source, input.path, nix::dirOf(input.path), {}
+                state, input.source, input.path, nix::dirOf(input.path), {}, {}
             );
 
             auto lockFile =

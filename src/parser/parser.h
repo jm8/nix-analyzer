@@ -12,5 +12,6 @@ Analysis parse(
     std::string source,
     nix::Path path,
     nix::Path basePath,
-    Position targetPos
+    Position targetPos,
+    const FileInfo &fileInfo
 );
