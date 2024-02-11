@@ -127,7 +127,6 @@ std::optional<CompletionResult> completionAttrsSchema(
         }
     }
     auto schema = getSchema(state, analysis);
-    state.forceValue(*schema.value, nix::noPos);
     if (analysis.attr) {
         auto& attrPath = *analysis.attr->attrPath;
         for (size_t i = 0; i < analysis.attr->index; i++) {

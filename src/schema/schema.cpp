@@ -6,10 +6,13 @@
 #include <nix/symbol-table.hh>
 #include <nix/value.hh>
 #include <cstddef>
+#include <deque>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 #include "common/analysis.h"
 #include "common/evalutil.h"
@@ -61,6 +64,42 @@ struct SchemaRoot {
     size_t index;
 };
 
+static Schema mkSchema(
+    nix::EvalState& state,
+    const std::vector<nix::Value*>& values
+) {
+    std::vector<nix::Value*> result;
+
+    const std::vector<nix::Symbol> nesters{
+        state.symbols.create("allOf"),
+        state.symbols.create("oneOf"),
+        state.symbols.create("anyOf"),
+    };
+
+    for (auto value : values) {
+        result.push_back(value);
+        for (auto nester : nesters) {
+            if (auto nested = getAttr(state, value, nester)) {
+                try {
+                    state.forceList(**nested, nix::noPos);
+                } catch (nix::Error &e) {
+                    REPORT_ERROR(e);
+                }
+                for (auto item : nested.value()->listItems()) {
+                    result.push_back(item);
+                }
+            }
+        }
+    }
+
+    for (auto x : result) {
+        state.forceValueDeep(*x);
+        std::cerr << stringify(state, x) << "\n";
+    }
+
+    return Schema{result};
+}
+
 static size_t fileRootIndex(const Analysis& analysis) {
     for (int i = analysis.exprPath.size() - 1; i >= 0; i--) {
         if (dynamic_cast<nix::ExprLambda*>(analysis.exprPath[i].e) ||
@@ -73,24 +112,26 @@ static size_t fileRootIndex(const Analysis& analysis) {
     return 0;
 }
 
-static Schema emptySchema(nix::EvalState& state) {
-    auto v = state.allocValue();
-    v->mkAttrs(state.allocBindings(0));
-    return {v};
-}
-
-static SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
+static SchemaRoot getSchemaRoot(
+    nix::EvalState& state,
+    const Analysis& analysis
+) {
     if (auto ftype = analysis.fileInfo.ftype) {
         state.forceAttrs(**ftype, nix::noPos);
-        // std::cerr << "Using schema: " << stringify(state, ftype.value()) << "\n";
-        if (auto schema = getAttr(state, ftype.value(), state.symbols.create("schema"))) {
-            return {schema.value(), 0};
+        // std::cerr << "Using schema: " << stringify(state, ftype.value()) <<
+        // "\n";
+        if (auto schema =
+                getAttr(state, ftype.value(), state.symbols.create("schema"))) {
+            return {mkSchema(state, {schema.value()}), fileRootIndex(analysis)};
         }
     }
-    return {emptySchema(state), 0};
+    return {mkSchema(state, {}), fileRootIndex(analysis)};
 }
 
-Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
+Schema getSchema(
+    nix::EvalState& state,
+    const Analysis& analysis
+) {
     auto schemaRoot = getSchemaRoot(state, analysis);
     Schema current = schemaRoot.schema;
     for (int i = schemaRoot.index; i >= 1; i--) {
@@ -109,55 +150,84 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                        "know the symbol\n";
                 auto emptySchema = state.allocValue();
                 emptySchema->mkAttrs(state.allocBindings(0));
-                return {emptySchema};
+                return mkSchema(state, {});
             }
             current = current.attrSubschema(state, *subname);
         } else if (auto lambda = dynamic_cast<nix::ExprLambda*>(child)) {
             current = current.functionSubschema(state);
+        } else if (auto list = dynamic_cast<nix::ExprList*>(child)) {
+            std::optional<int> subindex;
+            for (int i = 0; i < list->elems.size(); i++) {
+                if (list->elems[i] == child) {
+                    subindex = i;
+                }
+            }
+            if (!subindex) {
+                std::cerr
+                    << "Failed to find the child in the parent list so don't "
+                       "know the index\n";
+                return mkSchema(state, {});
+            }
+            return mkSchema(state, {});
+            // path.push_back(*subindex);
         }
     }
+
     return current;
 }
 
 std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
-    auto properties = getAttr(state, value, state.symbols.create("properties"));
-    if (!properties) {
-        return {};
-    }
-    try {
-        state.forceAttrs(*properties.value(), nix::noPos);
-    } catch (nix::Error &e) {
-        REPORT_ERROR(e);
-        return {};
-    }
     std::vector<nix::Symbol> result;
-    for (nix::Attr x : *properties.value()->attrs) {
-        std::string_view s = state.symbols[x.name];
-        if (s.starts_with("_"))
+    for (auto value : values) {
+        auto properties =
+            getAttr(state, value, state.symbols.create("properties"));
+        if (!properties) {
             continue;
-        result.push_back(x.name);
+        }
+        try {
+            state.forceAttrs(*properties.value(), nix::noPos);
+        } catch (nix::Error& e) {
+            REPORT_ERROR(e);
+            continue;
+        }
+        for (auto attr : *properties.value()->attrs) {
+            std::string_view s = state.symbols[attr.name];
+            if (s.starts_with("_"))
+                continue;
+            result.push_back(attr.name);
+        }
     }
     return result;
 }
 
 Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
-    if (auto properties = getAttr(state, value, state.symbols.create("properties"))) {
-        if (auto result = getAttr(state, properties.value(), symbol)) {
-            return {result.value()};
+    std::vector<nix::Value*> result;
+    for (auto value : values) {
+        if (auto properties =
+                getAttr(state, value, state.symbols.create("properties"))) {
+            if (auto subschema = getAttr(state, properties.value(), symbol)) {
+                result.push_back(subschema.value());
+            }
+        }
+        else if (auto additionalProperties = getAttr(
+                state, value, state.symbols.create("additionalProperties")
+            )) {
+            result.push_back(additionalProperties.value());
         }
     }
-    if (auto additionalProperties = getAttr(state, value, state.symbols.create("additionalProperties"))) {
-        return {additionalProperties.value()};
-    }
-    return emptySchema(state);
+    return mkSchema(state, result);
 }
 
 Schema Schema::functionSubschema(nix::EvalState& state) {
-    auto functionTo = getAttr(state, value, state.symbols.create("functionTo"));
-    if (functionTo) {
-        return {functionTo.value()};
+    std::vector<nix::Value*> result;
+    for (auto value : values) {
+        auto functionTo =
+            getAttr(state, value, state.symbols.create("functionTo"));
+        if (functionTo) {
+            result.push_back({functionTo.value()});
+        }
     }
-    return {emptySchema(state)};
+    return mkSchema(state, result);
 }
 
 std::optional<HoverResult> Schema::hover(nix::EvalState& state) {
