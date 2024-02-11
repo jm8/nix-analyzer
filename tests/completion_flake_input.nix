@@ -21,4 +21,7 @@ import ./lib/maketest.nix {
     "type"
     "url"
   ];
+  ftype = {
+    schema = import ../src/schema/flakeSchema.nix;
+  };
 }
