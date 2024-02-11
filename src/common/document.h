@@ -24,8 +24,6 @@ inline void from_json(
 struct FileInfo {
     std::optional<nix::Value*> flakeInputs;
 
-    // ftype is a value like this
-    // { }
     std::optional<nix::Value*> ftype;
 };
 

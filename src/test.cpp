@@ -20,6 +20,7 @@
 #include <vector>
 #include "calculateenv/calculateenv.h"
 #include "common/document.h"
+#include "common/evalutil.h"
 #include "common/position.h"
 #include "common/stringify.h"
 #include "completion/completion.h"
@@ -185,7 +186,11 @@ void runCompletionTest(nix::EvalState* state, nix::Value* v) {
         static_cast<uint32_t>(getInt(state, v, "col")),
     };
 
+
     FileInfo fileInfo;
+    if (auto ftype = getAttr(*state, v, state->symbols.create("ftype"))) {
+        fileInfo.ftype = ftype.value();
+    }
     if (path.ends_with("/flake.nix")) {
         auto analysis1 = parse(*state, source, path, "/base-path", targetPos, {});
         auto lockFile = lockFlake(*state, analysis1.exprPath.back().e, path);

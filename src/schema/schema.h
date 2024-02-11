@@ -12,8 +12,6 @@ struct Analysis;
 
 // A Schema represents what attrs should be in an attrset
 struct Schema {
-    // should be either a nixos modules option or an attrset mapping
-    // to other Schemas
     nix::Value* value;
 
     std::vector<nix::Symbol> attrs(nix::EvalState& state);

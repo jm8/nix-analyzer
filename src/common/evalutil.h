@@ -9,3 +9,8 @@ nix::Value* makeAttrs(
     std::vector<std::pair<std::string_view, nix::Value*>> binds
 );
 nix::Value* nixpkgsValue(nix::EvalState& state);
+std::optional<nix::Value*> getAttr(
+    nix::EvalState& state,
+    nix::Value* v,
+    nix::Symbol symbol
+);

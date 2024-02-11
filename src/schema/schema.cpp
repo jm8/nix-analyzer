@@ -61,7 +61,7 @@ struct SchemaRoot {
     size_t index;
 };
 
-size_t fileRootIndex(const Analysis& analysis) {
+static size_t fileRootIndex(const Analysis& analysis) {
     for (int i = analysis.exprPath.size() - 1; i >= 0; i--) {
         if (dynamic_cast<nix::ExprLambda*>(analysis.exprPath[i].e) ||
             dynamic_cast<nix::ExprWith*>(analysis.exprPath[i].e) ||
@@ -73,10 +73,21 @@ size_t fileRootIndex(const Analysis& analysis) {
     return 0;
 }
 
-SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
-    auto emptySchema = state.allocValue();
-    emptySchema->mkAttrs(state.allocBindings(0));
-    return {emptySchema, 0};
+static Schema emptySchema(nix::EvalState& state) {
+    auto v = state.allocValue();
+    v->mkAttrs(state.allocBindings(0));
+    return {v};
+}
+
+static SchemaRoot getSchemaRoot(nix::EvalState& state, const Analysis& analysis) {
+    if (auto ftype = analysis.fileInfo.ftype) {
+        state.forceAttrs(**ftype, nix::noPos);
+        // std::cerr << "Using schema: " << stringify(state, ftype.value()) << "\n";
+        if (auto schema = getAttr(state, ftype.value(), state.symbols.create("schema"))) {
+            return {schema.value(), 0};
+        }
+    }
+    return {emptySchema(state), 0};
 }
 
 Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
@@ -101,38 +112,26 @@ Schema getSchema(nix::EvalState& state, const Analysis& analysis) {
                 return {emptySchema};
             }
             current = current.attrSubschema(state, *subname);
-        } else if (auto lambda = dynamic_cast<nix::ExprAttrs*>(child)) {
+        } else if (auto lambda = dynamic_cast<nix::ExprLambda*>(child)) {
             current = current.functionSubschema(state);
         }
     }
     return current;
 }
 
-static nix::Value* attrSubschemas(nix::EvalState& state, Schema parent) {
-    auto vRes = state.allocValue();
-    try {
-        auto vFunction = loadFile(state, "schema/getAttrSubschemas.nix");
-        auto vArg = makeAttrs(
-            state,
-            {
-                {"pkgs", nixpkgsValue(state)},
-                {"parent", parent.value},
-            }
-        );
-        state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
-        state.forceAttrs(*vRes, nix::noPos);
-    } catch (nix::Error& e) {
-        vRes->mkAttrs(state.allocBindings(0));
-        REPORT_ERROR(e);
-    }
-
-    return vRes;
-}
-
 std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
-    auto attrs = attrSubschemas(state, *this);
+    auto properties = getAttr(state, value, state.symbols.create("properties"));
+    if (!properties) {
+        return {};
+    }
+    try {
+        state.forceAttrs(*properties.value(), nix::noPos);
+    } catch (nix::Error &e) {
+        REPORT_ERROR(e);
+        return {};
+    }
     std::vector<nix::Symbol> result;
-    for (nix::Attr x : *attrs->attrs) {
+    for (nix::Attr x : *properties.value()->attrs) {
         std::string_view s = state.symbols[x.name];
         if (s.starts_with("_"))
             continue;
@@ -142,66 +141,48 @@ std::vector<nix::Symbol> Schema::attrs(nix::EvalState& state) {
 }
 
 Schema Schema::attrSubschema(nix::EvalState& state, nix::Symbol symbol) {
-    auto schemas = attrSubschemas(state, *this);
-    auto attrsOfAttr =
-        schemas->attrs->get(state.symbols.create("_nixAnalyzerAttrsOf"));
-    if (attrsOfAttr) {
-        return {attrsOfAttr->value};
+    if (auto properties = getAttr(state, value, state.symbols.create("properties"))) {
+        if (auto result = getAttr(state, properties.value(), symbol)) {
+            return {result.value()};
+        }
     }
-    auto attr = schemas->attrs->get(symbol);
-    if (!attr) {
-        auto emptySchema = state.allocValue();
-        emptySchema->mkAttrs(state.allocBindings(0));
-        return {emptySchema};
+    if (auto additionalProperties = getAttr(state, value, state.symbols.create("additionalProperties"))) {
+        return {additionalProperties.value()};
     }
-    return {attr->value};
+    return emptySchema(state);
 }
 
 Schema Schema::functionSubschema(nix::EvalState& state) {
-    try {
-        state.forceValue(*value, nix::noPos);
-        auto vFunction = loadFile(state, "schema/getFunctionSubschema.nix");
-        auto vArg = makeAttrs(
-            state,
-            {
-                {"pkgs", nixpkgsValue(state)},
-                {"schema", value},
-            }
-        );
-        auto vRes = state.allocValue();
-        state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
-        state.forceValue(*vRes, nix::noPos);
-        return {vRes};
-    } catch (nix::Error& e) {
-        REPORT_ERROR(e);
-        auto emptySchema = state.allocValue();
-        emptySchema->mkAttrs(state.allocBindings(0));
-        return {emptySchema};
+    auto functionTo = getAttr(state, value, state.symbols.create("functionTo"));
+    if (functionTo) {
+        return {functionTo.value()};
     }
+    return {emptySchema(state)};
 }
 
 std::optional<HoverResult> Schema::hover(nix::EvalState& state) {
-    try {
-        state.forceValue(*value, nix::noPos);
-        std::cerr << "hover of schema " << stringify(state, value) << "\n";
-        auto vFunction = loadFile(state, "schema/getSchemaDoc.nix");
-        auto vArg = makeAttrs(
-            state,
-            {
-                {"pkgs", nixpkgsValue(state)},
-                {"schema", value},
-            }
-        );
-        auto vRes = state.allocValue();
-        state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
-        state.forceValue(*vRes, nix::noPos);
-        if (vRes->type() == nix::nNull) {
-            return {};
-        }
-        state.forceString(*vRes);
-        return {{vRes->string.s}};
-    } catch (nix::Error& e) {
-        REPORT_ERROR(e);
-        return {};
-    }
+    // try {
+    //     state.forceValue(*value, nix::noPos);
+    //     std::cerr << "hover of schema " << stringify(state, value) << "\n";
+    //     auto vFunction = loadFile(state, "schema/getSchemaDoc.nix");
+    //     auto vArg = makeAttrs(
+    //         state,
+    //         {
+    //             {"pkgs", nixpkgsValue(state)},
+    //             {"schema", value},
+    //         }
+    //     );
+    //     auto vRes = state.allocValue();
+    //     state.callFunction(*vFunction, *vArg, *vRes, nix::noPos);
+    //     state.forceValue(*vRes, nix::noPos);
+    //     if (vRes->type() == nix::nNull) {
+    //         return {};
+    //     }
+    //     state.forceString(*vRes);
+    //     return {{vRes->string.s}};
+    // } catch (nix::Error& e) {
+    //     REPORT_ERROR(e);
+    //     return {};
+    // }
+    return {};
 }
