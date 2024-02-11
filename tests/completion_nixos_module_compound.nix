@@ -11,4 +11,7 @@ import ./lib/maketest.nix {
     "sounds"
     "autostart"
   ];
+  ftype = {
+    schema = import ../src/schema/nixosModuleSchema.nix;
+  };
 }

@@ -5,4 +5,7 @@ import ./lib/maketest.nix {
   '';
   expected = [
   ];
+  ftype = {
+    schema = import ../src/schema/nixosModuleSchema.nix;
+  };
 }

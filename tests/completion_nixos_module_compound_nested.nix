@@ -6,4 +6,7 @@ import ./lib/maketest.nix {
   expected = [
     "enable"
   ];
+  ftype = {
+    schema = import ../src/schema/nixosModuleSchema.nix;
+  };
 }

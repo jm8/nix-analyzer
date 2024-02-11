@@ -92,11 +92,6 @@ static Schema mkSchema(
         }
     }
 
-    for (auto x : result) {
-        state.forceValueDeep(*x);
-        std::cerr << stringify(state, x) << "\n";
-    }
-
     return Schema{result};
 }
 
