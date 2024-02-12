@@ -41,7 +41,7 @@ struct ExprPathItem {
 };
 
 struct Analysis {
-    const FileInfo &fileInfo;
+    FileInfo fileInfo;
     std::string path;
     std::string basePath;
     std::string source;

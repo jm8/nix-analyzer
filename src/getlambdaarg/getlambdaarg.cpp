@@ -9,6 +9,7 @@
 #include "common/evalutil.h"
 #include "common/stringify.h"
 #include "flakes/evaluateFlake.h"
+#include "evaluation/evaluation.h"
 
 std::optional<size_t> topLambdaIndex(const Analysis& analysis) {
     for (int i = analysis.exprPath.size() - 1; i >= 0; i--) {
@@ -54,5 +55,16 @@ void getLambdaArgs(nix::EvalState& state, Analysis& analysis) {
         }
     } else if (auto i = topLambdaIndex(analysis)) {
         analysis.exprPath[*i].lambdaArg = getFileLambdaArg(state, analysis);
+    }
+    for (int i = 0; i < analysis.exprPath.size() - 1; i++) {
+        auto parent = analysis.exprPath[i];
+        auto child = analysis.exprPath[i+1];
+
+        auto call = dynamic_cast<nix::ExprCall*>(parent.e);
+        auto lambda = dynamic_cast<nix::ExprLambda*>(child.e);
+        if (call && lambda) {
+            std::vector<Diagnostic> diagnostics;
+            evaluateWithDiagnostics(state, call, *parent.env, diagnostics);
+        }
     }
 }

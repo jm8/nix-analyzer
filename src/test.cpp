@@ -19,8 +19,10 @@
 #include <string_view>
 #include <vector>
 #include "calculateenv/calculateenv.h"
+#include "common/analysis.h"
 #include "common/document.h"
 #include "common/evalutil.h"
+#include "evaluation/evaluation.h"
 #include "common/position.h"
 #include "common/stringify.h"
 #include "completion/completion.h"
@@ -87,6 +89,14 @@ int getInt(nix::EvalState* state, nix::Value* v, std::string_view key) {
     if (!i) {
         std::cerr << "Missing key: " << key << "\n";
         abort();
+    }
+    return state->forceInt(*i->value, nix::noPos);
+}
+
+int getIntDefault(nix::EvalState* state, nix::Value* v, std::string_view key, int def) {
+    auto i = v->attrs->get(state->symbols.create(key));
+    if (!i) {
+        return def;
     }
     return state->forceInt(*i->value, nix::noPos);
 }
@@ -176,14 +186,14 @@ void runParseTest(nix::EvalState* state, nix::Value* v) {
     ASSERT_EQ(actualErrors, expectedErrors) << source;
 }
 
-void runCompletionTest(nix::EvalState* state, nix::Value* v) {
+Analysis analyzeTest(nix::EvalState *state, nix::Value* v) {
     auto source = getString(state, v, "source");
 
     auto path = getStringDefault(state, v, "path", "");
 
     Position targetPos{
-        static_cast<uint32_t>(getInt(state, v, "line")),
-        static_cast<uint32_t>(getInt(state, v, "col")),
+        static_cast<uint32_t>(getIntDefault(state, v, "line", 0)),
+        static_cast<uint32_t>(getIntDefault(state, v, "col", 0)),
     };
 
 
@@ -201,18 +211,42 @@ void runCompletionTest(nix::EvalState* state, nix::Value* v) {
     }
     auto analysis = parse(*state, source, path, "/base-path", targetPos, fileInfo);
 
-    auto expected = getListOfStrings(state, v, "expected");
 
     analysis.exprPath.back().e->bindVars(*state, state->staticBaseEnv);
     getLambdaArgs(*state, analysis);
     calculateEnvs(*state, analysis);
+
+    return analysis;    
+}
+
+void runCompletionTest(nix::EvalState* state, nix::Value* test) {
+    auto analysis = analyzeTest(state, test);
     auto c = completion(*state, analysis);
 
     auto& actual = c.items;
+    auto expected = getListOfStrings(state, test, "expected");
 
     std::sort(actual.begin(), actual.end());
     std::sort(expected.begin(), expected.end());
-    ASSERT_EQ(actual, expected) << source;
+    ASSERT_EQ(actual, expected);
+}
+
+void runDiagnosticTest(nix::EvalState* state, nix::Value* test) {
+    auto analysis = analyzeTest(state, test);
+    std::vector<Diagnostic> diagnostics = analysis.parseErrors;
+    auto c = evaluateWithDiagnostics(*state, analysis.exprPath.back().e, *analysis.exprPath.back().env, diagnostics);
+
+    std::vector<std::string> actual;
+    for (auto diagnostic : diagnostics) {
+        std::stringstream ss;
+        ss << diagnostic.message << " " << diagnostic.range;
+        actual.push_back(ss.str());
+    }
+    auto expected = getListOfStrings(state, test, "expected");
+
+    std::sort(actual.begin(), actual.end());
+    std::sort(expected.begin(), expected.end());
+    ASSERT_EQ(actual, expected);
 }
 
 TEST_P(FileTest, A) {
@@ -224,16 +258,16 @@ TEST_P(FileTest, A) {
         return;
     }
 
-    auto type = state->forceString(
-        *v->attrs->get(state->symbols.create("type"))->value, nix::noPos
-    );
+    auto type = getString(state, v, "type");
 
     if (type == "parse") {
         ASSERT_NO_FATAL_FAILURE(runParseTest(state, v));
     } else if (type == "completion") {
         ASSERT_NO_FATAL_FAILURE(runCompletionTest(state, v));
+    } else if (type == "diagnostic") {
+        ASSERT_NO_FATAL_FAILURE(runDiagnosticTest(state, v));
     } else {
-        FAIL() << "Test type must be parse or completion";
+        FAIL() << "Invalid test type";
     }
 }
 

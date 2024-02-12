@@ -293,11 +293,9 @@ struct Parser {
                 return {50, BindingPower::NONE};
             case UPDATE:
                 return {60, BindingPower::RIGHT};
-            case '+':
+            case '+': case '-':
                 return {80, BindingPower::LEFT};
-            case '-':
-                return {80, BindingPower::LEFT};
-            case '*':
+            case '*': case '/':
                 return {90, BindingPower::LEFT};
             case CONCAT:
                 return {100, BindingPower::RIGHT};
