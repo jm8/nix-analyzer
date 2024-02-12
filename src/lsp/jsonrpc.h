@@ -15,7 +15,7 @@
 struct Request {
     nlohmann::json id;
     std::string method;
-    nlohmann::json params;
+    nlohmann::json params = {};
 };
 
 struct Response {
@@ -25,12 +25,12 @@ struct Response {
 
 struct Notification {
     std::string method;
-    nlohmann::json params;
+    nlohmann::json params = {};
 };
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Request, id, method, params)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Request, id, method, params)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Response, id, result)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Notification, method, params)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Notification, method, params)
 
 using Message = std::variant<Request, Response, Notification>;
 

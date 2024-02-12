@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include "position.h"
+#include "config/configuration.h"
 
 struct ContentChange {
     std::optional<Range> range;
@@ -25,6 +26,8 @@ struct FileInfo {
     std::optional<nix::Value*> flakeInputs;
 
     std::optional<nix::Value*> ftype;
+
+    std::optional<Config> config;
 };
 
 struct Document {
