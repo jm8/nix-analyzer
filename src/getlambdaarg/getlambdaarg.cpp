@@ -21,7 +21,14 @@ std::optional<size_t> topLambdaIndex(const Analysis& analysis) {
 }
 
 nix::Value* getFileLambdaArg(nix::EvalState& state, const Analysis& analysis) {
-    return nixpkgsValue(state);
+    auto sArg = state.symbols.create("arg");
+    if (analysis.fileInfo.ftype && analysis.fileInfo.ftype->arg) {
+        return *analysis.fileInfo.ftype->arg;
+    } else {
+        auto v = state.allocValue();
+        v->mkNull();
+        return v;
+    }
 }
 
 std::optional<size_t> flakeLambdaIndex(

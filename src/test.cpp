@@ -1,3 +1,4 @@
+#include "config/configuration.h"
 #include "na_config.h"
 #include <nix/eval.hh>
 #include <nix/nixexpr.hh>
@@ -199,7 +200,7 @@ Analysis analyzeTest(nix::EvalState *state, nix::Value* v) {
 
     FileInfo fileInfo;
     if (auto ftype = getAttr(*state, v, state->symbols.create("ftype"))) {
-        fileInfo.ftype = ftype.value();
+        fileInfo.ftype = ftypeFromValue(*state, *ftype);
     }
     if (path.ends_with("/flake.nix")) {
         auto analysis1 = parse(*state, source, path, "/base-path", targetPos, {});

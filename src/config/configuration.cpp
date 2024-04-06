@@ -5,6 +5,8 @@
 #include <iostream>
 #include <optional>
 #include <vector>
+#include "common/document.h"
+#include "eval.hh"
 #include "util.hh"
 #include "value.hh"
 
@@ -13,7 +15,8 @@ namespace fs = std::filesystem;
 const std::string CONFIG_FILE_NAME = "nix-analyzer-config.nix";
 
 std::optional<nix::Value*> tryLoad(nix::EvalState& state, fs::path path) {
-    if (!fs::exists(path)) return {};
+    if (!fs::exists(path))
+        return {};
     auto v = state.allocValue();
     try {
         state.evalFile(path, *v);
@@ -53,4 +56,27 @@ Config Config::load(nix::EvalState& state, std::string path) {
     }
 
     return config;
+}
+
+Ftype Config::get_ftype(nix::EvalState& state, std::string_view path) {
+    std::cerr << "Getting ftype for " << path << "\n";
+    return {};
+}
+
+
+Ftype ftypeFromValue(nix::EvalState& state, nix::Value *v) {
+    try {
+        state.forceAttrs(*v, nix::noPos);
+    } catch (nix::Error &e) {
+        REPORT_ERROR(e);
+        return {};
+    }
+    Ftype result;
+    auto sSchema = state.symbols.create("schema");
+    for (auto attr : *v->attrs) {
+        if (attr.name == sSchema) {
+            result.schema = {attr.value};
+        }    
+    }
+    return result;
 }

@@ -112,12 +112,10 @@ static SchemaRoot getSchemaRoot(
     const Analysis& analysis
 ) {
     if (auto ftype = analysis.fileInfo.ftype) {
-        state.forceAttrs(**ftype, nix::noPos);
         // std::cerr << "Using schema: " << stringify(state, ftype.value()) <<
         // "\n";
-        if (auto schema =
-                getAttr(state, ftype.value(), state.symbols.create("schema"))) {
-            return {mkSchema(state, {schema.value()}), fileRootIndex(analysis)};
+        if (ftype->schema) {
+            return {mkSchema(state, {*ftype->schema}), fileRootIndex(analysis)};
         }
     }
     return {mkSchema(state, {}), fileRootIndex(analysis)};

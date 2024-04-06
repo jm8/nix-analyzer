@@ -40,6 +40,9 @@ Analysis analyze(
     if (!document.fileInfo.config.has_value()) {
         document.fileInfo.config = Config::load(state, document.path);
     }
+    if (!document.fileInfo.ftype.has_value()) {
+        document.fileInfo.ftype = document.fileInfo.config->get_ftype(state, document.path);
+    }
     auto analysis = parse(
         state,
         document.source,
