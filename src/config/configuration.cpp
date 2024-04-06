@@ -117,6 +117,7 @@ Ftype Config::get_ftype(nix::EvalState& state, std::string_view path) {
         components.push_back(component);
     }
     auto sMatch = state.symbols.create("match");
+    auto sFtype = state.symbols.create("ftype");
     for (auto &f : values) {
         try {
             state.forceList(*f, nix::noPos);
@@ -133,7 +134,8 @@ Ftype Config::get_ftype(nix::EvalState& state, std::string_view path) {
             }
             auto matchAttr = v->attrs->get(sMatch);
             if (!matchAttr) {
-                return ftypeFromValue(state, v);
+                std::cerr << "Ftype matcher should have 'match' attribute";
+                return {};
             }
             try {
                 state.forceString(*matchAttr->value, nix::noPos);
@@ -142,9 +144,16 @@ Ftype Config::get_ftype(nix::EvalState& state, std::string_view path) {
                 continue;
             }
             auto match = std::string_view{matchAttr->value->string.s};
-            if (auto base_path = check_match(match, components)) {
-                std::cerr << "base_path: " << *base_path << "\n";
+            auto base_path = check_match(match, components);
+            if (!base_path) {
+                continue;
             }
+            auto ftypeAttr = v->attrs->get(sMatch);
+            if (!ftypeAttr) {
+                std::cerr << "Ftype matcher should have 'ftype' attribute";
+                return ftypeFromValue(state, v);
+            }
+            
         }
     }
     return {};
