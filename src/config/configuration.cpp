@@ -53,13 +53,100 @@ Config Config::load(nix::EvalState& state, std::string path) {
 
     if (auto v = tryLoad(state, fs::path{RESOURCEPATH} / CONFIG_FILE_NAME)) {
         config.values.push_back(*v);
+    } else {
+        std::cerr << "Failed to load default config\n";
     }
 
     return config;
 }
 
+// Return the base path of the match.
+// Example:
+// if match is 'nixpkgs/pkgs/misc/*'
+// and path is /nix/store/whatever/nixpkgs/pkgs/misc/a.nix
+// then base_path is /nix/store/whatever
+std::optional<fs::path> check_match(std::string_view match, const std::vector<std::string> &path_components) {
+    auto math_as_path = fs::path{match};
+    std::vector<std::string> match_components;
+    for (auto &component : math_as_path) {
+        match_components.push_back(component);
+    }
+
+    if (match_components.size() == 0) {
+        return {};
+    }
+
+    if (match_components[0] == "/") {
+        std::cerr << "Match path must not start with '/': " << match << "\n";
+        return {};
+    }
+
+    if (match_components[0] == ".") {
+        std::cerr << "Match path must not start with '.': " << match << "\n";
+        return {};
+    }
+
+    if (match_components.size() > path_components.size()) {
+        return {};
+    }
+
+    auto j = path_components.size()-match_components.size();
+    for (int i = 0; i < match_components.size(); i++) {
+        if (match_components[i] != "*" && path_components[i+j] != match_components[i]) {
+            return {};
+        }
+    }
+    std::cerr << "Match found (using " << match << ")\n";
+
+    fs::path base_path;
+    for (auto i = 0; i < j; i++) {
+        base_path /= path_components[i];
+    }
+
+    return {base_path};
+
+
+    // // auto match_components = s
+    // int n = match.
+}
+
 Ftype Config::get_ftype(nix::EvalState& state, std::string_view path) {
     std::cerr << "Getting ftype for " << path << "\n";
+    std::vector<std::string> components;
+    for (auto &component : fs::path{path}) {
+        components.push_back(component);
+    }
+    auto sMatch = state.symbols.create("match");
+    for (auto &f : values) {
+        try {
+            state.forceList(*f, nix::noPos);
+        } catch (nix::Error &e) {
+            REPORT_ERROR(e);
+            continue;
+        }
+        for (auto &v : f->listItems()) {
+            try {
+                state.forceAttrs(*v, nix::noPos);
+            } catch (nix::Error &e) {
+                REPORT_ERROR(e);
+                continue;
+            }
+            auto matchAttr = v->attrs->get(sMatch);
+            if (!matchAttr) {
+                return ftypeFromValue(state, v);
+            }
+            try {
+                state.forceString(*matchAttr->value, nix::noPos);
+            } catch (nix::Error &e) {
+                REPORT_ERROR(e);
+                continue;
+            }
+            auto match = std::string_view{matchAttr->value->string.s};
+            if (auto base_path = check_match(match, components)) {
+                std::cerr << "base_path: " << *base_path << "\n";
+            }
+        }
+    }
     return {};
 }
 
