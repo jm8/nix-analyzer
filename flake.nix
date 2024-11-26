@@ -15,9 +15,11 @@
     in {
       devShells.default = pkgs.mkShell {
         buildInputs = with pkgs; [
-          rust-bin.nightly.latest.default  
-          nix-eval-server.packages.${system}.nix-eval-server
+          (rust-bin.nightly.latest.default.override {
+            extensions = ["rust-src"];
+          })
         ];
+        NIX_EVAL_SERVER = "${nix-eval-server.packages.${system}.nix-eval-server}/bin/nix-eval-server";
       };
     });
 }

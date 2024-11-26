@@ -1,0 +1,11 @@
+[package]
+name = "nix-analyzer-new"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.93"
+dashmap = "6.1.0"
+ropey = "1.6.1"
+tokio = { version = "1.41.1", features = ["full"] }
+tower-lsp = "0.20.0"
