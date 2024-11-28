@@ -18,8 +18,9 @@
           (rust-bin.nightly.latest.default.override {
             extensions = ["rust-src"];
           })
+          capnproto
         ];
-        NIX_EVAL_SERVER = "${nix-eval-server.packages.${system}.nix-eval-server}/bin/nix-eval-server";
+        NIX_EVAL_SERVER = "${nix-eval-server.packages.${system}.nix-eval-server}";
       };
     });
 }

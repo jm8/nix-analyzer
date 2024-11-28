@@ -79,10 +79,60 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
+name = "bmrng"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d54df9073108f1558f90ae6c5bf5ab9c917c4185f5527b280c87a993cbead0ac"
+dependencies = [
+ "futures-core",
+ "tokio",
+]
+
+[[package]]
 name = "bytes"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ac0150caa2ae65ca5bd83f25c7de183dea78d4d366469f148435e2acfbad0da"
+
+[[package]]
+name = "capnp"
+version = "0.20.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bce4e2d41c16cf9188f47ca4d59fdcdca1f33705af211bdb41f0afbd3442f8b5"
+dependencies = [
+ "embedded-io",
+]
+
+[[package]]
+name = "capnp-futures"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b70b0d44372d42654e3efac38c1643c7b0f9d3a9e9b72b635f942ff3f17e891"
+dependencies = [
+ "capnp",
+ "futures-channel",
+ "futures-util",
+]
+
+[[package]]
+name = "capnp-rpc"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37b3a18a82e01b63bf375f15b5771de6d4b4b6f1ad89882332b841f0faa25ad2"
+dependencies = [
+ "capnp",
+ "capnp-futures",
+ "futures",
+]
+
+[[package]]
+name = "capnpc"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aa3d5f01e69ed11656d2c7c47bf34327ea9bfb5c85c7de787fcd7b6c5e45b61"
+dependencies = [
+ "capnp",
+]
 
 [[package]]
 name = "cfg-if"
@@ -135,6 +185,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-io"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
 name = "form_urlencoded"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -151,6 +207,7 @@ checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
 dependencies = [
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -172,6 +229,17 @@ name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -456,9 +524,15 @@ name = "nix-analyzer-new"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bmrng",
+ "capnp",
+ "capnp-rpc",
+ "capnpc",
  "dashmap 6.1.0",
+ "futures",
  "ropey",
  "tokio",
+ "tokio-util",
  "tower-lsp",
 ]
 
@@ -751,6 +825,7 @@ checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
 dependencies = [
  "bytes",
  "futures-core",
+ "futures-io",
  "futures-sink",
  "pin-project-lite",
  "tokio",
