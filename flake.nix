@@ -5,9 +5,9 @@
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
   inputs.nix-eval-server.url = "path:/var/home/josh/src/nix-analyzer-new/nix-eval-server";
 
-  outputs = { self, flake-utils, rust-overlay, nix-eval-server, nixpkgs }: 
-    flake-utils.lib.eachDefaultSystem (system: 
-    let 
+  outputs = { self, flake-utils, rust-overlay, nix-eval-server, nixpkgs }:
+    flake-utils.lib.eachDefaultSystem (system:
+    let
       pkgs = import nixpkgs {
         inherit system;
         overlays = [(import rust-overlay)];

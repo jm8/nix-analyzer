@@ -11,15 +11,22 @@ mod nix_eval_server_capnp {
     include!(concat!(env!("OUT_DIR"), "/nix_eval_server_capnp.rs"));
 }
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context as _, Result};
 use dashmap::DashMap;
-use evaluator::{evaluator_thread, Evaluator, EvaluatorRequest, EvaluatorResponse};
+use evaluator::Evaluator;
 use lsp::Backend;
 use ropey::Rope;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt as _};
+use tokio::process::Command;
+use tokio::sync::Mutex;
 use tokio::task::{spawn_local, LocalSet};
 use tower_lsp::lsp_types::{CompletionItem, Diagnostic};
 use tower_lsp::{LspService, Server};
+use tracing_subscriber::EnvFilter;
+
 #[derive(Debug)]
 pub struct File {
     contents: Rope,
@@ -65,21 +72,36 @@ impl Analyzer {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(std::io::stderr)
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .or_else(|_| EnvFilter::try_new("trace"))
+                .unwrap(),
+        )
+        .init();
+
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let buffer_size = 8;
-    let (tx, rx) = bmrng::channel::<EvaluatorRequest, EvaluatorResponse>(buffer_size);
+    let mut child =
+        Command::new(concat!(env!("NIX_EVAL_SERVER"), "/bin/nix-eval-server").to_owned())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .context("failed to start nix-eval-server process")
+            .unwrap();
 
-    LocalSet::new()
-        .run_until(async {
-            spawn_local(evaluator_thread(rx));
-            let (service, socket) = LspService::new(|client| Backend {
-                client,
-                evaluator: Evaluator { tx },
-                analyzer: Analyzer::new(),
-            });
-            Server::new(stdin, stdout, socket).serve(service).await;
-        })
-        .await;
+    let writer = child.stdin.take().expect("Failed to open stdin");
+    let reader = child.stdout.take().expect("Failed to open stdout");
+    let reader = tokio::io::BufReader::new(reader);
+    let evaluator = Evaluator::new(reader, writer);
+
+    let (service, socket) = LspService::new(|client| Backend {
+        client,
+        analyzer: Analyzer::new(),
+        evaluator: Arc::new(Mutex::new(evaluator)),
+    });
+    Server::new(stdin, stdout, socket).serve(service).await;
 }

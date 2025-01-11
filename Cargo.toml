@@ -11,9 +11,13 @@ capnp-rpc = "0.20.2"
 dashmap = "6.1.0"
 futures = "0.3.31"
 ropey = "1.6.1"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.135"
 tokio = { version = "1.41.1", features = ["full"] }
 tokio-util = { version = "0.7.12", features = ["compat"] }
 tower-lsp = "0.20.0"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
 [build-dependencies]
 # this must match the version of capnp

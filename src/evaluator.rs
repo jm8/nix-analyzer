@@ -1,75 +1,57 @@
-mod nix_eval_server_capnp {
-    include!(concat!(env!("OUT_DIR"), "/nix_eval_server_capnp.rs"));
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
+use tracing::info;
+
+#[derive(Serialize)]
+pub struct GetAttributesRequest {
+    pub expression: String,
 }
 
-use anyhow::Context;
-use bmrng::{RequestReceiver, RequestSender};
-use capnp_rpc::rpc_twoparty_capnp;
-use futures::AsyncReadExt as _;
-use std::{
-    net::{Ipv4Addr, SocketAddrV4},
-    process::Stdio,
-};
-use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    process::Command,
-};
-
-#[derive(Debug)]
-pub enum EvaluatorRequest {
-    GetAttributesRequest(String),
+#[derive(Serialize)]
+#[serde(tag = "method")]
+#[serde(rename_all = "snake_case")]
+enum Request<'a> {
+    GetAttributes(&'a GetAttributesRequest),
 }
 
-#[derive(Debug)]
-pub enum EvaluatorResponse {
-    GetAttributesResponse(Vec<String>),
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Response<T> {
+    Ok(T),
+    Error(String),
 }
 
-pub struct Evaluator {
-    pub tx: RequestSender<EvaluatorRequest, EvaluatorResponse>,
+pub struct Evaluator<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin> {
+    reader: R,
+    writer: W,
 }
 
-pub async fn evaluator_thread(mut rx: RequestReceiver<EvaluatorRequest, EvaluatorResponse>) {
-    let p = Command::new(concat!(env!("NIX_EVAL_SERVER"), "/bin/nix-eval-server").to_owned())
-        .stdout(Stdio::piped())
-        .spawn()
-        .context("failed to start nix-eval-server process")
-        .unwrap();
+impl<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin> Evaluator<R, W> {
+    pub fn new(reader: R, writer: W) -> Self {
+        Self { reader, writer }
+    }
 
-    let mut reader = BufReader::new(p.stdout.unwrap());
-    let mut line = String::new();
-    reader.read_line(&mut line).await.unwrap();
-    let port = line.trim().parse().unwrap();
-    let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port);
-    let stream = tokio::net::TcpStream::connect(&addr).await.unwrap();
-    stream.set_nodelay(true).unwrap();
-    let (reader, writer) = tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
-    let network = Box::new(capnp_rpc::twoparty::VatNetwork::new(
-        reader,
-        writer,
-        rpc_twoparty_capnp::Side::Client,
-        Default::default(),
-    ));
-    let mut rpc_system = capnp_rpc::RpcSystem::new(network, None);
-    let capnp: nix_eval_server_capnp::evaluator::Client =
-        rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
-    tokio::task::spawn_local(rpc_system);
+    pub async fn get_attributes(&mut self, req: &GetAttributesRequest) -> Result<Vec<String>> {
+        self.call(&Request::GetAttributes(req)).await
+    }
 
-    while let Ok((input, responder)) = rx.recv().await {
-        match input {
-            EvaluatorRequest::GetAttributesRequest(s) => {
-                let mut request = capnp.get_attributes_request();
-                request.get().set_expression(&s);
-                responder.respond(EvaluatorResponse::GetAttributesResponse(
-                    request
-                        .send()
-                        .promise
-                        .await
-                        .and_then(|response| response.get())
-                        .and_then(|reader| reader.get_attributes())
-                        .and_then(op),
-                ));
-            }
+    async fn call<'a, Res>(&mut self, req: &'a Request<'a>) -> Result<Res>
+    where
+        Res: for<'b> Deserialize<'b>,
+    {
+        let request = serde_json::to_string(req).unwrap();
+        info!(?request);
+        let mut request = request.into_bytes();
+        request.push(b'\n');
+        self.writer.write_all(&request).await?;
+        let mut buf = String::new();
+        self.reader.read_line(&mut buf).await?;
+        info!(buf);
+        let res: Response<Res> = serde_json::from_str(&buf)?;
+        match res {
+            Response::Ok(res) => Ok(res),
+            Response::Error(msg) => Err(anyhow!(msg)),
         }
     }
 }

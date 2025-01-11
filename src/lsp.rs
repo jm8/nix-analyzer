@@ -1,7 +1,10 @@
-use crate::evaluator::Evaluator;
+use crate::evaluator::{Evaluator, GetAttributesRequest};
 use crate::Analyzer;
 use std::path::Path;
-use tower_lsp::jsonrpc;
+use std::sync::Arc;
+use tokio::io::{AsyncBufRead, AsyncWrite};
+use tokio::sync::Mutex;
+use tower_lsp::jsonrpc::{self, ErrorCode};
 use tower_lsp::lsp_types::notification::PublishDiagnostics;
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DiagnosticOptions,
@@ -14,15 +17,24 @@ use tower_lsp::lsp_types::{
     TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
+use tracing::info;
 
-pub struct Backend {
+pub struct Backend<R, W>
+where
+    R: AsyncBufRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
     pub client: Client,
     pub analyzer: Analyzer,
-    pub evaluator: Evaluator,
+    pub evaluator: Arc<Mutex<Evaluator<R, W>>>,
 }
 
 #[tower_lsp::async_trait]
-impl LanguageServer for Backend {
+impl<R, W> LanguageServer for Backend<R, W>
+where
+    R: AsyncBufRead + Unpin + Send + Sync + 'static,
+    W: AsyncWrite + Unpin + Send + Sync + 'static,
+{
     async fn initialize(&self, _: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -57,9 +69,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        self.client
-            .log_message(MessageType::INFO, "server initialized!")
-            .await;
+        info!("server initialized")
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -128,15 +138,32 @@ impl LanguageServer for Backend {
 
         let line = position.line;
 
-        let response = self
+        // let response = self
+        //     .evaluator
+        //     .tx
+        //     .send_receive(crate::evaluator::EvaluatorRequest::GetAttributesRequest(
+        //         "{ a = 1; }".to_owned(),
+        //     ))
+        //     .await
+        //     .unwrap();
+        // let md = format!("{:?}", response);
+        // let md = "hi".to_owned();
+
+        let attributes = self
             .evaluator
-            .tx
-            .send_receive(crate::evaluator::EvaluatorRequest::GetAttributesRequest(
-                "{ a = 1; }".to_owned(),
-            ))
+            .lock()
             .await
-            .unwrap();
-        let md = format!("{:?}", response);
+            .get_attributes(&GetAttributesRequest {
+                expression: "{ abc = 1; def = 2; }".to_owned(),
+            })
+            .await
+            .map_err(|e| jsonrpc::Error {
+                code: ErrorCode::InternalError,
+                message: e.to_string().into(),
+                data: None,
+            })?;
+
+        let md = format!("{:?}", &attributes);
 
         fn markdown_hover(md: String) -> Hover {
             Hover {
