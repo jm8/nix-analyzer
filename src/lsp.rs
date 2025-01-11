@@ -1,6 +1,5 @@
 use crate::evaluator::Evaluator;
 use crate::Analyzer;
-use bmrng::RequestSender;
 use std::path::Path;
 use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::notification::PublishDiagnostics;
@@ -129,8 +128,15 @@ impl LanguageServer for Backend {
 
         let line = position.line;
 
-        let response = self.tx.send_receive(line as i32).await.unwrap();
-        let md = format!("{}", response);
+        let response = self
+            .evaluator
+            .tx
+            .send_receive(crate::evaluator::EvaluatorRequest::GetAttributesRequest(
+                "{ a = 1; }".to_owned(),
+            ))
+            .await
+            .unwrap();
+        let md = format!("{:?}", response);
 
         fn markdown_hover(md: String) -> Hover {
             Hover {

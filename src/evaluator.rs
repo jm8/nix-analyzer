@@ -14,12 +14,13 @@ use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
 };
-use tower_lsp::lsp_types::request;
 
+#[derive(Debug)]
 pub enum EvaluatorRequest {
     GetAttributesRequest(String),
 }
 
+#[derive(Debug)]
 pub enum EvaluatorResponse {
     GetAttributesResponse(Vec<String>),
 }
@@ -50,13 +51,25 @@ pub async fn evaluator_thread(mut rx: RequestReceiver<EvaluatorRequest, Evaluato
         Default::default(),
     ));
     let mut rpc_system = capnp_rpc::RpcSystem::new(network, None);
-    let evaluator: nix_eval_server_capnp::evaluator::Client =
+    let capnp: nix_eval_server_capnp::evaluator::Client =
         rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
     tokio::task::spawn_local(rpc_system);
 
     while let Ok((input, responder)) = rx.recv().await {
         match input {
-            EvaluatorRequest::GetAttributesRequest(_) => todo!(),
+            EvaluatorRequest::GetAttributesRequest(s) => {
+                let mut request = capnp.get_attributes_request();
+                request.get().set_expression(&s);
+                responder.respond(EvaluatorResponse::GetAttributesResponse(
+                    request
+                        .send()
+                        .promise
+                        .await
+                        .and_then(|response| response.get())
+                        .and_then(|reader| reader.get_attributes())
+                        .and_then(op),
+                ));
+            }
         }
     }
 }
