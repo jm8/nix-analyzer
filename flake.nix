@@ -21,6 +21,7 @@
           capnproto
         ];
         NIX_EVAL_SERVER = "${nix-eval-server.packages.${system}.nix-eval-server}";
+        inherit nixpkgs;
       };
     });
 }

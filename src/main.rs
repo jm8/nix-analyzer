@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![feature(let_chains)]
 
+mod completion;
 mod evaluator;
 mod hover;
 mod lsp;

@@ -114,8 +114,8 @@
         "nixpkgs-regression": "nixpkgs-regression"
       },
       "locked": {
-        "lastModified": 1736625938,
-        "narHash": "sha256-7YDpraj4XG+C8sRPxlhuI6l3pKbNuN8yPgdN8bfVLOE=",
+        "lastModified": 1736654838,
+        "narHash": "sha256-iZ6libB+RVFmPMZWmMBt+BNznDusPBGSXx/ognkPT5A=",
         "path": "/var/home/josh/src/nix-analyzer-new/nix-eval-server",
         "type": "path"
       },
