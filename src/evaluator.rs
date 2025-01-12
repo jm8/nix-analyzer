@@ -1,6 +1,11 @@
-use anyhow::{anyhow, Result};
+use std::process::Stdio;
+
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    process::{ChildStdin, ChildStdout, Command},
+};
 use tracing::info;
 
 #[derive(Serialize)]
@@ -22,13 +27,24 @@ enum Response<T> {
     Error(String),
 }
 
-pub struct Evaluator<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin> {
-    reader: R,
-    writer: W,
+pub struct Evaluator {
+    reader: BufReader<ChildStdout>,
+    writer: ChildStdin,
 }
 
-impl<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin> Evaluator<R, W> {
-    pub fn new(reader: R, writer: W) -> Self {
+impl Evaluator {
+    pub fn new() -> Self {
+        let mut child =
+            Command::new(concat!(env!("NIX_EVAL_SERVER"), "/bin/nix-eval-server").to_owned())
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .context("failed to start nix-eval-server process")
+                .unwrap();
+
+        let writer = child.stdin.take().expect("Failed to open stdin");
+        let reader = child.stdout.take().expect("Failed to open stdout");
+        let reader = tokio::io::BufReader::new(reader);
         Self { reader, writer }
     }
 

@@ -1,28 +1,24 @@
 #![allow(dead_code)]
 #![feature(let_chains)]
 
-// mod completion;
-// mod evaluation;
-// mod hover;
-// mod safe_stringification;
 mod evaluator;
+mod hover;
 mod lsp;
+mod safe_stringification;
+mod syntax;
+
 mod nix_eval_server_capnp {
     include!(concat!(env!("OUT_DIR"), "/nix_eval_server_capnp.rs"));
 }
 
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 use evaluator::Evaluator;
 use lsp::Backend;
 use ropey::Rope;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt as _};
-use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::task::{spawn_local, LocalSet};
 use tower_lsp::lsp_types::{CompletionItem, Diagnostic};
 use tower_lsp::{LspService, Server};
 use tracing_subscriber::EnvFilter;
@@ -55,7 +51,7 @@ impl Analyzer {
 
     fn completion(&self, path: &Path, line: u32, col: u32) -> Result<Vec<CompletionItem>> {
         let source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
-        let _offset = source.line_to_byte(line as usize) + col as usize;
+        let offset = source.line_to_byte(line as usize) + col as usize;
 
         // Ok(complete(&source.to_string(), offset as u32).unwrap_or_default())
         Ok(vec![])
@@ -63,11 +59,23 @@ impl Analyzer {
 
     fn hover(&self, path: &Path, line: u32, col: u32) -> Result<String> {
         let source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
-        let _offset = source.line_to_byte(line as usize) + col as usize;
+        let offset = source.line_to_byte(line as usize) + col as usize;
 
-        Ok("hello".to_owned())
-        // Ok(hover::hover(&source.to_string(), offset as u32).unwrap_or_default())
+        Ok(hover::hover(&source.to_string(), offset as u32)
+            .map(|hover_result| hover_result.md)
+            .unwrap_or_default())
     }
+}
+
+struct Position {
+    line: u32,
+    col: u32,
+    path: PathBuf,
+}
+
+struct HoverResult {
+    md: String,
+    position: Position,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -85,23 +93,10 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let mut child =
-        Command::new(concat!(env!("NIX_EVAL_SERVER"), "/bin/nix-eval-server").to_owned())
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .context("failed to start nix-eval-server process")
-            .unwrap();
-
-    let writer = child.stdin.take().expect("Failed to open stdin");
-    let reader = child.stdout.take().expect("Failed to open stdout");
-    let reader = tokio::io::BufReader::new(reader);
-    let evaluator = Evaluator::new(reader, writer);
-
     let (service, socket) = LspService::new(|client| Backend {
         client,
         analyzer: Analyzer::new(),
-        evaluator: Arc::new(Mutex::new(evaluator)),
+        evaluator: Arc::new(Mutex::new(Evaluator::new())),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
 }

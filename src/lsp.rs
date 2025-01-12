@@ -1,10 +1,9 @@
-use crate::evaluator::{Evaluator, GetAttributesRequest};
+use crate::evaluator::Evaluator;
 use crate::Analyzer;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::io::{AsyncBufRead, AsyncWrite};
 use tokio::sync::Mutex;
-use tower_lsp::jsonrpc::{self, ErrorCode};
+use tower_lsp::jsonrpc::{self};
 use tower_lsp::lsp_types::notification::PublishDiagnostics;
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DiagnosticOptions,
@@ -12,29 +11,21 @@ use tower_lsp::lsp_types::{
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
     DocumentDiagnosticReport, DocumentDiagnosticReportResult, FullDocumentDiagnosticReport, Hover,
     HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
-    InitializedParams, MarkupContent, MarkupKind, MessageType, PublishDiagnosticsParams,
+    InitializedParams, MarkupContent, MarkupKind, PublishDiagnosticsParams,
     RelatedFullDocumentDiagnosticReport, ServerCapabilities, TextDocumentSyncCapability,
     TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
 use tracing::info;
 
-pub struct Backend<R, W>
-where
-    R: AsyncBufRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
+pub struct Backend {
     pub client: Client,
     pub analyzer: Analyzer,
-    pub evaluator: Arc<Mutex<Evaluator<R, W>>>,
+    pub evaluator: Arc<Mutex<Evaluator>>,
 }
 
 #[tower_lsp::async_trait]
-impl<R, W> LanguageServer for Backend<R, W>
-where
-    R: AsyncBufRead + Unpin + Send + Sync + 'static,
-    W: AsyncWrite + Unpin + Send + Sync + 'static,
-{
+impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -118,7 +109,7 @@ where
     }
 
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
-        let _path = Path::new(
+        let path = Path::new(
             params
                 .text_document_position_params
                 .text_document
@@ -128,42 +119,10 @@ where
 
         let position = params.text_document_position_params.position;
 
-        // let md = self
-        //     .analyzer
-        //     .hover(path, position.line, position.character)
-        //     .map_err(|_err| {
-        //         eprintln!("{}", _err);
-        //         jsonrpc::Error::internal_error()
-        //     })?;
-
-        let line = position.line;
-
-        // let response = self
-        //     .evaluator
-        //     .tx
-        //     .send_receive(crate::evaluator::EvaluatorRequest::GetAttributesRequest(
-        //         "{ a = 1; }".to_owned(),
-        //     ))
-        //     .await
-        //     .unwrap();
-        // let md = format!("{:?}", response);
-        // let md = "hi".to_owned();
-
-        let attributes = self
-            .evaluator
-            .lock()
-            .await
-            .get_attributes(&GetAttributesRequest {
-                expression: "{ abc = 1; def = 2; }".to_owned(),
-            })
-            .await
-            .map_err(|e| jsonrpc::Error {
-                code: ErrorCode::InternalError,
-                message: e.to_string().into(),
-                data: None,
-            })?;
-
-        let md = format!("{:?}", &attributes);
+        let md = self
+            .analyzer
+            .hover(path, position.line - 1, position.character - 1)
+            .map_err(|_| jsonrpc::Error::internal_error())?;
 
         fn markdown_hover(md: String) -> Hover {
             Hover {
