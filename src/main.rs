@@ -31,12 +31,14 @@ pub struct File {
 
 #[derive(Debug)]
 pub struct Analyzer {
+    evaluator: Arc<Mutex<Evaluator>>,
     files: DashMap<PathBuf, Rope>,
 }
 
 impl Analyzer {
-    fn new() -> Self {
+    fn new(evaluator: Arc<Mutex<Evaluator>>) -> Self {
         Self {
+            evaluator,
             files: DashMap::new(),
         }
     }
@@ -50,12 +52,15 @@ impl Analyzer {
         Ok(vec![])
     }
 
-    fn completion(&self, path: &Path, line: u32, col: u32) -> Result<Vec<CompletionItem>> {
+    async fn complete(&self, path: &Path, line: u32, col: u32) -> Result<Vec<CompletionItem>> {
         let source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
         let offset = source.line_to_byte(line as usize) + col as usize;
 
-        // Ok(complete(&source.to_string(), offset as u32).unwrap_or_default())
-        Ok(vec![])
+        Ok(
+            completion::complete(&source.to_string(), offset as u32, self.evaluator.clone())
+                .await
+                .unwrap_or_default(),
+        )
     }
 
     fn hover(&self, path: &Path, line: u32, col: u32) -> Result<String> {
@@ -94,10 +99,11 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
+    let evaluator = Arc::new(Mutex::new(Evaluator::new()));
     let (service, socket) = LspService::new(|client| Backend {
         client,
-        analyzer: Analyzer::new(),
-        evaluator: Arc::new(Mutex::new(Evaluator::new())),
+        analyzer: Analyzer::new(evaluator.clone()),
+        evaluator,
     });
     Server::new(stdin, stdout, socket).serve(service).await;
 }

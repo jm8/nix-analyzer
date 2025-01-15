@@ -27,6 +27,7 @@ enum Response<T> {
     Error(String),
 }
 
+#[derive(Debug)]
 pub struct Evaluator {
     reader: BufReader<ChildStdout>,
     writer: ChildStdin,

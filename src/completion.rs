@@ -1,16 +1,14 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use lazy_regex::regex;
 use rnix::{
-    ast::{Attrpath, Expr, Select},
+    ast::Expr,
     TextRange, TextSize,
 };
 use ropey::Rope;
 use rowan::ast::AstNode;
 use tokio::sync::Mutex;
-use tower_lsp::lsp_types::{
-    CompletionItem, CompletionTextEdit, Position, Range, TextEdit,
-};
+use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
@@ -22,17 +20,65 @@ pub async fn complete(
     offset: u32,
     evaluator: Arc<Mutex<Evaluator>>,
 ) -> Option<Vec<CompletionItem>> {
+    let strategy = get_completion_strategy(source, offset)?;
+
+    let completions = evaluator
+        .lock()
+        .await
+        .get_attributes(&GetAttributesRequest {
+            expression: strategy.attrs_expression?,
+        })
+        .await
+        .ok()?;
+
+    Some(
+        completions
+            .iter()
+            .map(|completion| CompletionItem {
+                label: completion.clone(),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                    range: strategy.range,
+                    new_text: escape_attr(completion),
+                })),
+                commit_characters: Some(vec![".".to_string()]),
+                ..Default::default()
+            })
+            .collect(),
+    )
+}
+
+struct CompletionStrategy {
+    range: Range,
+    attrs_expression: Option<String>,
+}
+
+fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrategy> {
     let mut source = source.to_string();
     source.insert_str(offset as usize, "aaa");
     let root = parse(&source);
     let location = locate_cursor(&root, offset)?;
     eprintln!("Completing at {:?}", location);
+
     match location.location_within {
         LocationWithinExpr::Normal => None,
         LocationWithinExpr::Inherit(_) => None,
         LocationWithinExpr::Attrpath(attrpath, index) => match location.expr {
             Expr::Select(select) => {
-                complete_select(&select, &source, &attrpath, index, evaluator).await
+                let rope = Rope::from_str(&source);
+                let attr = attrpath.attrs().nth(index).unwrap();
+                let text_range = attr.syntax().text_range();
+                let text_range =
+                    TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
+                let range = rope_text_range_to_range(&rope, text_range);
+                let attrs = select.expr().unwrap();
+
+                let attrs_expression =
+                    Some(in_context_with_select(&attrs, attrpath.attrs().take(index)));
+
+                Some(CompletionStrategy {
+                    attrs_expression,
+                    range,
+                })
             }
             Expr::AttrSet(_attr_set) => None,
             _ => None,
@@ -60,50 +106,38 @@ fn escape_attr(attr: &str) -> String {
     if re.is_match(attr) {
         attr.to_string()
     } else {
-        format!("\"{}\"", attr)
+        escape_string(attr)
     }
 }
 
-async fn complete_select(
-    select: &Select,
-    source: &str,
-    attrpath: &Attrpath,
-    index: usize,
-    evaluator: Arc<Mutex<Evaluator>>,
-) -> Option<Vec<CompletionItem>> {
-    let rope = Rope::from_str(source);
-    let attr = attrpath.attrs().nth(index).unwrap();
-    let text_range = attr.syntax().text_range();
-    let text_range = TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
-    let range = rope_text_range_to_range(&rope, text_range);
-
-    let attrs = select.expr()?;
-
-    let expression = in_context_with_select(&attrs, attrpath.attrs().take(index));
-
-    eprintln!("expression: {}", &expression);
-
-    let completions = evaluator
-        .lock()
-        .await
-        .get_attributes(&GetAttributesRequest { expression })
-        .await
-        .ok()?;
-    Some(
-        completions
-            .iter()
-            .map(|completion| CompletionItem {
-                label: completion.clone(),
-                text_edit: Some(CompletionTextEdit::Edit(TextEdit {
-                    range,
-                    new_text: escape_attr(completion),
-                })),
-                commit_characters: Some(vec![".".to_string()]),
-                ..Default::default()
-            })
-            .collect(),
-    )
+pub fn escape_string(text: &str) -> String {
+    format!("\"{}\"", EscapeStringFragment(text))
 }
+
+#[derive(Debug, Clone)]
+pub struct EscapeStringFragment<'a>(pub &'a str);
+
+impl fmt::Display for EscapeStringFragment<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, ch) in self.0.char_indices() {
+            match ch {
+                '"' => "\\\"",
+                '\\' => "\\\\",
+                '\n' => "\\n",
+                '\r' => "\\r",
+                '\t' => "\\r",
+                '$' if self.0[i..].starts_with("${") => "\\$",
+                _ => {
+                    ch.fmt(f)?;
+                    continue;
+                }
+            }
+            .fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
@@ -361,6 +395,20 @@ mod test {
                     "unsafeGetAttrPos",
                     "warn",
                     "zipAttrsWith",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_complete_weird() {
+        check_complete(
+            r#"{ "Don\"t mind my Weird String" = 1; abc = 2; }.$0"#,
+            expect![[r#"
+                [
+                    "Don\"t mind my Weird String",
+                    "abc",
                 ]
             "#]],
         )

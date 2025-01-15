@@ -145,7 +145,8 @@ impl LanguageServer for Backend {
         let position = params.text_document_position.position;
         let items = self
             .analyzer
-            .completion(path, position.line, position.character)
+            .complete(path, position.line, position.character)
+            .await
             .map_err(|err| {
                 eprintln!("{}", err);
                 jsonrpc::Error::internal_error()
