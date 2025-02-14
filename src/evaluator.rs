@@ -14,10 +14,16 @@ pub struct GetAttributesRequest {
 }
 
 #[derive(Serialize)]
+pub struct LockFlakeRequest {
+    pub expression: String,
+}
+
+#[derive(Serialize)]
 #[serde(tag = "method")]
 #[serde(rename_all = "snake_case")]
 enum Request<'a> {
     GetAttributes(&'a GetAttributesRequest),
+    LockFlake(&'a LockFlakeRequest),
 }
 
 #[derive(Deserialize)]
@@ -51,6 +57,10 @@ impl Evaluator {
 
     pub async fn get_attributes(&mut self, req: &GetAttributesRequest) -> Result<Vec<String>> {
         self.call(&Request::GetAttributes(req)).await
+    }
+
+    pub async fn lock_flake(&mut self, req: &LockFlakeRequest) -> Result<String> {
+        self.call(&Request::LockFlake(req)).await
     }
 
     async fn call<'a, Res>(&mut self, req: &'a Request<'a>) -> Result<Res>

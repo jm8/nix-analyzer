@@ -1,10 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use lazy_regex::regex;
-use rnix::{
-    ast::Expr,
-    TextRange, TextSize,
-};
+use rnix::{ast::Expr, TextRange, TextSize};
 use ropey::Rope;
 use rowan::ast::AstNode;
 use tokio::sync::Mutex;
@@ -167,7 +164,7 @@ mod test {
         expected.assert_debug_eq(&actual);
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_complete_let_in() {
         check_complete(
             r#"let x = {a = 2; "your mom" = 3;}; in x.$0b"#,
@@ -181,7 +178,7 @@ mod test {
         .await;
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_complete_select_multi_level() {
         check_complete(
             r#"let x = {a = { b = 1; }; }; in x.a.$0"#,
@@ -194,7 +191,7 @@ mod test {
         .await;
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_complete_derivation() {
         check_complete(
             r#"(derivation { name = "myname"; builder = "mybuilder"; system = "mysystem"; }).$0"#,
@@ -216,7 +213,7 @@ mod test {
         .await;
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_complete_nixpkgs() {
         check_complete(
             &format!("(import {} {{}}).hello.$0", env!("nixpkgs")),
@@ -274,7 +271,7 @@ mod test {
         .await;
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_complete_builtins() {
         check_complete(
             "builtins.$0",
@@ -320,6 +317,7 @@ mod test {
                     "filter",
                     "filterSource",
                     "findFile",
+                    "flakeRefToString",
                     "floor",
                     "foldl'",
                     "fromJSON",
@@ -359,6 +357,7 @@ mod test {
                     "nixVersion",
                     "null",
                     "parseDrvName",
+                    "parseFlakeRef",
                     "partition",
                     "path",
                     "pathExists",
@@ -401,7 +400,7 @@ mod test {
         .await;
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_complete_weird() {
         check_complete(
             r#"{ "Don\"t mind my Weird String" = 1; abc = 2; }.$0"#,

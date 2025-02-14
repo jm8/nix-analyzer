@@ -3,6 +3,7 @@
 
 mod completion;
 mod evaluator;
+mod flakes;
 mod hover;
 mod lsp;
 mod safe_stringification;
