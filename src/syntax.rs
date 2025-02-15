@@ -2,12 +2,38 @@ use std::iter;
 
 use itertools::Itertools;
 use rnix::{
-    ast::{Attr, Attrpath, Expr, Inherit, PatBind, PatEntry, Root},
+    ast::{Attr, Attrpath, Expr, HasEntry, Inherit, PatBind, PatEntry, Root},
     SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
 };
 use rowan::ast::AstNode;
 
 use crate::safe_stringification::{safe_stringify, safe_stringify_attr, safe_stringify_bindings};
+
+const BUILTIN_IDS: [&'static str; 23] = [
+    "abort",
+    "baseNameOf",
+    "break",
+    "builtins",
+    "derivation",
+    "derivationStrict",
+    "dirOf",
+    "false",
+    "fetchGit",
+    "fetchMercurial",
+    "fetchTarball",
+    "fetchTree",
+    "fromTOML",
+    "import",
+    "isNull",
+    "map",
+    "null",
+    "placeholder",
+    "removeAttrs",
+    "scopedImport",
+    "throw",
+    "toString",
+    "true",
+];
 
 pub fn parse(source: &str) -> Root {
     rnix::Root::parse(source).tree()
@@ -100,14 +126,12 @@ pub fn in_context_with_select(expr: &Expr, attrs: impl Iterator<Item = Attr>) ->
         string_to_eval = format!("{}.{}", string_to_eval, safe_stringify_attr(&attr));
     }
 
-    let ancestors = ancestor_exprs(&expr).collect_vec();
-
-    for ancestor in ancestors.iter() {
+    for ancestor in ancestor_exprs(&expr) {
         match ancestor {
             Expr::LetIn(letin) => {
                 string_to_eval = format!(
                     "(let {} in ({}))",
-                    safe_stringify_bindings(letin),
+                    safe_stringify_bindings(&letin),
                     string_to_eval
                 );
             }
@@ -120,6 +144,68 @@ pub fn in_context_with_select(expr: &Expr, attrs: impl Iterator<Item = Attr>) ->
 
 pub fn in_context(expr: &Expr) -> String {
     in_context_with_select(expr, iter::empty())
+}
+
+pub fn with_expression(expr: &Expr) -> Option<String> {
+    let with = ancestor_exprs(&expr).find_map(|ancestor| match ancestor {
+        Expr::With(with) => Some(with),
+        _ => None,
+    })?;
+
+    Some(in_context(&with.namespace()?))
+}
+
+pub fn get_variables(expr: &Expr) -> Vec<String> {
+    let mut variables = vec![];
+
+    fn add_from_entires(variables: &mut Vec<String>, entries: impl HasEntry) {
+        let attr_to_string = |attr| match attr {
+            Attr::Ident(ident) => Some(ident.to_string()),
+            Attr::Dynamic(_) => None,
+            Attr::Str(_) => None, // TODO: this should handle valid identifiers: let "hello" = null; in $0
+        };
+
+        for entry in entries.attrpath_values() {
+            let var = entry
+                .attrpath()
+                .and_then(|attrpath| attrpath.attrs().nth(0))
+                .and_then(attr_to_string);
+
+            if let Some(var) = var {
+                variables.push(var);
+            }
+        }
+        for inherit in entries.inherits() {
+            for attr in inherit.attrs() {
+                let var = attr_to_string(attr);
+                if let Some(var) = var {
+                    variables.push(var);
+                }
+            }
+        }
+    }
+
+    for ancestor in ancestor_exprs(&expr) {
+        match ancestor {
+            Expr::Lambda(_lambda) => {
+                // TODO
+            }
+            Expr::LegacyLet(legacy_let) => add_from_entires(&mut variables, legacy_let),
+            Expr::LetIn(let_in) => add_from_entires(&mut variables, let_in),
+            Expr::AttrSet(attr_set) => {
+                if attr_set.rec_token().is_some() {
+                    add_from_entires(&mut variables, attr_set)
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for var in BUILTIN_IDS {
+        variables.push(var.to_string());
+    }
+
+    variables
 }
 
 // #[cfg(test)]

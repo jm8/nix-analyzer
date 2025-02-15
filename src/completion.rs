@@ -6,10 +6,14 @@ use ropey::Rope;
 use rowan::ast::AstNode;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
+use tracing::info;
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
-    syntax::{in_context_with_select, locate_cursor, parse, LocationWithinExpr},
+    syntax::{
+        get_variables, in_context_with_select, locate_cursor, parse, with_expression,
+        LocationWithinExpr,
+    },
 };
 
 pub async fn complete(
@@ -19,18 +23,21 @@ pub async fn complete(
 ) -> Option<Vec<CompletionItem>> {
     let strategy = get_completion_strategy(source, offset)?;
 
-    let completions = evaluator
-        .lock()
-        .await
-        .get_attributes(&GetAttributesRequest {
-            expression: strategy.attrs_expression?,
-        })
-        .await
-        .ok()?;
+    let attr_completions = match strategy.attrs_expression {
+        Some(expression) => evaluator
+            .lock()
+            .await
+            .get_attributes(&GetAttributesRequest { expression })
+            .await
+            .ok()
+            .unwrap_or_default(),
+        None => vec![],
+    };
 
     Some(
-        completions
+        attr_completions
             .iter()
+            .chain(strategy.variables.iter())
             .map(|completion| CompletionItem {
                 label: completion.clone(),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
@@ -47,8 +54,10 @@ pub async fn complete(
 struct CompletionStrategy {
     range: Range,
     attrs_expression: Option<String>,
+    variables: Vec<String>,
 }
 
+// This is a separate function to enforce that it is synchronus, because syntax trees are not Send
 fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrategy> {
     let mut source = source.to_string();
     source.insert_str(offset as usize, "aaa");
@@ -56,12 +65,24 @@ fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrate
     let location = locate_cursor(&root, offset)?;
     eprintln!("Completing at {:?}", location);
 
+    let rope = Rope::from_str(&source);
     match location.location_within {
-        LocationWithinExpr::Normal => None,
+        LocationWithinExpr::Normal => {
+            let text_range = location.expr.syntax().text_range();
+            let text_range =
+                TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
+            let range = rope_text_range_to_range(&rope, text_range);
+            let attrs_expression = with_expression(&location.expr);
+            let variables = get_variables(&location.expr);
+            Some(CompletionStrategy {
+                range,
+                attrs_expression,
+                variables,
+            })
+        }
         LocationWithinExpr::Inherit(_) => None,
         LocationWithinExpr::Attrpath(attrpath, index) => match location.expr {
             Expr::Select(select) => {
-                let rope = Rope::from_str(&source);
                 let attr = attrpath.attrs().nth(index).unwrap();
                 let text_range = attr.syntax().text_range();
                 let text_range =
@@ -75,6 +96,7 @@ fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrate
                 Some(CompletionStrategy {
                     attrs_expression,
                     range,
+                    variables: vec![],
                 })
             }
             Expr::AttrSet(_attr_set) => None,
@@ -408,6 +430,153 @@ mod test {
                 [
                     "Don\"t mind my Weird String",
                     "abc",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_variable() {
+        check_complete(
+            r#"$0"#,
+            expect![[r#"
+                [
+                    "abort",
+                    "baseNameOf",
+                    "break",
+                    "builtins",
+                    "derivation",
+                    "derivationStrict",
+                    "dirOf",
+                    "false",
+                    "fetchGit",
+                    "fetchMercurial",
+                    "fetchTarball",
+                    "fetchTree",
+                    "fromTOML",
+                    "import",
+                    "isNull",
+                    "map",
+                    "null",
+                    "placeholder",
+                    "removeAttrs",
+                    "scopedImport",
+                    "throw",
+                    "toString",
+                    "true",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_with() {
+        check_complete(
+            r#"with {a = 2; b = 3;}; $0"#,
+            expect![[r#"
+                [
+                    "a",
+                    "b",
+                    "abort",
+                    "baseNameOf",
+                    "break",
+                    "builtins",
+                    "derivation",
+                    "derivationStrict",
+                    "dirOf",
+                    "false",
+                    "fetchGit",
+                    "fetchMercurial",
+                    "fetchTarball",
+                    "fetchTree",
+                    "fromTOML",
+                    "import",
+                    "isNull",
+                    "map",
+                    "null",
+                    "placeholder",
+                    "removeAttrs",
+                    "scopedImport",
+                    "throw",
+                    "toString",
+                    "true",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_with_of_let() {
+        check_complete(
+            r#"let x = { one = 1; two = 2; }; in with x; $0"#,
+            expect![[r#"
+                [
+                    "one",
+                    "two",
+                    "x",
+                    "abort",
+                    "baseNameOf",
+                    "break",
+                    "builtins",
+                    "derivation",
+                    "derivationStrict",
+                    "dirOf",
+                    "false",
+                    "fetchGit",
+                    "fetchMercurial",
+                    "fetchTarball",
+                    "fetchTree",
+                    "fromTOML",
+                    "import",
+                    "isNull",
+                    "map",
+                    "null",
+                    "placeholder",
+                    "removeAttrs",
+                    "scopedImport",
+                    "throw",
+                    "toString",
+                    "true",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_rec_attrs() {
+        check_complete(
+            r#"rec { a = $0; b = 2; }"#,
+            expect![[r#"
+                [
+                    "a",
+                    "b",
+                    "abort",
+                    "baseNameOf",
+                    "break",
+                    "builtins",
+                    "derivation",
+                    "derivationStrict",
+                    "dirOf",
+                    "false",
+                    "fetchGit",
+                    "fetchMercurial",
+                    "fetchTarball",
+                    "fetchTree",
+                    "fromTOML",
+                    "import",
+                    "isNull",
+                    "map",
+                    "null",
+                    "placeholder",
+                    "removeAttrs",
+                    "scopedImport",
+                    "throw",
+                    "toString",
+                    "true",
                 ]
             "#]],
         )
