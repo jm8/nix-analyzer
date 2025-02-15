@@ -10,6 +10,7 @@ mod lambda_arg;
 mod lsp;
 mod modules;
 mod safe_stringification;
+mod schema;
 mod syntax;
 
 use anyhow::{anyhow, Result};
@@ -27,7 +28,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Debug)]
 pub enum FileType {
     Package { nixpkgs_path: String },
-    Custom { lambda_arg: String },
+    Custom { lambda_arg: String, schema: String },
 }
 
 #[derive(Debug)]

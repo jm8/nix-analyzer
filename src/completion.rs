@@ -11,6 +11,7 @@ use tracing::info;
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
     lambda_arg::get_lambda_arg,
+    schema::get_schema,
     syntax::{
         get_variables, in_context, in_context_with_select, locate_cursor, nearest_expr, parse,
         with_expression, LocationWithinExpr,
@@ -77,6 +78,9 @@ fn get_completion_strategy(
     let text_range = location.token.text_range();
     let text_range = TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
     let range = rope_text_range_to_range(&rope, text_range);
+
+    let schema = get_schema(&location.expr, file_type);
+
     match location.location_within {
         LocationWithinExpr::Normal => {
             let attrs_expression = with_expression(&location.expr, file_type);
@@ -115,7 +119,18 @@ fn get_completion_strategy(
                     variables: vec![],
                 })
             }
-            Expr::AttrSet(_attr_set) => None,
+            Expr::AttrSet(_) => {
+                let mut schema = &schema;
+                for attr in attrpath.attrs().take(index) {
+                    schema = schema.attr_subschema(&attr);
+                }
+
+                Some(CompletionStrategy {
+                    attrs_expression: None,
+                    range,
+                    variables: schema.properties(),
+                })
+            }
             _ => None,
         },
         LocationWithinExpr::PatEntry => {
@@ -199,28 +214,33 @@ mod test {
 
     use super::complete;
 
-    async fn check_complete(source: &str, expected: Expect) {
+    async fn check_complete_with_filetype(source: &str, expected: Expect, file_type: &FileType) {
         let (left, right) = source.split("$0").collect_tuple().unwrap();
         let offset = left.len() as u32;
 
         let evaluator = Arc::new(Mutex::new(Evaluator::new()));
 
         let source = format!("{}{}", left, right);
-        let actual = complete(
-            &source,
-            &FileType::Custom {
-                lambda_arg: "{test1 = 1; test2 = 2;}".to_string(),
-            },
-            offset,
-            evaluator,
-        )
-        .await
-        .unwrap()
-        .iter()
-        .map(|item| item.label.clone())
-        .collect_vec();
+        let actual = complete(&source, file_type, offset, evaluator)
+            .await
+            .unwrap()
+            .iter()
+            .map(|item| item.label.clone())
+            .collect_vec();
 
         expected.assert_debug_eq(&actual);
+    }
+
+    async fn check_complete(source: &str, expected: Expect) {
+        check_complete_with_filetype(
+            source,
+            expected,
+            &FileType::Custom {
+                lambda_arg: "{}".to_string(),
+                schema: "{}".to_string(),
+            },
+        )
+        .await;
     }
 
     #[test_log::test(tokio::test)]
@@ -709,7 +729,7 @@ mod test {
 
     #[test_log::test(tokio::test)]
     async fn test_complete_lambda_arg() {
-        check_complete(
+        check_complete_with_filetype(
             r#"x: x.$0"#,
             expect![[r#"
                 [
@@ -717,13 +737,17 @@ mod test {
                     "test2",
                 ]
             "#]],
+            &FileType::Custom {
+                lambda_arg: "{test1 = 1; test2 = 1;}".to_string(),
+                schema: "{}".to_string(),
+            },
         )
         .await;
     }
 
     #[test_log::test(tokio::test)]
     async fn test_complete_lambda_arg_inside() {
-        check_complete(
+        check_complete_with_filetype(
             r#"{aaaa, $0}: "#,
             expect![[r#"
                 [
@@ -731,6 +755,62 @@ mod test {
                     "test2",
                 ]
             "#]],
+            &FileType::Custom {
+                lambda_arg: "{test1 = 1; test2 = 1;}".to_string(),
+                schema: "{}".to_string(),
+            },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_schema() {
+        check_complete_with_filetype(
+            r#"{ a = 1; $0 }"#,
+            expect![[r#"
+                [
+                    "abc",
+                    "xyz",
+                ]
+            "#]],
+            &FileType::Custom {
+                lambda_arg: "{}".to_string(),
+                schema: r#"{ "properties": {"abc": {"properties": {"one": {}}}, "xyz": {"properties": {"two": {}}}} }"#.to_string(),
+            },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_schema_sub() {
+        check_complete_with_filetype(
+            r#"{ a = 1; abc.$0 }"#,
+            expect![[r#"
+                [
+                    "one",
+                ]
+            "#]],
+            &FileType::Custom {
+                lambda_arg: "{}".to_string(),
+                schema: r#"{ "properties": {"abc": {"properties": {"one": {}}}, "xyz": {"properties": {"two": {}}}} }"#.to_string(),
+            },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_schema_nested() {
+        check_complete_with_filetype(
+            r#"{ a = 1; abc = { x = 1; $0 }; }"#,
+            expect![[r#"
+                [
+                    "one",
+                ]
+            "#]],
+            &FileType::Custom {
+                lambda_arg: "{}".to_string(),
+                schema: r#"{ "properties": {"abc": {"properties": {"one": {}}}, "xyz": {"properties": {"two": {}}}} }"#.to_string(),
+            },
         )
         .await;
     }

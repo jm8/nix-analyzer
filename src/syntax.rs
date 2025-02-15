@@ -87,6 +87,10 @@ pub fn ancestor_exprs(expr: &Expr) -> impl Iterator<Item = Expr> {
     result.into_iter()
 }
 
+pub fn ancestor_exprs_inclusive(expr: &Expr) -> impl Iterator<Item = Expr> {
+    std::iter::once(expr.clone()).chain(ancestor_exprs(expr))
+}
+
 pub fn locate_cursor(root: &Root, offset: u32) -> Option<TokenLocation> {
     let token = root
         .syntax()
