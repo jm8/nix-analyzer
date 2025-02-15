@@ -35,12 +35,7 @@ pub fn safe_stringify(expr: &Expr) -> String {
         Expr::Path(path) => format!("{}", path.to_string()),
         Expr::Literal(literal) => literal.to_string(),
         Expr::Lambda(lambda) => {
-            // todo: fix
-            let arg = match lambda.param() {
-                Some(ast::Param::Pattern(pattern)) => pattern.to_string(),
-                Some(ast::Param::IdentParam(ident_param)) => ident_param.to_string(),
-                None => format!("x"),
-            };
+            let arg = safe_stringify_opt_param(lambda.param().as_ref());
             format!("({}: {})", arg, safe_stringify_opt(lambda.body().as_ref()))
         }
         Expr::LegacyLet(let_legacy) => format!("let {}", safe_stringify_bindings(let_legacy)),
@@ -81,9 +76,9 @@ pub fn safe_stringify(expr: &Expr) -> String {
         Expr::Root(root) => safe_stringify_opt(root.expr().as_ref()),
         Expr::AttrSet(attrset) => {
             format!(
-                "{} {{ {} }}",
+                "{}{{ {} }}",
                 if attrset.rec_token().is_some() {
-                    "rec"
+                    "rec "
                 } else {
                     ""
                 },
@@ -117,8 +112,36 @@ pub fn safe_stringify(expr: &Expr) -> String {
     }
 }
 
+pub fn safe_stringify_opt_param(param: Option<&ast::Param>) -> String {
+    match param {
+        Some(ast::Param::Pattern(pattern)) => safe_stringify_pattern(&pattern),
+        Some(ast::Param::IdentParam(ident_param)) => ident_param.to_string(),
+        None => format!("{{...}}"),
+    }
+}
+
+pub fn safe_stringify_pattern(pattern: &rnix::ast::Pattern) -> String {
+    let entries = pattern
+        .pat_entries()
+        .flat_map(|pat_entry| {
+            pat_entry.ident().map(|ident| {
+                format!(
+                    "{} ? {}",
+                    ident,
+                    safe_stringify_opt(pat_entry.default().as_ref())
+                )
+            })
+        })
+        .join(", ");
+
+    match pattern.pat_bind().and_then(|pat_bind| pat_bind.ident()) {
+        Some(ident) => format!("{{{}, ...}} @ {}", entries, ident),
+        None => format!("{{{}, ...}}", entries),
+    }
+}
+
 pub fn safe_stringify_str(str: &rnix::ast::Str) -> String {
-    // todo: fix
+    // TODO: fix
     str.to_string()
 }
 
@@ -195,7 +218,7 @@ mod test {
     fn attrs_dup1() {
         check(
             r#"{ x = 123; y = 456; x = 789; }"#,
-            expect![" { x = 123; y = 456; x = 789; }"],
+            expect!["{ x = 123; y = 456; x = 789; }"],
         );
     }
 
@@ -203,18 +226,18 @@ mod test {
     fn attrs_dup2() {
         check(
             r#"{ services.ssh.port = 22; services.ssh.port = 23; }"#,
-            expect![" { services.ssh.port = 22; services.ssh.port = 23; }"],
+            expect!["{ services.ssh.port = 22; services.ssh.port = 23; }"],
         );
     }
 
     #[test]
     fn attrs_dynamic() {
-        check(r#"{ ${a} = b; }"#, expect![" { ${a} = b; }"]);
+        check(r#"{ ${a} = b; }"#, expect!["{ ${a} = b; }"]);
     }
 
     #[test]
     fn attrs_empty() {
-        check(r#"{ }"#, expect![" {  }"]);
+        check(r#"{ }"#, expect!["{  }"]);
     }
 
     #[test]
@@ -227,7 +250,7 @@ mod test {
                   httpd.enable = true;
               };
             }"#,
-            expect![" { services.ssh.enable = true; services.ssh =  { port = 123; }; services =  { httpd.enable = true; }; }"],
+            expect!["{ services.ssh.enable = true; services.ssh = { port = 123; }; services = { httpd.enable = true; }; }"],
         );
     }
 
@@ -238,45 +261,45 @@ mod test {
 
     #[test]
     fn attrs_simple() {
-        check(r#"{ x = y; y = z; }"#, expect![" { x = y; y = z; }"]);
+        check(r#"{ x = y; y = z; }"#, expect!["{ x = y; y = z; }"]);
     }
 
     #[test]
     fn attrs_string() {
-        check(r#"{ "a" = b; }"#, expect![[r#" { "a" = b; }"#]]);
+        check(r#"{ "a" = b; }"#, expect![[r#"{ "a" = b; }"#]]);
     }
 
     #[test]
     fn attrs_typing1() {
         // Ideally this would be an attribute set not a lambda
-        check(r#"{ x }"#, expect!["({ x }: null)"]);
+        check(r#"{ x }"#, expect!["({x ? null, ...}: null)"]);
     }
 
     #[test]
     fn attrs_typing2() {
-        check(r#"{ x. }"#, expect![" { x = null; }"]);
+        check(r#"{ x. }"#, expect!["{ x = null; }"]);
     }
 
     #[test]
     fn attrs_typing3() {
-        check(r#"{ x.y }"#, expect![" { x.y = null; }"]);
+        check(r#"{ x.y }"#, expect!["{ x.y = null; }"]);
     }
 
     #[test]
     fn attrs_typing4() {
-        check(r#"{ x.y = }"#, expect![" { x.y = null; }"]);
+        check(r#"{ x.y = }"#, expect!["{ x.y = null; }"]);
     }
 
     #[test]
     fn attrs_typing5() {
-        check(r#"{ x.y = abc }"#, expect![" { x.y = abc; }"]);
+        check(r#"{ x.y = abc }"#, expect!["{ x.y = abc; }"]);
     }
 
     #[test]
     fn attrs_typing_before() {
         check(
             r#"{ services.resolved. networking.useDHCP = false; }"#,
-            expect![" { services.resolved.networking.useDHCP = false; }"],
+            expect!["{ services.resolved.networking.useDHCP = false; }"],
         );
     }
 
@@ -287,7 +310,7 @@ mod test {
 
     #[test]
     fn comma_attrs() {
-        check(r#"{a = 1, b = 2}"#, expect![" { a = 1; }"]);
+        check(r#"{a = 1, b = 2}"#, expect!["{ a = 1; }"]);
     }
 
     #[test]
@@ -320,43 +343,52 @@ mod test {
     fn inherit() {
         check(
             r#"{ inherit a; inherit (x) b; }"#,
-            expect![" { inherit  a; inherit (x) b; }"],
+            expect!["{ inherit  a; inherit (x) b; }"],
         );
     }
 
     #[test]
     fn inherit_or() {
-        check(r#"{ inherit or; }"#, expect![" { inherit  or; }"]);
+        check(r#"{ inherit or; }"#, expect!["{ inherit  or; }"]);
     }
 
     #[test]
     fn lambda_formals() {
-        check(r#"{a, b}: a"#, expect!["({a, b}: a)"]);
+        check(r#"{a, b}: a"#, expect!["({a ? null, b ? null, ...}: a)"]);
     }
 
     #[test]
     fn lambda_formals_arg() {
-        check(r#"{a, b, ...} @ g: a"#, expect!["({a, b, ...} @ g: a)"]);
+        check(
+            r#"{a, b, ...} @ g: a"#,
+            expect!["({a ? null, b ? null, ...} @ g: a)"],
+        );
     }
 
     #[test]
     fn lambda_formals_arg_left() {
-        check(r#"g@{a, b, ...}: a"#, expect!["(g@{a, b, ...}: a)"]);
+        check(
+            r#"g@{a, b, ...}: a"#,
+            expect!["({a ? null, b ? null, ...} @ g: a)"],
+        );
     }
 
     #[test]
     fn lambda_formals_dup() {
-        check(r#"{a, b, a}: a"#, expect!["({a, b, a}: a)"]);
+        check(
+            r#"{a, b, a}: a"#,
+            expect!["({a ? null, b ? null, a ? null, ...}: a)"],
+        );
     }
 
     #[test]
     fn lambda_formals_empty() {
-        check(r#"{}: a"#, expect!["({}: a)"]);
+        check(r#"{}: a"#, expect!["({, ...}: a)"]);
     }
 
     #[test]
     fn lambda_formals_one() {
-        check(r#"{a}: a"#, expect!["({a}: a)"]);
+        check(r#"{a}: a"#, expect!["({a ? null, ...}: a)"]);
     }
 
     #[test]
@@ -467,5 +499,39 @@ mod test {
     #[test]
     fn with_missing() {
         check(r#"with pkgs;"#, expect!["(with pkgs; null)"]);
+    }
+
+    #[test]
+    fn lambda_basic() {
+        check(r#"x: x"#, expect!["(x: x)"]);
+    }
+
+    #[test]
+    fn lambda_args() {
+        check(r#"{a, b}: a"#, expect!["({a ? null, b ? null, ...}: a)"]);
+    }
+
+    #[test]
+    fn lambda_default_args() {
+        check(
+            r#"{a ? 123, b}: a"#,
+            expect!["({a ? 123, b ? null, ...}: a)"],
+        );
+    }
+
+    #[test]
+    fn lambda_bind() {
+        check(
+            r#"{a ? 123, b} @ args: a"#,
+            expect!["({a ? 123, b ? null, ...} @ args: a)"],
+        );
+    }
+
+    #[test]
+    fn lambda_bind_2() {
+        check(
+            r#"args @ {a ? 123, b}: a"#,
+            expect!["({a ? 123, b ? null, ...} @ args: a)"],
+        );
     }
 }

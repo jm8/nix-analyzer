@@ -5,13 +5,10 @@ mod completion;
 mod evaluator;
 mod flakes;
 mod hover;
+mod lambda_arg;
 mod lsp;
 mod safe_stringification;
 mod syntax;
-
-mod nix_eval_server_capnp {
-    include!(concat!(env!("OUT_DIR"), "/nix_eval_server_capnp.rs"));
-}
 
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
@@ -26,14 +23,20 @@ use tower_lsp::{LspService, Server};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug)]
+pub enum FileType {
+    Package { nixpkgs_path: String },
+}
+
+#[derive(Debug)]
 pub struct File {
     contents: Rope,
+    file_type: FileType,
 }
 
 #[derive(Debug)]
 pub struct Analyzer {
     evaluator: Arc<Mutex<Evaluator>>,
-    files: DashMap<PathBuf, Rope>,
+    files: DashMap<PathBuf, File>,
 }
 
 impl Analyzer {
@@ -45,7 +48,15 @@ impl Analyzer {
     }
 
     fn change_file(&self, path: &Path, contents: &str) {
-        self.files.insert(path.into(), contents.into());
+        self.files
+            .entry(path.into())
+            .and_modify(|file| file.contents = contents.into())
+            .or_insert_with(|| File {
+                contents: contents.into(),
+                file_type: FileType::Package {
+                    nixpkgs_path: "<nixpkgs>".to_owned(),
+                },
+            });
     }
 
     fn get_diagnostics(&self, path: &Path) -> Result<Vec<Diagnostic>> {
@@ -54,21 +65,24 @@ impl Analyzer {
     }
 
     async fn complete(&self, path: &Path, line: u32, col: u32) -> Result<Vec<CompletionItem>> {
-        let source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
-        let offset = source.line_to_byte(line as usize) + col as usize;
+        let file = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
+        let offset = file.contents.line_to_byte(line as usize) + col as usize;
 
-        Ok(
-            completion::complete(&source.to_string(), offset as u32, self.evaluator.clone())
-                .await
-                .unwrap_or_default(),
+        Ok(completion::complete(
+            &file.contents.to_string(),
+            &file.file_type,
+            offset as u32,
+            self.evaluator.clone(),
         )
+        .await
+        .unwrap_or_default())
     }
 
     fn hover(&self, path: &Path, line: u32, col: u32) -> Result<String> {
-        let source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
-        let offset = source.line_to_byte(line as usize) + col as usize;
+        let file = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
+        let offset = file.contents.line_to_byte(line as usize) + col as usize;
 
-        Ok(hover::hover(&source.to_string(), offset as u32)
+        Ok(hover::hover(&file.contents.to_string(), offset as u32)
             .map(|hover_result| hover_result.md)
             .unwrap_or_default())
     }

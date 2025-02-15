@@ -1,12 +1,8 @@
 use std::{fmt, sync::Arc};
 
 use lazy_regex::regex;
-use rnix::{
-    ast::{Expr, InheritFrom},
-    TextRange, TextSize,
-};
+use rnix::{ast::Expr, TextRange, TextSize};
 use ropey::Rope;
-use rowan::ast::AstNode;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
 
@@ -16,14 +12,16 @@ use crate::{
         get_variables, in_context, in_context_with_select, locate_cursor, parse, with_expression,
         LocationWithinExpr,
     },
+    FileType,
 };
 
 pub async fn complete(
     source: &str,
+    file_type: &FileType,
     offset: u32,
     evaluator: Arc<Mutex<Evaluator>>,
 ) -> Option<Vec<CompletionItem>> {
-    let strategy = get_completion_strategy(source, offset)?;
+    let strategy = get_completion_strategy(source, file_type, offset)?;
 
     let attr_completions = match strategy.attrs_expression {
         Some(expression) => evaluator
@@ -60,7 +58,11 @@ struct CompletionStrategy {
 }
 
 // This is a separate function to enforce that it is synchronus, because syntax trees are not Send
-fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrategy> {
+fn get_completion_strategy(
+    source: &str,
+    file_type: &FileType,
+    offset: u32,
+) -> Option<CompletionStrategy> {
     let mut source = source.to_string();
     source.insert_str(offset as usize, "aaa");
     let root = parse(&source);
@@ -73,7 +75,7 @@ fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrate
     let range = rope_text_range_to_range(&rope, text_range);
     match location.location_within {
         LocationWithinExpr::Normal => {
-            let attrs_expression = with_expression(&location.expr);
+            let attrs_expression = with_expression(&location.expr, file_type);
             let variables = get_variables(&location.expr);
             Some(CompletionStrategy {
                 range,
@@ -84,7 +86,7 @@ fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrate
         LocationWithinExpr::Inherit(inherit) => Some(match inherit.from() {
             Some(inherit_from) => CompletionStrategy {
                 range,
-                attrs_expression: Some(in_context(&inherit_from.expr()?)),
+                attrs_expression: Some(in_context(&inherit_from.expr()?, file_type)),
                 variables: vec![],
             },
             None => CompletionStrategy {
@@ -97,8 +99,11 @@ fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrate
             Expr::Select(select) => {
                 let attrs = select.expr().unwrap();
 
-                let attrs_expression =
-                    Some(in_context_with_select(&attrs, attrpath.attrs().take(index)));
+                let attrs_expression = Some(in_context_with_select(
+                    &attrs,
+                    attrpath.attrs().take(index),
+                    file_type,
+                ));
 
                 Some(CompletionStrategy {
                     attrs_expression,
@@ -172,7 +177,7 @@ mod test {
     use itertools::Itertools;
     use tokio::sync::Mutex;
 
-    use crate::evaluator::Evaluator;
+    use crate::{evaluator::Evaluator, FileType};
 
     use super::complete;
 
@@ -183,12 +188,19 @@ mod test {
         let evaluator = Arc::new(Mutex::new(Evaluator::new()));
 
         let source = format!("{}{}", left, right);
-        let actual = complete(&source, offset, evaluator)
-            .await
-            .unwrap()
-            .iter()
-            .map(|item| item.label.clone())
-            .collect_vec();
+        let actual = complete(
+            &source,
+            &FileType::Package {
+                nixpkgs_path: "<nixpkgs>".to_string(),
+            },
+            offset,
+            evaluator,
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|item| item.label.clone())
+        .collect_vec();
 
         expected.assert_debug_eq(&actual);
     }
@@ -633,6 +645,19 @@ mod test {
             expect![[r#"
                 [
                     "b",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_lambda_arg() {
+        check_complete(
+            r#"x: x.$0"#,
+            expect![[r#"
+                [
+                    "test",
                 ]
             "#]],
         )

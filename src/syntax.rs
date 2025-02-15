@@ -7,8 +7,16 @@ use rnix::{
     SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
 };
 use rowan::ast::AstNode;
+use tracing::info;
 
-use crate::safe_stringification::{safe_stringify, safe_stringify_attr, safe_stringify_bindings};
+use crate::{
+    lambda_arg::get_lambda_arg,
+    safe_stringification::{
+        safe_stringify, safe_stringify_attr, safe_stringify_bindings, safe_stringify_opt_param,
+        safe_stringify_pattern,
+    },
+    FileType,
+};
 
 const BUILTIN_IDS: [&'static str; 23] = [
     "abort",
@@ -123,7 +131,11 @@ fn locate_token(token: &SyntaxToken) -> Option<TokenLocation> {
     })
 }
 
-pub fn in_context_with_select(expr: &Expr, attrs: impl Iterator<Item = Attr>) -> String {
+pub fn in_context_with_select(
+    expr: &Expr,
+    attrs: impl Iterator<Item = Attr>,
+    file_type: &FileType,
+) -> String {
     let mut string_to_eval = safe_stringify(&expr);
     for attr in attrs {
         string_to_eval = format!("{}.{}", string_to_eval, safe_stringify_attr(&attr));
@@ -131,31 +143,42 @@ pub fn in_context_with_select(expr: &Expr, attrs: impl Iterator<Item = Attr>) ->
 
     for ancestor in ancestor_exprs(&expr) {
         match ancestor {
-            Expr::LetIn(letin) => {
+            Expr::LetIn(ref letin) => {
                 string_to_eval = format!(
                     "(let {} in ({}))",
-                    safe_stringify_bindings(&letin),
+                    safe_stringify_bindings(letin),
                     string_to_eval
+                );
+            }
+            Expr::Lambda(ref lambda) => {
+                let arg = get_lambda_arg(&lambda, file_type);
+                string_to_eval = format!(
+                    "(({}: {}) {})",
+                    safe_stringify_opt_param(lambda.param().as_ref()),
+                    string_to_eval,
+                    arg
                 );
             }
             _ => continue,
         }
     }
 
+    info!(?string_to_eval);
+
     string_to_eval
 }
 
-pub fn in_context(expr: &Expr) -> String {
-    in_context_with_select(expr, iter::empty())
+pub fn in_context(expr: &Expr, file_type: &FileType) -> String {
+    in_context_with_select(expr, iter::empty(), file_type)
 }
 
-pub fn with_expression(expr: &Expr) -> Option<String> {
+pub fn with_expression(expr: &Expr, file_type: &FileType) -> Option<String> {
     let with = ancestor_exprs(&expr).find_map(|ancestor| match ancestor {
         Expr::With(with) => Some(with),
         _ => None,
     })?;
 
-    Some(in_context(&with.namespace()?))
+    Some(in_context(&with.namespace()?, file_type))
 }
 
 pub fn get_variables(expr: &Expr) -> Vec<String> {
