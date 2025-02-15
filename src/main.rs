@@ -25,6 +25,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Debug)]
 pub enum FileType {
     Package { nixpkgs_path: String },
+    Custom { lambda_arg: String },
 }
 
 #[derive(Debug)]
@@ -54,7 +55,7 @@ impl Analyzer {
             .or_insert_with(|| File {
                 contents: contents.into(),
                 file_type: FileType::Package {
-                    nixpkgs_path: "<nixpkgs>".to_owned(),
+                    nixpkgs_path: env!("nixpkgs").to_owned(),
                 },
             });
     }

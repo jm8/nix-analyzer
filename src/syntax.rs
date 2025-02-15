@@ -2,8 +2,7 @@ use std::iter;
 
 use itertools::Itertools;
 use rnix::{
-    ast::{Attr, Attrpath, Expr, HasEntry, Inherit, PatBind, PatEntry, Root},
-    tokenizer::Token,
+    ast::{Attr, Attrpath, Expr, HasEntry, Inherit, Param, PatBind, PatEntry, Root},
     SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
 };
 use rowan::ast::AstNode;
@@ -213,9 +212,22 @@ pub fn get_variables(expr: &Expr) -> Vec<String> {
 
     for ancestor in ancestor_exprs(&expr) {
         match ancestor {
-            Expr::Lambda(_lambda) => {
-                // TODO
-            }
+            Expr::Lambda(lambda) => match lambda.param() {
+                Some(Param::Pattern(pattern)) => {
+                    if let Some(ident) = pattern.pat_bind().and_then(|bind| bind.ident()) {
+                        variables.push(ident.to_string());
+                    }
+                    for entry in pattern.pat_entries() {
+                        if let Some(ident) = entry.ident() {
+                            variables.push(ident.to_string());
+                        }
+                    }
+                }
+                Some(Param::IdentParam(ident_param)) => {
+                    variables.push(ident_param.to_string());
+                }
+                None => {}
+            },
             Expr::LegacyLet(legacy_let) => add_from_entires(&mut variables, legacy_let),
             Expr::LetIn(let_in) => add_from_entires(&mut variables, let_in),
             Expr::AttrSet(attr_set) => {

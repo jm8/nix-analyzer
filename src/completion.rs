@@ -1,16 +1,19 @@
 use std::{fmt, sync::Arc};
 
+use itertools::Itertools;
 use lazy_regex::regex;
 use rnix::{ast::Expr, TextRange, TextSize};
 use ropey::Rope;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
+use tracing::info;
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
+    lambda_arg::get_lambda_arg,
     syntax::{
-        get_variables, in_context, in_context_with_select, locate_cursor, parse, with_expression,
-        LocationWithinExpr,
+        get_variables, in_context, in_context_with_select, locate_cursor, nearest_expr, parse,
+        with_expression, LocationWithinExpr,
     },
     FileType,
 };
@@ -38,6 +41,7 @@ pub async fn complete(
         attr_completions
             .iter()
             .chain(strategy.variables.iter())
+            .sorted()
             .map(|completion| CompletionItem {
                 label: completion.clone(),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
@@ -114,7 +118,21 @@ fn get_completion_strategy(
             Expr::AttrSet(_attr_set) => None,
             _ => None,
         },
-        LocationWithinExpr::PatEntry => None,
+        LocationWithinExpr::PatEntry => {
+            let lambda = match location.expr {
+                Expr::Lambda(lambda) => lambda,
+                other => {
+                    info!(?other);
+                    return None;
+                }
+            };
+            let lambda_arg = get_lambda_arg(&lambda, file_type);
+            Some(CompletionStrategy {
+                range,
+                attrs_expression: Some(lambda_arg),
+                variables: vec![],
+            })
+        }
         LocationWithinExpr::PatBind => None,
     }
 }
@@ -190,8 +208,8 @@ mod test {
         let source = format!("{}{}", left, right);
         let actual = complete(
             &source,
-            &FileType::Package {
-                nixpkgs_path: "<nixpkgs>".to_string(),
+            &FileType::Custom {
+                lambda_arg: "{test1 = 1; test2 = 2;}".to_string(),
             },
             offset,
             evaluator,
@@ -497,8 +515,8 @@ mod test {
             expect![[r#"
                 [
                     "a",
-                    "b",
                     "abort",
+                    "b",
                     "baseNameOf",
                     "break",
                     "builtins",
@@ -533,9 +551,6 @@ mod test {
             r#"let x = { one = 1; two = 2; }; in with x; $0"#,
             expect![[r#"
                 [
-                    "one",
-                    "two",
-                    "x",
                     "abort",
                     "baseNameOf",
                     "break",
@@ -553,12 +568,15 @@ mod test {
                     "isNull",
                     "map",
                     "null",
+                    "one",
                     "placeholder",
                     "removeAttrs",
                     "scopedImport",
                     "throw",
                     "toString",
                     "true",
+                    "two",
+                    "x",
                 ]
             "#]],
         )
@@ -572,8 +590,8 @@ mod test {
             expect![[r#"
                 [
                     "a",
-                    "b",
                     "abort",
+                    "b",
                     "baseNameOf",
                     "break",
                     "builtins",
@@ -652,12 +670,65 @@ mod test {
     }
 
     #[test_log::test(tokio::test)]
+    async fn test_complete_lambda_params() {
+        check_complete(
+            r#"{ a, b } @ c: $0"#,
+            expect![[r#"
+                [
+                    "a",
+                    "abort",
+                    "b",
+                    "baseNameOf",
+                    "break",
+                    "builtins",
+                    "c",
+                    "derivation",
+                    "derivationStrict",
+                    "dirOf",
+                    "false",
+                    "fetchGit",
+                    "fetchMercurial",
+                    "fetchTarball",
+                    "fetchTree",
+                    "fromTOML",
+                    "import",
+                    "isNull",
+                    "map",
+                    "null",
+                    "placeholder",
+                    "removeAttrs",
+                    "scopedImport",
+                    "throw",
+                    "toString",
+                    "true",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
     async fn test_complete_lambda_arg() {
         check_complete(
             r#"x: x.$0"#,
             expect![[r#"
                 [
-                    "test",
+                    "test1",
+                    "test2",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_lambda_arg_inside() {
+        check_complete(
+            r#"{aaaa, $0}: "#,
+            expect![[r#"
+                [
+                    "test1",
+                    "test2",
                 ]
             "#]],
         )

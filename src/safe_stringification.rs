@@ -191,7 +191,7 @@ pub fn safe_stringify_opt_attrpath(attrpath: Option<&Attrpath>) -> String {
     }
 }
 
-fn safe_stringify_opt(expr: Option<&Expr>) -> String {
+pub fn safe_stringify_opt(expr: Option<&Expr>) -> String {
     match expr {
         Some(expr) => safe_stringify(expr),
         None => "null".to_string(),
