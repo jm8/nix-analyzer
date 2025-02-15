@@ -1,17 +1,19 @@
 use std::{fmt, sync::Arc};
 
 use lazy_regex::regex;
-use rnix::{ast::Expr, TextRange, TextSize};
+use rnix::{
+    ast::{Expr, InheritFrom},
+    TextRange, TextSize,
+};
 use ropey::Rope;
 use rowan::ast::AstNode;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
-use tracing::info;
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
     syntax::{
-        get_variables, in_context_with_select, locate_cursor, parse, with_expression,
+        get_variables, in_context, in_context_with_select, locate_cursor, parse, with_expression,
         LocationWithinExpr,
     },
 };
@@ -66,12 +68,11 @@ fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrate
     eprintln!("Completing at {:?}", location);
 
     let rope = Rope::from_str(&source);
+    let text_range = location.token.text_range();
+    let text_range = TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
+    let range = rope_text_range_to_range(&rope, text_range);
     match location.location_within {
         LocationWithinExpr::Normal => {
-            let text_range = location.expr.syntax().text_range();
-            let text_range =
-                TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
-            let range = rope_text_range_to_range(&rope, text_range);
             let attrs_expression = with_expression(&location.expr);
             let variables = get_variables(&location.expr);
             Some(CompletionStrategy {
@@ -80,14 +81,20 @@ fn get_completion_strategy(source: &str, offset: u32) -> Option<CompletionStrate
                 variables,
             })
         }
-        LocationWithinExpr::Inherit(_) => None,
+        LocationWithinExpr::Inherit(inherit) => Some(match inherit.from() {
+            Some(inherit_from) => CompletionStrategy {
+                range,
+                attrs_expression: Some(in_context(&inherit_from.expr()?)),
+                variables: vec![],
+            },
+            None => CompletionStrategy {
+                range,
+                attrs_expression: None,
+                variables: get_variables(&location.expr),
+            },
+        }),
         LocationWithinExpr::Attrpath(attrpath, index) => match location.expr {
             Expr::Select(select) => {
-                let attr = attrpath.attrs().nth(index).unwrap();
-                let text_range = attr.syntax().text_range();
-                let text_range =
-                    TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
-                let range = rope_text_range_to_range(&rope, text_range);
                 let attrs = select.expr().unwrap();
 
                 let attrs_expression =
@@ -577,6 +584,55 @@ mod test {
                     "throw",
                     "toString",
                     "true",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_inherit() {
+        check_complete(
+            r#"let aaa = 2; in { inherit $0; } "#,
+            expect![[r#"
+            [
+                "aaa",
+                "abort",
+                "baseNameOf",
+                "break",
+                "builtins",
+                "derivation",
+                "derivationStrict",
+                "dirOf",
+                "false",
+                "fetchGit",
+                "fetchMercurial",
+                "fetchTarball",
+                "fetchTree",
+                "fromTOML",
+                "import",
+                "isNull",
+                "map",
+                "null",
+                "placeholder",
+                "removeAttrs",
+                "scopedImport",
+                "throw",
+                "toString",
+                "true",
+            ]
+        "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_inherit_from() {
+        check_complete(
+            r#"let a = { b = 3; }; in { inherit (a) $0; } "#,
+            expect![[r#"
+                [
+                    "b",
                 ]
             "#]],
         )

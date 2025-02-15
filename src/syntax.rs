@@ -3,6 +3,7 @@ use std::iter;
 use itertools::Itertools;
 use rnix::{
     ast::{Attr, Attrpath, Expr, HasEntry, Inherit, PatBind, PatEntry, Root},
+    tokenizer::Token,
     SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
 };
 use rowan::ast::AstNode;
@@ -50,6 +51,7 @@ pub enum LocationWithinExpr {
 
 #[derive(Debug)]
 pub struct TokenLocation {
+    pub token: SyntaxToken,
     pub expr: Expr,
     pub location_within: LocationWithinExpr,
 }
@@ -92,8 +94,8 @@ pub fn locate_cursor(root: &Root, offset: u32) -> Option<TokenLocation> {
     locate_token(&token)
 }
 
-fn locate_token(node: &SyntaxToken) -> Option<TokenLocation> {
-    let mut expr = nearest_expr(node.parent().unwrap());
+fn locate_token(token: &SyntaxToken) -> Option<TokenLocation> {
+    let mut expr = nearest_expr(token.parent().unwrap());
     let mut location_within = LocationWithinExpr::Normal;
     // This Ident node could be part of an attrpath, inherit, or formals.
     if let Some(attrpath) = Attrpath::cast(expr.syntax().parent().unwrap()) {
@@ -117,6 +119,7 @@ fn locate_token(node: &SyntaxToken) -> Option<TokenLocation> {
     Some(TokenLocation {
         expr,
         location_within,
+        token: token.clone(),
     })
 }
 
