@@ -4,7 +4,7 @@ mod test {
     use anyhow::{bail, Result};
     use rnix::ast::{AttrSet, AttrpathValue, Expr, HasEntry, List};
     use rowan::ast::AstNode;
-    use tracing::info;
+    use tracing::{info, Subscriber};
 
     #[test_log::test]
     fn test_parsing_modules() {
@@ -21,19 +21,27 @@ mod test {
             LetBody,
         }
 
-        fn walk_attrs(attrs: &AttrSet) {
-            let mut items: Vec<(Vec<Subscript>, Expr)> = vec![];
-
-            fn rec_attrs(stack: &[Subscript], attrs: &AttrSet) -> Option<()> {
+        #[derive(Clone, Debug)]
+        struct Item {
+            position: Vec<Subscript>,
+            expr: Expr,
+        };
+        fn walk_attrs(attrs: &AttrSet) -> Vec<Item> {
+            fn rec_attrs(
+                items: &mut Vec<Item>,
+                stack: &[Subscript],
+                attrs: &AttrSet,
+            ) -> Option<()> {
                 for attrpath_value in attrs.attrpath_values() {
-                    rec_attrpath_value(stack, &attrpath_value);
+                    rec_attrpath_value(items, stack, &attrpath_value);
                 }
                 Some(())
             }
 
-            fn rec_list(stack: &[Subscript], list: &List) -> Option<()> {
+            fn rec_list(items: &mut Vec<Item>, stack: &[Subscript], list: &List) -> Option<()> {
                 for (i, item) in list.items().enumerate() {
                     rec_expr(
+                        items,
                         &stack
                             .iter()
                             .cloned()
@@ -46,6 +54,7 @@ mod test {
             }
 
             fn rec_attrpath_value(
+                items: &mut Vec<Item>,
                 stack: &[Subscript],
                 attrpath_value: &AttrpathValue,
             ) -> Option<()> {
@@ -69,15 +78,20 @@ mod test {
                     .chain(attrs.into_iter())
                     .collect::<Vec<_>>();
 
-                rec_expr(&stack, &expr);
+                rec_expr(items, &stack, &expr);
 
                 Some(())
             }
 
-            fn rec_expr(stack: &[Subscript], expr: &Expr) -> Option<()> {
+            fn rec_expr(items: &mut Vec<Item>, stack: &[Subscript], expr: &Expr) -> Option<()> {
+                items.push(Item {
+                    position: stack.to_vec(),
+                    expr: expr.clone(),
+                });
                 match expr {
                     Expr::Apply(apply) => {
                         rec_expr(
+                            items,
                             &stack
                                 .iter()
                                 .cloned()
@@ -87,13 +101,14 @@ mod test {
                         );
                     }
                     Expr::AttrSet(attrs) => {
-                        rec_attrs(stack, attrs);
+                        rec_attrs(items, stack, attrs);
                     }
                     Expr::List(list) => {
-                        rec_list(stack, list);
+                        rec_list(items, stack, list);
                     }
                     Expr::Lambda(lambda) => {
                         rec_expr(
+                            items,
                             &stack
                                 .iter()
                                 .cloned()
@@ -104,6 +119,7 @@ mod test {
                     }
                     Expr::LetIn(let_in) => {
                         rec_expr(
+                            items,
                             &stack
                                 .iter()
                                 .cloned()
@@ -112,15 +128,14 @@ mod test {
                             &let_in.body()?,
                         );
                     }
-                    _ => {
-                        println!("AAAAAA {:?} {}", stack, expr);
-                    }
+                    _ => {}
                 }
                 Some(())
             }
 
-            println!("BBBBBBBBBBB");
-            rec_attrs(&[], attrs);
+            let mut items: Vec<Item> = vec![];
+            rec_attrs(&mut items, &[], attrs);
+            items
         }
 
         fn get_flake_imports(flake_expr: &Expr) -> Result<()> {
@@ -129,12 +144,22 @@ mod test {
                 _ => bail!("Flake must be attrset"),
             };
 
-            walk_attrs(attrs);
+            for item in walk_attrs(attrs) {
+                println!("DDDDDDD {:?} {}", item.position, item.expr);
+                // match item.expr {
+                //     Expr::Path(path) => {
+                //         if item.position.len() >  {
+
+                //         }
+                //     }
+                //     _ => {}
+                // }
+            }
             // let outputs = flake_expr
             Ok(())
         }
 
         get_flake_imports(&expr).unwrap();
-        assert!(false);
+        // assert!(false);
     }
 }
