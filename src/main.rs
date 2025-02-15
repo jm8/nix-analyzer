@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 #![feature(let_chains)]
+#![feature(iterator_try_collect)]
 
 mod completion;
 mod evaluator;
@@ -7,6 +8,7 @@ mod flakes;
 mod hover;
 mod lambda_arg;
 mod lsp;
+mod modules;
 mod safe_stringification;
 mod syntax;
 
