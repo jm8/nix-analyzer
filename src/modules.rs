@@ -145,7 +145,6 @@ mod test {
             };
 
             for item in walk_attrs(attrs) {
-                println!("DDDDDDD {:?} {}", item.position, item.expr);
                 // match item.expr {
                 //     Expr::Path(path) => {
                 //         if item.position.len() >  {

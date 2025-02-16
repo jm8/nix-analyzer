@@ -120,9 +120,9 @@ fn get_completion_strategy(
                 })
             }
             Expr::AttrSet(_) => {
-                let mut schema = &schema;
+                let mut schema = schema;
                 for attr in attrpath.attrs().take(index) {
-                    schema = schema.attr_subschema(&attr);
+                    schema = schema.attr_subschema(&attr).clone();
                 }
 
                 Some(CompletionStrategy {
@@ -810,6 +810,72 @@ mod test {
             &FileType::Custom {
                 lambda_arg: "{}".to_string(),
                 schema: r#"{ "properties": {"abc": {"properties": {"one": {}}}, "xyz": {"properties": {"two": {}}}} }"#.to_string(),
+            },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_schema_() {
+        check_complete_with_filetype(
+            r#"{ a = 1; $0 }"#,
+            expect![[r#"
+                [
+                    "appstream",
+                    "assertions",
+                    "boot",
+                    "console",
+                    "containers",
+                    "docker-containers",
+                    "documentation",
+                    "dysnomia",
+                    "ec2",
+                    "environment",
+                    "fileSystems",
+                    "fonts",
+                    "gtk",
+                    "hardware",
+                    "i18n",
+                    "ids",
+                    "isSpecialisation",
+                    "jobs",
+                    "krb5",
+                    "lib",
+                    "location",
+                    "meta",
+                    "nesting",
+                    "networking",
+                    "nix",
+                    "nixops",
+                    "nixpkgs",
+                    "oci",
+                    "openstack",
+                    "passthru",
+                    "power",
+                    "powerManagement",
+                    "programs",
+                    "qt",
+                    "qt5",
+                    "security",
+                    "services",
+                    "snapraid",
+                    "sound",
+                    "specialisation",
+                    "stubby",
+                    "swapDevices",
+                    "system",
+                    "systemd",
+                    "time",
+                    "users",
+                    "virtualisation",
+                    "warnings",
+                    "xdg",
+                    "zramSwap",
+                ]
+            "#]],
+            &FileType::Custom {
+                lambda_arg: "{}".to_string(),
+                schema: include_str!("./nixos_module_schema.json").to_string(),
             },
         )
         .await;

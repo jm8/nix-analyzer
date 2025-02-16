@@ -1,14 +1,9 @@
-use std::collections::HashMap;
-
 use itertools::Itertools;
 use rnix::ast::{Attr, Expr, HasEntry};
 use serde::Deserialize;
-use tracing::info;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::{
-    syntax::{ancestor_exprs, ancestor_exprs_inclusive},
-    FileType,
-};
+use crate::{syntax::ancestor_exprs_inclusive, FileType};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
@@ -36,16 +31,9 @@ enum Type {
 pub struct Schema {
     r#type: Option<Type>,
     description: Option<String>,
-    additional_properties: Option<Box<Schema>>,
-    properties: Option<HashMap<String, Schema>>,
+    additional_properties: Option<Arc<Schema>>,
+    properties: Option<HashMap<String, Arc<Schema>>>,
 }
-
-const NULL_SCHEMA: Schema = Schema {
-    r#type: None,
-    description: None,
-    additional_properties: None,
-    properties: None,
-};
 
 impl Schema {
     pub fn properties(&self) -> Vec<String> {
@@ -55,7 +43,7 @@ impl Schema {
             .unwrap_or_default()
     }
 
-    pub fn attr_subschema(&self, attr: &Attr) -> &Schema {
+    pub fn attr_subschema(&self, attr: &Attr) -> Arc<Schema> {
         let property = match attr {
             Attr::Ident(ident) => Some(ident.to_string()),
             Attr::Dynamic(_) => None,
@@ -71,16 +59,14 @@ impl Schema {
                     .as_ref()
                     .and_then(|properties| properties.get(&property))
             })
-            .or(self.additional_properties.as_deref())
-            .unwrap_or(&NULL_SCHEMA)
+            .or(self.additional_properties.as_ref())
+            .cloned()
+            .unwrap_or(Arc::new(Schema::default()))
     }
 }
 
-pub fn get_schema(expr: &Expr, file_type: &FileType) -> Schema {
-    println!("BBBBBBBBBBB");
+pub fn get_schema(expr: &Expr, file_type: &FileType) -> Arc<Schema> {
     let (root_schema, root_expr) = get_schema_root(expr, file_type);
-    println!("CCCCCCCCC {:?}", root_schema);
-    println!("DDDDDDDDDD {}", root_expr);
 
     let mut schema = root_schema;
 
@@ -103,27 +89,27 @@ pub fn get_schema(expr: &Expr, file_type: &FileType) -> Schema {
                             schema = schema.attr_subschema(&attr).clone();
                         }
                     }
-                    None => return NULL_SCHEMA,
+                    None => return Arc::new(Schema::default()),
                 }
             }
-            _ => return NULL_SCHEMA,
+            _ => return Arc::new(Schema::default()),
         }
-        println!("PARNET {}", parent);
-        println!("CHILD {}", child);
     }
 
-    // Schema::default()
     schema
 }
 
-pub fn get_schema_root(expr: &Expr, file_type: &FileType) -> (Schema, Expr) {
+pub fn get_schema_root(expr: &Expr, file_type: &FileType) -> (Arc<Schema>, Expr) {
     let root_expr = ancestor_exprs_inclusive(expr).last().unwrap();
     let root_schema = match file_type {
-        FileType::Package { nixpkgs_path: _ } => Schema::default(),
+        FileType::Package {
+            nixpkgs_path: _,
+            schema,
+        } => schema.clone(),
         FileType::Custom {
             lambda_arg: _,
             schema,
-        } => serde_json::from_str(&schema).unwrap_or_default(),
+        } => Arc::new(serde_json::from_str(&schema).unwrap_or_default()),
     };
     (root_schema, root_expr)
 }

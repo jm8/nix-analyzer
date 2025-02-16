@@ -18,6 +18,7 @@ use dashmap::DashMap;
 use evaluator::Evaluator;
 use lsp::Backend;
 use ropey::Rope;
+use schema::Schema;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -27,8 +28,14 @@ use tracing_subscriber::EnvFilter;
 
 #[derive(Debug)]
 pub enum FileType {
-    Package { nixpkgs_path: String },
-    Custom { lambda_arg: String, schema: String },
+    Package {
+        nixpkgs_path: String,
+        schema: Arc<Schema>,
+    },
+    Custom {
+        lambda_arg: String,
+        schema: String,
+    },
 }
 
 #[derive(Debug)]
@@ -41,11 +48,15 @@ pub struct File {
 pub struct Analyzer {
     evaluator: Arc<Mutex<Evaluator>>,
     files: DashMap<PathBuf, File>,
+    temp_nixos_module_schema: Arc<Schema>,
 }
 
 impl Analyzer {
     fn new(evaluator: Arc<Mutex<Evaluator>>) -> Self {
         Self {
+            temp_nixos_module_schema: Arc::new(
+                serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap(),
+            ),
             evaluator,
             files: DashMap::new(),
         }
@@ -59,6 +70,7 @@ impl Analyzer {
                 contents: contents.into(),
                 file_type: FileType::Package {
                     nixpkgs_path: env!("nixpkgs").to_owned(),
+                    schema: self.temp_nixos_module_schema.clone(),
                 },
             });
     }
