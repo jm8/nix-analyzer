@@ -3,8 +3,6 @@ mod test {
     use crate::syntax::parse;
     use anyhow::{bail, Result};
     use rnix::ast::{AttrSet, AttrpathValue, Expr, HasEntry, List};
-    
-    
 
     #[test_log::test]
     fn test_parsing_modules() {
@@ -25,7 +23,7 @@ mod test {
         struct Item {
             position: Vec<Subscript>,
             expr: Expr,
-        };
+        }
         fn walk_attrs(attrs: &AttrSet) -> Vec<Item> {
             fn rec_attrs(
                 items: &mut Vec<Item>,
@@ -139,21 +137,21 @@ mod test {
         }
 
         fn get_flake_imports(flake_expr: &Expr) -> Result<()> {
-            let attrs = match flake_expr {
-                Expr::AttrSet(attr_set) => attr_set,
-                _ => bail!("Flake must be attrset"),
-            };
+            // let attrs = match flake_expr {
+            //     Expr::AttrSet(attr_set) => attr_set,
+            //     _ => bail!("Flake must be attrset"),
+            // };
 
-            for item in walk_attrs(attrs) {
-                // match item.expr {
-                //     Expr::Path(path) => {
-                //         if item.position.len() >  {
+            // for item in walk_attrs(attrs) {
+            // match item.expr {
+            //     Expr::Path(path) => {
+            //         if item.position.len() >  {
 
-                //         }
-                //     }
-                //     _ => {}
-                // }
-            }
+            //         }
+            //     }
+            //     _ => {}
+            // }
+            // }
             // let outputs = flake_expr
             Ok(())
         }

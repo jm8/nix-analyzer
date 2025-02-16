@@ -190,10 +190,8 @@ impl LanguageServer for Backend {
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
         let source = self
             .analyzer
-            .files
-            .get(Path::new(params.text_document.uri.path()))
-            .ok_or_else(jsonrpc::Error::internal_error)?
-            .contents
+            .get_file_contents(Path::new(params.text_document.uri.path()))
+            .map_err(|_| jsonrpc::Error::internal_error())?
             .to_string()
             .into_bytes();
         let mut child = Command::new("alejandra")

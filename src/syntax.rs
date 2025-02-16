@@ -9,11 +9,11 @@ use rowan::ast::AstNode;
 use tracing::info;
 
 use crate::{
+    file_types::FileType,
     lambda_arg::get_lambda_arg,
     safe_stringification::{
         safe_stringify, safe_stringify_attr, safe_stringify_bindings, safe_stringify_opt_param,
     },
-    FileType,
 };
 
 const BUILTIN_IDS: [&str; 23] = [

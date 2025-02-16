@@ -3,7 +3,7 @@ use rnix::ast::{Attr, Expr, HasEntry};
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{syntax::ancestor_exprs_inclusive, FileType};
+use crate::{file_types::FileType, syntax::ancestor_exprs_inclusive};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]

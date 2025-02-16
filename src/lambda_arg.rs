@@ -2,9 +2,9 @@ use rnix::ast::{Expr, Lambda};
 use rowan::ast::AstNode;
 
 use crate::{
+    file_types::FileType,
     safe_stringification::safe_stringify_opt,
     syntax::{ancestor_exprs, parse},
-    FileType,
 };
 
 pub fn get_lambda_arg(lambda: &Lambda, file_type: &FileType) -> String {

@@ -12,13 +12,13 @@ use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, 
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
+    file_types::FileType,
     lambda_arg::get_lambda_arg,
     schema::get_schema,
     syntax::{
-        get_variables, in_context, in_context_with_select, locate_cursor, parse,
-        with_expression, LocationWithinExpr,
+        get_variables, in_context, in_context_with_select, locate_cursor, parse, with_expression,
+        LocationWithinExpr,
     },
-    FileType,
 };
 
 pub async fn complete(
@@ -222,7 +222,7 @@ mod test {
     use itertools::Itertools;
     use tokio::sync::Mutex;
 
-    use crate::{evaluator::Evaluator, FileType};
+    use crate::{evaluator::Evaluator, file_types::FileType};
 
     use super::complete;
 
