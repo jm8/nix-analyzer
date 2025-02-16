@@ -2,7 +2,10 @@ use std::{fmt, sync::Arc};
 
 use itertools::Itertools;
 use lazy_regex::regex;
-use rnix::{ast::Expr, TextRange, TextSize};
+use rnix::{
+    ast::{Expr, Param},
+    TextRange, TextSize,
+};
 use ropey::Rope;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
@@ -136,11 +139,21 @@ fn get_completion_strategy(
         LocationWithinExpr::PatEntry => {
             let lambda = match location.expr {
                 Expr::Lambda(lambda) => lambda,
-                other => {
-                    info!(?other);
-                    return None;
-                }
+                _ => unreachable!("shouldn't happen"),
             };
+            if lambda.token_colon().is_none()
+                && lambda.param().is_some_and(|param| match param {
+                    Param::Pattern(pattern) => pattern.pat_entries().count() == 1,
+                    Param::IdentParam(_) => false,
+                })
+            {
+                // rnix parses {} as a lambda, but it should actually be considered an attrset, and use schema completion
+                return Some(CompletionStrategy {
+                    attrs_expression: None,
+                    range,
+                    variables: schema.properties(),
+                });
+            }
             let lambda_arg = get_lambda_arg(&lambda, file_type);
             Some(CompletionStrategy {
                 range,
@@ -767,6 +780,24 @@ mod test {
     async fn test_complete_schema() {
         check_complete_with_filetype(
             r#"{ a = 1; $0 }"#,
+            expect![[r#"
+                [
+                    "abc",
+                    "xyz",
+                ]
+            "#]],
+            &FileType::Custom {
+                lambda_arg: "{}".to_string(),
+                schema: r#"{ "properties": {"abc": {"properties": {"one": {}}}, "xyz": {"properties": {"two": {}}}} }"#.to_string(),
+            },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_empty() {
+        check_complete_with_filetype(
+            r#"{ $0 }"#,
             expect![[r#"
                 [
                     "abc",
