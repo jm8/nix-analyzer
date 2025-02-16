@@ -153,6 +153,15 @@ pub fn in_context_with_select(
                     string_to_eval
                 );
             }
+            Expr::AttrSet(ref attr_set) => {
+                if attr_set.rec_token().is_some() {
+                    string_to_eval = format!(
+                        "(let {} in ({}))",
+                        safe_stringify_bindings(attr_set),
+                        string_to_eval
+                    );
+                }
+            }
             Expr::Lambda(ref lambda) => {
                 let arg = get_lambda_arg(&lambda, file_type);
                 string_to_eval = format!(

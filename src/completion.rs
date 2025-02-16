@@ -911,4 +911,30 @@ mod test {
         )
         .await;
     }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_rec_value() {
+        check_complete(
+            r#"let a = {c = 1;}; in rec { a = { b = 1; }; x = a.$0 }"#,
+            expect![[r#"
+                [
+                    "b",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_non_rec_value() {
+        check_complete(
+            r#"let a = {c = 1;}; in { a = { b = 1; }; x = a.$0 }"#,
+            expect![[r#"
+                [
+                    "c",
+                ]
+            "#]],
+        )
+        .await;
+    }
 }
