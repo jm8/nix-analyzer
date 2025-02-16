@@ -12,12 +12,11 @@ use crate::{
     lambda_arg::get_lambda_arg,
     safe_stringification::{
         safe_stringify, safe_stringify_attr, safe_stringify_bindings, safe_stringify_opt_param,
-        safe_stringify_pattern,
     },
     FileType,
 };
 
-const BUILTIN_IDS: [&'static str; 23] = [
+const BUILTIN_IDS: [&str; 23] = [
     "abort",
     "baseNameOf",
     "break",
@@ -95,7 +94,6 @@ pub fn locate_cursor(root: &Root, offset: u32) -> Option<TokenLocation> {
     let token = root
         .syntax()
         .token_at_offset(TextSize::from(offset))
-        .into_iter()
         .max_by_key(|token| match token.kind() {
             SyntaxKind::TOKEN_IDENT => 2,
             SyntaxKind::TOKEN_WHITESPACE => 0,
@@ -139,12 +137,12 @@ pub fn in_context_with_select(
     attrs: impl Iterator<Item = Attr>,
     file_type: &FileType,
 ) -> String {
-    let mut string_to_eval = safe_stringify(&expr);
+    let mut string_to_eval = safe_stringify(expr);
     for attr in attrs {
         string_to_eval = format!("{}.{}", string_to_eval, safe_stringify_attr(&attr));
     }
 
-    for ancestor in ancestor_exprs(&expr) {
+    for ancestor in ancestor_exprs(expr) {
         match ancestor {
             Expr::LetIn(ref letin) => {
                 string_to_eval = format!(
@@ -163,7 +161,7 @@ pub fn in_context_with_select(
                 }
             }
             Expr::Lambda(ref lambda) => {
-                let arg = get_lambda_arg(&lambda, file_type);
+                let arg = get_lambda_arg(lambda, file_type);
                 string_to_eval = format!(
                     "(({}: {}) {})",
                     safe_stringify_opt_param(lambda.param().as_ref()),
@@ -185,7 +183,7 @@ pub fn in_context(expr: &Expr, file_type: &FileType) -> String {
 }
 
 pub fn with_expression(expr: &Expr, file_type: &FileType) -> Option<String> {
-    let with = ancestor_exprs(&expr).find_map(|ancestor| match ancestor {
+    let with = ancestor_exprs(expr).find_map(|ancestor| match ancestor {
         Expr::With(with) => Some(with),
         _ => None,
     })?;
@@ -206,7 +204,7 @@ pub fn get_variables(expr: &Expr) -> Vec<String> {
         for entry in entries.attrpath_values() {
             let var = entry
                 .attrpath()
-                .and_then(|attrpath| attrpath.attrs().nth(0))
+                .and_then(|attrpath| attrpath.attrs().next())
                 .and_then(attr_to_string);
 
             if let Some(var) = var {
@@ -223,7 +221,7 @@ pub fn get_variables(expr: &Expr) -> Vec<String> {
         }
     }
 
-    for ancestor in ancestor_exprs(&expr) {
+    for ancestor in ancestor_exprs(expr) {
         match ancestor {
             Expr::Lambda(lambda) => match lambda.param() {
                 Some(Param::Pattern(pattern)) => {

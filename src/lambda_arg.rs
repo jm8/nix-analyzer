@@ -20,7 +20,7 @@ pub fn get_root_lambda(file_type: &FileType) -> Option<String> {
     match file_type {
         FileType::Package { nixpkgs_path, .. } => Some(format!("(import {} {{}})", nixpkgs_path)),
         FileType::Custom { lambda_arg, .. } => {
-            Some(safe_stringify_opt(parse(&lambda_arg).expr().as_ref()))
+            Some(safe_stringify_opt(parse(lambda_arg).expr().as_ref()))
         }
     }
 }

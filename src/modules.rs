@@ -3,8 +3,8 @@ mod test {
     use crate::syntax::parse;
     use anyhow::{bail, Result};
     use rnix::ast::{AttrSet, AttrpathValue, Expr, HasEntry, List};
-    use rowan::ast::AstNode;
-    use tracing::{info, Subscriber};
+    
+    
 
     #[test_log::test]
     fn test_parsing_modules() {

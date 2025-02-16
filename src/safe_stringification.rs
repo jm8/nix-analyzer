@@ -32,7 +32,7 @@ pub fn safe_stringify(expr: &Expr) -> String {
             }
         ),
         Expr::Str(str_node) => safe_stringify_str(str_node),
-        Expr::Path(path) => format!("{}", path.to_string()),
+        Expr::Path(path) => format!("{}", path),
         Expr::Literal(literal) => literal.to_string(),
         Expr::Lambda(lambda) => {
             let arg = safe_stringify_opt_param(lambda.param().as_ref());
@@ -114,9 +114,9 @@ pub fn safe_stringify(expr: &Expr) -> String {
 
 pub fn safe_stringify_opt_param(param: Option<&ast::Param>) -> String {
     match param {
-        Some(ast::Param::Pattern(pattern)) => safe_stringify_pattern(&pattern),
+        Some(ast::Param::Pattern(pattern)) => safe_stringify_pattern(pattern),
         Some(ast::Param::IdentParam(ident_param)) => ident_param.to_string(),
-        None => format!("{{...}}"),
+        None => "{...}".to_string(),
     }
 }
 
@@ -162,7 +162,7 @@ pub fn safe_stringify_bindings(bindings: &impl HasEntry) -> String {
                 match inherit.from() {
                     Some(inherit_from) =>
                         format!("({})", safe_stringify_opt(inherit_from.expr().as_ref())),
-                    None => format!(""),
+                    None => String::new(),
                 },
                 inherit
                     .attrs()
@@ -186,7 +186,7 @@ pub fn safe_stringify_attrpath(expr: &Attrpath) -> String {
 
 pub fn safe_stringify_opt_attrpath(attrpath: Option<&Attrpath>) -> String {
     match attrpath {
-        Some(attrpath) => safe_stringify_attrpath(&attrpath),
+        Some(attrpath) => safe_stringify_attrpath(attrpath),
         None => "null".to_string(),
     }
 }

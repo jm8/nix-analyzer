@@ -42,7 +42,7 @@ pub struct Evaluator {
 impl Evaluator {
     pub fn new() -> Self {
         let mut child =
-            Command::new(concat!(env!("NIX_EVAL_SERVER"), "/bin/nix-eval-server").to_owned())
+            Command::new(concat!(env!("NIX_EVAL_SERVER"), "/bin/nix-eval-server"))
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .spawn()

@@ -9,14 +9,13 @@ use rnix::{
 use ropey::Rope;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
-use tracing::info;
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
     lambda_arg::get_lambda_arg,
     schema::get_schema,
     syntax::{
-        get_variables, in_context, in_context_with_select, locate_cursor, nearest_expr, parse,
+        get_variables, in_context, in_context_with_select, locate_cursor, parse,
         with_expression, LocationWithinExpr,
     },
     FileType,

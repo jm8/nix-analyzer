@@ -1,9 +1,8 @@
 use crate::evaluator::Evaluator;
 use crate::Analyzer;
 use std::path::Path;
-use std::process::{ExitStatus, Stdio};
+use std::process::Stdio;
 use std::sync::Arc;
-use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::{self};
@@ -20,7 +19,7 @@ use tower_lsp::lsp_types::{
     WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
-use tracing::{error, info};
+use tracing::info;
 
 pub struct Backend {
     pub client: Client,
@@ -193,12 +192,12 @@ impl LanguageServer for Backend {
             .analyzer
             .files
             .get(Path::new(params.text_document.uri.path()))
-            .ok_or_else(|| jsonrpc::Error::internal_error())?
+            .ok_or_else(jsonrpc::Error::internal_error)?
             .contents
             .to_string()
             .into_bytes();
         let mut child = Command::new("alejandra")
-            .args(&["-q", "-"])
+            .args(["-q", "-"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

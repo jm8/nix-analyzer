@@ -109,7 +109,7 @@ pub fn get_schema_root(expr: &Expr, file_type: &FileType) -> (Arc<Schema>, Expr)
         FileType::Custom {
             lambda_arg: _,
             schema,
-        } => Arc::new(serde_json::from_str(&schema).unwrap_or_default()),
+        } => Arc::new(serde_json::from_str(schema).unwrap_or_default()),
     };
     (root_schema, root_expr)
 }
