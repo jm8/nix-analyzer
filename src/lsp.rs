@@ -1,9 +1,7 @@
 use crate::evaluator::Evaluator;
 use crate::Analyzer;
 use std::path::Path;
-use std::process::Stdio;
 use std::sync::Arc;
-use tokio::process::Command;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::{self};
 use tower_lsp::lsp_types::notification::PublishDiagnostics;
@@ -19,7 +17,7 @@ use tower_lsp::lsp_types::{
     WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
-use tracing::info;
+use tracing::{error, info};
 
 pub struct Backend {
     pub client: Client,
@@ -89,8 +87,8 @@ impl LanguageServer for Backend {
 
         eprintln!("Did save {}", params.text_document.uri);
 
-        let Ok(diagnostics) = self.analyzer.get_diagnostics(path).map_err(|_err| {
-            eprintln!("{}", _err);
+        let Ok(diagnostics) = self.analyzer.get_diagnostics(path).map_err(|err| {
+            error!(?err, "Error getting diagnostics");
             jsonrpc::Error::internal_error()
         }) else {
             return;
@@ -125,7 +123,10 @@ impl LanguageServer for Backend {
         let md = self
             .analyzer
             .hover(path, position.line - 1, position.character - 1)
-            .map_err(|_| jsonrpc::Error::internal_error())?;
+            .map_err(|err| {
+                error!(?err, "Error getting hover");
+                jsonrpc::Error::internal_error()
+            })?;
 
         fn markdown_hover(md: String) -> Hover {
             Hover {
@@ -151,7 +152,7 @@ impl LanguageServer for Backend {
             .complete(path, position.line, position.character)
             .await
             .map_err(|err| {
-                eprintln!("{}", err);
+                error!(?err, "Error getting completion");
                 jsonrpc::Error::internal_error()
             })?;
 
@@ -164,8 +165,8 @@ impl LanguageServer for Backend {
     ) -> jsonrpc::Result<DocumentDiagnosticReportResult> {
         let path = Path::new(params.text_document.uri.path());
 
-        let diagnostics = self.analyzer.get_diagnostics(path).map_err(|_err| {
-            eprintln!("{}", _err);
+        let diagnostics = self.analyzer.get_diagnostics(path).map_err(|err| {
+            error!(?err, "Error getting diagnostics");
             jsonrpc::Error::internal_error()
         })?;
 
@@ -188,34 +189,14 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentFormattingParams,
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
-        let source = self
+        let new_text = self
             .analyzer
-            .get_file_contents(Path::new(params.text_document.uri.path()))
-            .map_err(|_| jsonrpc::Error::internal_error())?
-            .to_string()
-            .into_bytes();
-        let mut child = Command::new("alejandra")
-            .args(["-q", "-"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|_| jsonrpc::Error::internal_error())?;
-        let mut stdin = child.stdin.take().unwrap();
-        tokio::io::copy(&mut source.as_ref(), &mut stdin)
+            .format(Path::new(params.text_document.uri.path()))
             .await
-            .map_err(|_| jsonrpc::Error::internal_error())?;
-        // Close stdin
-        drop(stdin);
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|_| jsonrpc::Error::internal_error())?;
-        if !output.status.success() {
-            return Err(jsonrpc::Error::internal_error());
-        }
-        let new_text =
-            String::from_utf8(output.stdout).map_err(|_| jsonrpc::Error::internal_error())?;
+            .map_err(|err| {
+                error!(?err, "failed to format");
+                jsonrpc::Error::internal_error()
+            })?;
         let range = Range {
             start: Position {
                 line: 0,

@@ -4,11 +4,13 @@ use crate::evaluator::Evaluator;
 use crate::file_types::FileType;
 use crate::schema::Schema;
 use crate::{completion, hover};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use ropey::Rope;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::Arc;
+use tokio::process::Command;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{CompletionItem, Diagnostic};
 
@@ -84,5 +86,32 @@ impl Analyzer {
         Ok(hover::hover(&file.contents.to_string(), offset as u32)
             .map(|hover_result| hover_result.md)
             .unwrap_or_default())
+    }
+
+    pub async fn format(&self, path: &Path) -> Result<String> {
+        let source = self.get_file_contents(path)?.to_string().into_bytes();
+        let mut child = Command::new("alejandra")
+            .args(["-q", "-"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("failed to start formatter process")?;
+        let mut stdin = child.stdin.take().unwrap();
+        tokio::io::copy(&mut source.as_ref(), &mut stdin)
+            .await
+            .context("failed to write to formatter process")?;
+        // Close stdin
+        drop(stdin);
+        let output = child
+            .wait_with_output()
+            .await
+            .context("failed to wait for formatter process")?;
+        if !output.status.success() {
+            bail!("formatter process exited unsuccesfully")
+        }
+        let new_text =
+            String::from_utf8(output.stdout).context("formatter output contains invalid utf-8")?;
+        Ok(new_text)
     }
 }

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
     use crate::syntax::parse;
-    use anyhow::{bail, Result};
+    use anyhow::Result;
     use rnix::ast::{AttrSet, AttrpathValue, Expr, HasEntry, List};
 
     #[test_log::test]
@@ -136,7 +136,7 @@ mod test {
             items
         }
 
-        fn get_flake_imports(flake_expr: &Expr) -> Result<()> {
+        fn get_flake_imports(_flake_expr: &Expr) -> Result<()> {
             // let attrs = match flake_expr {
             //     Expr::AttrSet(attr_set) => attr_set,
             //     _ => bail!("Flake must be attrset"),
