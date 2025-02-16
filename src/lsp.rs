@@ -1,7 +1,10 @@
 use crate::evaluator::Evaluator;
 use crate::Analyzer;
 use std::path::Path;
+use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::{self};
 use tower_lsp::lsp_types::notification::PublishDiagnostics;
@@ -9,14 +12,15 @@ use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DiagnosticOptions,
     DiagnosticServerCapabilities, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, FullDocumentDiagnosticReport, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
-    InitializedParams, MarkupContent, MarkupKind, PublishDiagnosticsParams,
-    RelatedFullDocumentDiagnosticReport, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Url, WorkDoneProgressOptions,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
+    FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, MarkupContent, MarkupKind, OneOf,
+    Position, PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
+    WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
-use tracing::info;
+use tracing::{error, info};
 
 pub struct Backend {
     pub client: Client,
@@ -43,7 +47,6 @@ impl LanguageServer for Backend {
                         },
                     },
                 )),
-
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: None,
                     trigger_characters: Some(vec![".".into(), "/".into()]),
@@ -53,6 +56,7 @@ impl LanguageServer for Backend {
                     },
                     completion_item: None,
                 }),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             server_info: None,
@@ -179,5 +183,52 @@ impl LanguageServer for Backend {
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
         Ok(())
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
+        let source = self
+            .analyzer
+            .files
+            .get(Path::new(params.text_document.uri.path()))
+            .ok_or_else(|| jsonrpc::Error::internal_error())?
+            .contents
+            .to_string()
+            .into_bytes();
+        let mut child = Command::new("alejandra")
+            .args(&["-q", "-"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|_| jsonrpc::Error::internal_error())?;
+        let mut stdin = child.stdin.take().unwrap();
+        tokio::io::copy(&mut source.as_ref(), &mut stdin)
+            .await
+            .map_err(|_| jsonrpc::Error::internal_error())?;
+        // Close stdin
+        drop(stdin);
+        let output = child
+            .wait_with_output()
+            .await
+            .map_err(|_| jsonrpc::Error::internal_error())?;
+        if !output.status.success() {
+            return Err(jsonrpc::Error::internal_error());
+        }
+        let new_text =
+            String::from_utf8(output.stdout).map_err(|_| jsonrpc::Error::internal_error())?;
+        let range = Range {
+            start: Position {
+                line: 0,
+                character: 0,
+            },
+            end: Position {
+                line: 999999,
+                character: 0,
+            },
+        };
+        Ok(Some(vec![TextEdit { range, new_text }]))
     }
 }
