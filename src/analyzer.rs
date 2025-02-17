@@ -90,7 +90,7 @@ impl Analyzer {
 
     pub async fn format(&self, path: &Path) -> Result<String> {
         let source = self.get_file_contents(path)?.to_string().into_bytes();
-        let mut child = Command::new("alejandra")
+        let mut child = Command::new(env!("ALEJANDRA"))
             .args(["-q", "-"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
