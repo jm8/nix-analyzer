@@ -1,56 +1,76 @@
+use std::path::{Path, PathBuf};
+
 use itertools::Itertools;
 use rnix::ast::{self, Attr, Attrpath, Expr, HasEntry};
 
 /// Convert an expression to a string while guaranteeing that the
 /// resulting string is syntactically correct.
-pub fn safe_stringify(expr: &Expr) -> String {
+pub fn safe_stringify(expr: &Expr, base_path: &Path) -> String {
     match expr {
         Expr::Apply(apply) => format!(
             "({} {})",
-            safe_stringify_opt(apply.lambda().as_ref()),
-            safe_stringify_opt(apply.argument().as_ref())
+            safe_stringify_opt(apply.lambda().as_ref(), base_path),
+            safe_stringify_opt(apply.argument().as_ref(), base_path)
         ),
         Expr::Assert(assert) => format!(
             "(assert {}; {})",
-            safe_stringify_opt(assert.condition().as_ref()),
-            safe_stringify_opt(assert.body().as_ref())
+            safe_stringify_opt(assert.condition().as_ref(), base_path),
+            safe_stringify_opt(assert.body().as_ref(), base_path)
         ),
         Expr::Error(_) => "null".to_string(),
         Expr::IfElse(if_else) => format!(
             "(if {} then {} else {})",
-            safe_stringify_opt(if_else.condition().as_ref()),
-            safe_stringify_opt(if_else.body().as_ref()),
-            safe_stringify_opt(if_else.else_body().as_ref())
+            safe_stringify_opt(if_else.condition().as_ref(), base_path),
+            safe_stringify_opt(if_else.body().as_ref(), base_path),
+            safe_stringify_opt(if_else.else_body().as_ref(), base_path)
         ),
         Expr::Select(select) => format!(
             "({}.{}{})",
-            safe_stringify_opt(select.expr().as_ref()),
-            safe_stringify_opt_attrpath(select.attrpath().as_ref()),
+            safe_stringify_opt(select.expr().as_ref(), base_path),
+            safe_stringify_opt_attrpath(select.attrpath().as_ref(), base_path),
             match select.default_expr() {
-                Some(default_expr) => format!(" or {}", safe_stringify(&default_expr)),
+                Some(default_expr) => format!(" or {}", safe_stringify(&default_expr, base_path)),
                 None => "".to_string(),
             }
         ),
-        Expr::Str(str_node) => safe_stringify_str(str_node),
-        Expr::Path(path) => format!("{}", path),
+        Expr::Str(str_node) => safe_stringify_str(str_node, base_path),
+        Expr::Path(path) => {
+            let path = PathBuf::from(path.to_string());
+            if path.is_relative() {
+                base_path.join(path).to_string_lossy().to_string()
+            } else {
+                path.to_string_lossy().to_string()
+            }
+        }
         Expr::Literal(literal) => literal.to_string(),
         Expr::Lambda(lambda) => {
-            let arg = safe_stringify_opt_param(lambda.param().as_ref());
-            format!("({}: {})", arg, safe_stringify_opt(lambda.body().as_ref()))
+            let arg = safe_stringify_opt_param(lambda.param().as_ref(), base_path);
+            format!(
+                "({}: {})",
+                arg,
+                safe_stringify_opt(lambda.body().as_ref(), base_path)
+            )
         }
-        Expr::LegacyLet(let_legacy) => format!("let {}", safe_stringify_bindings(let_legacy)),
+        Expr::LegacyLet(let_legacy) => {
+            format!("let {}", safe_stringify_bindings(let_legacy, base_path))
+        }
         Expr::LetIn(let_in) => format!(
             "(let {} in {})",
-            safe_stringify_bindings(let_in),
-            safe_stringify_opt(let_in.body().as_ref())
+            safe_stringify_bindings(let_in, base_path),
+            safe_stringify_opt(let_in.body().as_ref(), base_path)
         ),
-        Expr::List(list) => format!("[{}]", list.items().map(|e| safe_stringify(&e)).join(" ")),
+        Expr::List(list) => format!(
+            "[{}]",
+            list.items()
+                .map(|e| safe_stringify(&e, base_path))
+                .join(" ")
+        ),
         Expr::BinOp(bin_op) => {
             let Some(operator) = bin_op.operator() else {
                 return "null".to_string();
             };
-            let left_expr = safe_stringify_opt(bin_op.lhs().as_ref());
-            let right_expr = safe_stringify_opt(bin_op.rhs().as_ref());
+            let left_expr = safe_stringify_opt(bin_op.lhs().as_ref(), base_path);
+            let right_expr = safe_stringify_opt(bin_op.rhs().as_ref(), base_path);
 
             match operator {
                 ast::BinOpKind::Concat => format!("({} ++ {})", left_expr, right_expr),
@@ -72,8 +92,8 @@ pub fn safe_stringify(expr: &Expr) -> String {
                 ast::BinOpKind::PipeLeft => format!("({} <| {})", left_expr, right_expr),
             }
         }
-        Expr::Paren(paren) => format!("({})", safe_stringify_opt(paren.expr().as_ref())),
-        Expr::Root(root) => safe_stringify_opt(root.expr().as_ref()),
+        Expr::Paren(paren) => format!("({})", safe_stringify_opt(paren.expr().as_ref(), base_path)),
+        Expr::Root(root) => safe_stringify_opt(root.expr().as_ref(), base_path),
         Expr::AttrSet(attrset) => {
             format!(
                 "{}{{ {} }}",
@@ -82,45 +102,51 @@ pub fn safe_stringify(expr: &Expr) -> String {
                 } else {
                     ""
                 },
-                safe_stringify_bindings(attrset)
+                safe_stringify_bindings(attrset, base_path)
             )
         }
         Expr::UnaryOp(unary_op) => {
             let Some(operator) = unary_op.operator() else {
-                return safe_stringify_opt(unary_op.expr().as_ref());
+                return safe_stringify_opt(unary_op.expr().as_ref(), base_path);
             };
             match operator {
                 ast::UnaryOpKind::Invert => {
-                    format!("(!{})", safe_stringify_opt(unary_op.expr().as_ref()))
+                    format!(
+                        "(!{})",
+                        safe_stringify_opt(unary_op.expr().as_ref(), base_path)
+                    )
                 }
                 ast::UnaryOpKind::Negate => {
-                    format!("(-{})", safe_stringify_opt(unary_op.expr().as_ref()))
+                    format!(
+                        "(-{})",
+                        safe_stringify_opt(unary_op.expr().as_ref(), base_path)
+                    )
                 }
             }
         }
         Expr::Ident(ident) => ident.to_string(),
         Expr::With(with) => format!(
             "(with {}; {})",
-            safe_stringify_opt(with.namespace().as_ref()),
-            safe_stringify_opt(with.body().as_ref())
+            safe_stringify_opt(with.namespace().as_ref(), base_path),
+            safe_stringify_opt(with.body().as_ref(), base_path)
         ),
         Expr::HasAttr(has_attr) => format!(
             "({} ? {})",
-            safe_stringify_opt(has_attr.expr().as_ref()),
-            safe_stringify_opt_attrpath(has_attr.attrpath().as_ref())
+            safe_stringify_opt(has_attr.expr().as_ref(), base_path),
+            safe_stringify_opt_attrpath(has_attr.attrpath().as_ref(), base_path)
         ),
     }
 }
 
-pub fn safe_stringify_opt_param(param: Option<&ast::Param>) -> String {
+pub fn safe_stringify_opt_param(param: Option<&ast::Param>, base_path: &Path) -> String {
     match param {
-        Some(ast::Param::Pattern(pattern)) => safe_stringify_pattern(pattern),
+        Some(ast::Param::Pattern(pattern)) => safe_stringify_pattern(pattern, base_path),
         Some(ast::Param::IdentParam(ident_param)) => ident_param.to_string(),
         None => "{...}".to_string(),
     }
 }
 
-pub fn safe_stringify_pattern(pattern: &rnix::ast::Pattern) -> String {
+pub fn safe_stringify_pattern(pattern: &rnix::ast::Pattern, base_path: &Path) -> String {
     let entries = pattern
         .pat_entries()
         .flat_map(|pat_entry| {
@@ -128,7 +154,7 @@ pub fn safe_stringify_pattern(pattern: &rnix::ast::Pattern) -> String {
                 format!(
                     "{} ? {}",
                     ident,
-                    safe_stringify_opt(pat_entry.default().as_ref())
+                    safe_stringify_opt(pat_entry.default().as_ref(), base_path)
                 )
             })
         })
@@ -140,60 +166,65 @@ pub fn safe_stringify_pattern(pattern: &rnix::ast::Pattern) -> String {
     }
 }
 
-pub fn safe_stringify_str(str: &rnix::ast::Str) -> String {
+pub fn safe_stringify_str(str: &rnix::ast::Str, _base_path: &Path) -> String {
     // TODO: fix
     str.to_string()
 }
 
-pub fn safe_stringify_attr(attr: &Attr) -> String {
+pub fn safe_stringify_attr(attr: &Attr, base_path: &Path) -> String {
     match attr {
         Attr::Ident(ident) => ident.to_string(),
-        Attr::Dynamic(dynamic) => format!("${{{}}}", safe_stringify_opt(dynamic.expr().as_ref())),
-        Attr::Str(str) => safe_stringify_str(str),
+        Attr::Dynamic(dynamic) => format!(
+            "${{{}}}",
+            safe_stringify_opt(dynamic.expr().as_ref(), base_path),
+        ),
+        Attr::Str(str) => safe_stringify_str(str, base_path),
     }
 }
 
-pub fn safe_stringify_bindings(bindings: &impl HasEntry) -> String {
+pub fn safe_stringify_bindings(bindings: &impl HasEntry, base_path: &Path) -> String {
     bindings
         .entries()
         .map(|entry| match entry {
             ast::Entry::Inherit(inherit) => format!(
                 "inherit {} {};",
                 match inherit.from() {
-                    Some(inherit_from) =>
-                        format!("({})", safe_stringify_opt(inherit_from.expr().as_ref())),
+                    Some(inherit_from) => format!(
+                        "({})",
+                        safe_stringify_opt(inherit_from.expr().as_ref(), base_path),
+                    ),
                     None => String::new(),
                 },
                 inherit
                     .attrs()
-                    .map(|attr| safe_stringify_attr(&attr))
+                    .map(|attr| safe_stringify_attr(&attr, base_path))
                     .join(" ")
             ),
             ast::Entry::AttrpathValue(attrpath_value) => format!(
                 "{} = {};",
-                safe_stringify_opt_attrpath(attrpath_value.attrpath().as_ref()),
-                safe_stringify_opt(attrpath_value.value().as_ref()),
+                safe_stringify_opt_attrpath(attrpath_value.attrpath().as_ref(), base_path),
+                safe_stringify_opt(attrpath_value.value().as_ref(), base_path),
             ),
         })
         .join(" ")
 }
 
-pub fn safe_stringify_attrpath(expr: &Attrpath) -> String {
+pub fn safe_stringify_attrpath(expr: &Attrpath, base_path: &Path) -> String {
     expr.attrs()
-        .map(|attr| safe_stringify_attr(&attr))
+        .map(|attr| safe_stringify_attr(&attr, base_path))
         .join(".")
 }
 
-pub fn safe_stringify_opt_attrpath(attrpath: Option<&Attrpath>) -> String {
+pub fn safe_stringify_opt_attrpath(attrpath: Option<&Attrpath>, base_path: &Path) -> String {
     match attrpath {
-        Some(attrpath) => safe_stringify_attrpath(attrpath),
+        Some(attrpath) => safe_stringify_attrpath(attrpath, base_path),
         None => "null".to_string(),
     }
 }
 
-pub fn safe_stringify_opt(expr: Option<&Expr>) -> String {
+pub fn safe_stringify_opt(expr: Option<&Expr>, base_path: &Path) -> String {
     match expr {
-        Some(expr) => safe_stringify(expr),
+        Some(expr) => safe_stringify(expr, base_path),
         None => "null".to_string(),
     }
 }
@@ -206,7 +237,10 @@ mod test {
     use crate::syntax::parse;
 
     fn check(source: &str, expected: Expect) {
-        expected.assert_eq(&safe_stringify_opt(parse(source).expr().as_ref()));
+        expected.assert_eq(&safe_stringify_opt(
+            parse(source).expr().as_ref(),
+            "/base_path".as_ref(),
+        ));
     }
 
     #[test]
@@ -441,7 +475,10 @@ mod test {
 
     #[test]
     fn path_relative() {
-        check(r#"./parse_assert.nix"#, expect!["./parse_assert.nix"]);
+        check(
+            r#"./parse_assert.nix"#,
+            expect!["/base_path/./parse_assert.nix"],
+        );
     }
 
     #[test]

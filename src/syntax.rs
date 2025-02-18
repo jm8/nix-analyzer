@@ -9,7 +9,7 @@ use rowan::ast::AstNode;
 use tracing::info;
 
 use crate::{
-    file_types::FileType,
+    file_types::FileInfo,
     lambda_arg::get_lambda_arg,
     safe_stringification::{
         safe_stringify, safe_stringify_attr, safe_stringify_bindings, safe_stringify_opt_param,
@@ -135,11 +135,15 @@ fn locate_token(token: &SyntaxToken) -> Option<TokenLocation> {
 pub fn in_context_with_select(
     expr: &Expr,
     attrs: impl Iterator<Item = Attr>,
-    file_type: &FileType,
+    file_info: &FileInfo,
 ) -> String {
-    let mut string_to_eval = safe_stringify(expr);
+    let mut string_to_eval = safe_stringify(expr, file_info.base_path());
     for attr in attrs {
-        string_to_eval = format!("{}.{}", string_to_eval, safe_stringify_attr(&attr));
+        string_to_eval = format!(
+            "{}.{}",
+            string_to_eval,
+            safe_stringify_attr(&attr, file_info.base_path())
+        );
     }
 
     for ancestor in ancestor_exprs(expr) {
@@ -147,7 +151,7 @@ pub fn in_context_with_select(
             Expr::LetIn(ref letin) => {
                 string_to_eval = format!(
                     "(let {} in ({}))",
-                    safe_stringify_bindings(letin),
+                    safe_stringify_bindings(letin, file_info.base_path()),
                     string_to_eval
                 );
             }
@@ -155,16 +159,16 @@ pub fn in_context_with_select(
                 if attr_set.rec_token().is_some() {
                     string_to_eval = format!(
                         "(let {} in ({}))",
-                        safe_stringify_bindings(attr_set),
+                        safe_stringify_bindings(attr_set, file_info.base_path()),
                         string_to_eval
                     );
                 }
             }
             Expr::Lambda(ref lambda) => {
-                let arg = get_lambda_arg(lambda, file_type);
+                let arg = get_lambda_arg(lambda, file_info);
                 string_to_eval = format!(
                     "(({}: {}) {})",
-                    safe_stringify_opt_param(lambda.param().as_ref()),
+                    safe_stringify_opt_param(lambda.param().as_ref(), file_info.base_path()),
                     string_to_eval,
                     arg
                 );
@@ -178,17 +182,17 @@ pub fn in_context_with_select(
     string_to_eval
 }
 
-pub fn in_context(expr: &Expr, file_type: &FileType) -> String {
-    in_context_with_select(expr, iter::empty(), file_type)
+pub fn in_context(expr: &Expr, file_info: &FileInfo) -> String {
+    in_context_with_select(expr, iter::empty(), file_info)
 }
 
-pub fn with_expression(expr: &Expr, file_type: &FileType) -> Option<String> {
+pub fn with_expression(expr: &Expr, file_info: &FileInfo) -> Option<String> {
     let with = ancestor_exprs(expr).find_map(|ancestor| match ancestor {
         Expr::With(with) => Some(with),
         _ => None,
     })?;
 
-    Some(in_context(&with.namespace()?, file_type))
+    Some(in_context(&with.namespace()?, file_info))
 }
 
 pub fn get_variables(expr: &Expr) -> Vec<String> {

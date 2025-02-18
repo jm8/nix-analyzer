@@ -12,7 +12,7 @@ use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, 
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
-    file_types::FileType,
+    file_types::FileInfo,
     lambda_arg::get_lambda_arg,
     schema::get_schema,
     syntax::{
@@ -23,11 +23,11 @@ use crate::{
 
 pub async fn complete(
     source: &str,
-    file_type: &FileType,
+    file_info: &FileInfo,
     offset: u32,
     evaluator: Arc<Mutex<Evaluator>>,
 ) -> Option<Vec<CompletionItem>> {
-    let strategy = get_completion_strategy(source, file_type, offset)?;
+    let strategy = get_completion_strategy(source, file_info, offset)?;
 
     let attr_completions = match strategy.attrs_expression {
         Some(expression) => evaluator
@@ -67,7 +67,7 @@ struct CompletionStrategy {
 // This is a separate function to enforce that it is synchronus, because syntax trees are not Send
 fn get_completion_strategy(
     source: &str,
-    file_type: &FileType,
+    file_info: &FileInfo,
     offset: u32,
 ) -> Option<CompletionStrategy> {
     let mut source = source.to_string();
@@ -81,11 +81,11 @@ fn get_completion_strategy(
     let text_range = TextRange::new(text_range.start(), text_range.end() - TextSize::new(3)); // aaa
     let range = rope_text_range_to_range(&rope, text_range);
 
-    let schema = get_schema(&location.expr, file_type);
+    let schema = get_schema(&location.expr, file_info);
 
     match location.location_within {
         LocationWithinExpr::Normal => {
-            let attrs_expression = with_expression(&location.expr, file_type);
+            let attrs_expression = with_expression(&location.expr, file_info);
             let variables = get_variables(&location.expr);
             Some(CompletionStrategy {
                 range,
@@ -96,7 +96,7 @@ fn get_completion_strategy(
         LocationWithinExpr::Inherit(inherit) => Some(match inherit.from() {
             Some(inherit_from) => CompletionStrategy {
                 range,
-                attrs_expression: Some(in_context(&inherit_from.expr()?, file_type)),
+                attrs_expression: Some(in_context(&inherit_from.expr()?, file_info)),
                 variables: vec![],
             },
             None => CompletionStrategy {
@@ -112,7 +112,7 @@ fn get_completion_strategy(
                 let attrs_expression = Some(in_context_with_select(
                     &attrs,
                     attrpath.attrs().take(index),
-                    file_type,
+                    file_info,
                 ));
 
                 Some(CompletionStrategy {
@@ -153,7 +153,7 @@ fn get_completion_strategy(
                     variables: schema.properties(),
                 });
             }
-            let lambda_arg = get_lambda_arg(&lambda, file_type);
+            let lambda_arg = get_lambda_arg(&lambda, file_info);
             Some(CompletionStrategy {
                 range,
                 attrs_expression: Some(lambda_arg),
@@ -216,13 +216,16 @@ impl fmt::Display for EscapeStringFragment<'_> {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{path::PathBuf, sync::Arc};
 
     use expect_test::{expect, Expect};
     use itertools::Itertools;
     use tokio::sync::Mutex;
 
-    use crate::{evaluator::Evaluator, file_types::FileType};
+    use crate::{
+        evaluator::Evaluator,
+        file_types::{FileInfo, FileType},
+    };
 
     use super::complete;
 
@@ -233,12 +236,20 @@ mod test {
         let evaluator = Arc::new(Mutex::new(Evaluator::new()));
 
         let source = format!("{}{}", left, right);
-        let actual = complete(&source, file_type, offset, evaluator)
-            .await
-            .unwrap()
-            .iter()
-            .map(|item| item.label.clone())
-            .collect_vec();
+        let actual = complete(
+            &source,
+            &FileInfo {
+                file_type: file_type.clone(),
+                path: "/test/path".into(),
+            },
+            offset,
+            evaluator,
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|item| item.label.clone())
+        .collect_vec();
 
         expected.assert_debug_eq(&actual);
     }

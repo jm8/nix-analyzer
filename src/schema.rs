@@ -3,7 +3,10 @@ use rnix::ast::{Attr, Expr, HasEntry};
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{file_types::FileType, syntax::ancestor_exprs_inclusive};
+use crate::{
+    file_types::{FileInfo, FileType},
+    syntax::ancestor_exprs_inclusive,
+};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
@@ -65,8 +68,8 @@ impl Schema {
     }
 }
 
-pub fn get_schema(expr: &Expr, file_type: &FileType) -> Arc<Schema> {
-    let (root_schema, root_expr) = get_schema_root(expr, file_type);
+pub fn get_schema(expr: &Expr, file_info: &FileInfo) -> Arc<Schema> {
+    let (root_schema, root_expr) = get_schema_root(expr, file_info);
 
     let mut schema = root_schema;
 
@@ -99,9 +102,9 @@ pub fn get_schema(expr: &Expr, file_type: &FileType) -> Arc<Schema> {
     schema
 }
 
-pub fn get_schema_root(expr: &Expr, file_type: &FileType) -> (Arc<Schema>, Expr) {
+pub fn get_schema_root(expr: &Expr, file_info: &FileInfo) -> (Arc<Schema>, Expr) {
     let root_expr = ancestor_exprs_inclusive(expr).last().unwrap();
-    let root_schema = match file_type {
+    let root_schema = match &file_info.file_type {
         FileType::Package {
             nixpkgs_path: _,
             schema,

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::evaluator::Evaluator;
-use crate::file_types::FileType;
+use crate::file_types::{FileInfo, FileType};
 use crate::schema::Schema;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
@@ -17,7 +17,7 @@ use tower_lsp::lsp_types::{CompletionItem, Diagnostic};
 #[derive(Debug)]
 pub struct File {
     contents: Rope,
-    file_type: FileType,
+    file_info: FileInfo,
 }
 
 #[derive(Debug)]
@@ -44,9 +44,12 @@ impl Analyzer {
             .and_modify(|file| file.contents = contents.into())
             .or_insert_with(|| File {
                 contents: contents.into(),
-                file_type: FileType::Package {
-                    nixpkgs_path: env!("nixpkgs").to_owned(),
-                    schema: self.temp_nixos_module_schema.clone(),
+                file_info: FileInfo {
+                    file_type: FileType::Package {
+                        nixpkgs_path: env!("nixpkgs").to_owned(),
+                        schema: self.temp_nixos_module_schema.clone(),
+                    },
+                    path: path.to_owned(),
                 },
             });
     }
@@ -71,7 +74,7 @@ impl Analyzer {
 
         Ok(completion::complete(
             &file.contents.to_string(),
-            &file.file_type,
+            &file.file_info,
             offset as u32,
             self.evaluator.clone(),
         )
