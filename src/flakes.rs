@@ -1,3 +1,30 @@
+use std::sync::Arc;
+
+use crate::{
+    evaluator::{Evaluator, LockFlakeRequest},
+    file_types::FileType,
+    safe_stringification::safe_stringify_opt,
+    syntax::parse,
+};
+use anyhow::Result;
+use tokio::sync::Mutex;
+
+pub async fn get_flake_filetype(
+    evaluator: Arc<Mutex<Evaluator>>,
+    source: &str,
+    _old_flake_lock: Option<&str>,
+) -> Result<FileType> {
+    let lock_file = evaluator
+        .lock()
+        .await
+        .lock_flake(&LockFlakeRequest {
+            expression: safe_stringify_opt(parse(source).expr().as_ref(), "/".as_ref()),
+        })
+        .await?;
+
+    Ok(FileType::Flake { lock_file })
+}
+
 #[cfg(test)]
 mod test {
     use expect_test::expect;
@@ -41,6 +68,7 @@ mod test {
               },
               "root": "root",
               "version": 7
-            }"#]].assert_eq(&lock_file);
+            }"#]]
+        .assert_eq(&lock_file);
     }
 }

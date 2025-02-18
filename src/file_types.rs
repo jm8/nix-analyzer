@@ -22,6 +22,9 @@ pub enum FileType {
         nixpkgs_path: String,
         schema: Arc<Schema>,
     },
+    Flake {
+        lock_file: String,
+    },
     Custom {
         lambda_arg: String,
         schema: String,

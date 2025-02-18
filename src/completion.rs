@@ -16,8 +16,8 @@ use crate::{
     lambda_arg::get_lambda_arg,
     schema::get_schema,
     syntax::{
-        get_variables, in_context, in_context_with_select, locate_cursor, parse, with_expression,
-        LocationWithinExpr,
+        escape_attr, get_variables, in_context, in_context_with_select, locate_cursor, parse,
+        with_expression, LocationWithinExpr,
     },
 };
 
@@ -176,47 +176,9 @@ fn rope_text_range_to_range(rope: &Rope, text_range: TextRange) -> Range {
     let end = rope_offset_to_position(rope, text_range.end());
     Range { start, end }
 }
-
-fn escape_attr(attr: &str) -> String {
-    let re = regex!("^[A-Za-z_][A-Za-z_0-9'-]*$");
-    if re.is_match(attr) {
-        attr.to_string()
-    } else {
-        escape_string(attr)
-    }
-}
-
-pub fn escape_string(text: &str) -> String {
-    format!("\"{}\"", EscapeStringFragment(text))
-}
-
-#[derive(Debug, Clone)]
-pub struct EscapeStringFragment<'a>(pub &'a str);
-
-impl fmt::Display for EscapeStringFragment<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, ch) in self.0.char_indices() {
-            match ch {
-                '"' => "\\\"",
-                '\\' => "\\\\",
-                '\n' => "\\n",
-                '\r' => "\\r",
-                '\t' => "\\r",
-                '$' if self.0[i..].starts_with("${") => "\\$",
-                _ => {
-                    ch.fmt(f)?;
-                    continue;
-                }
-            }
-            .fmt(f)?;
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use std::{path::PathBuf, sync::Arc};
+    use std::sync::Arc;
 
     use expect_test::{expect, Expect};
     use itertools::Itertools;
@@ -225,6 +187,7 @@ mod test {
     use crate::{
         evaluator::Evaluator,
         file_types::{FileInfo, FileType},
+        flakes::get_flake_filetype,
     };
 
     use super::complete;
@@ -264,6 +227,35 @@ mod test {
             },
         )
         .await;
+    }
+
+    async fn check_complete_flake(source: &str, old_lock_file: Option<&str>, expected: Expect) {
+        let (left, right) = source.split("$0").collect_tuple().unwrap();
+        let offset = left.len() as u32;
+
+        let evaluator = Arc::new(Mutex::new(Evaluator::new()));
+
+        let file_type = get_flake_filetype(evaluator.clone(), source, old_lock_file)
+            .await
+            .unwrap();
+
+        let source = format!("{}{}", left, right);
+        let actual = complete(
+            &source,
+            &FileInfo {
+                file_type: file_type.clone(),
+                path: "/test/path".into(),
+            },
+            offset,
+            evaluator,
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|item| item.label.clone())
+        .collect_vec();
+
+        expected.assert_debug_eq(&actual);
     }
 
     #[test_log::test(tokio::test)]
@@ -939,6 +931,25 @@ mod test {
     async fn test_complete_non_rec_value() {
         check_complete(
             r#"let a = {c = 1;}; in { a = { b = 1; }; x = a.$0 }"#,
+            expect![[r#"
+                [
+                    "c",
+                ]
+            "#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_flake_inputs() {
+        check_complete_flake(
+            r#"
+            {
+              inputs.flake-utils.url = "github:numtide/flake-utils?rev=919d646de7be200f3bf08cb76ae1f09402b6f9b4";
+              outputs = {flake-utils}: flake-utils.lib.$0
+            }
+            "#,
+            None,
             expect![[r#"
                 [
                     "c",

@@ -1,11 +1,11 @@
-use std::iter;
-
 use itertools::Itertools;
+use lazy_regex::regex;
 use rnix::{
     ast::{Attr, Attrpath, Expr, HasEntry, Inherit, Param, PatBind, PatEntry, Root},
     SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
 };
 use rowan::ast::AstNode;
+use std::{fmt, iter};
 use tracing::info;
 
 use crate::{
@@ -259,6 +259,42 @@ pub fn get_variables(expr: &Expr) -> Vec<String> {
     }
 
     variables
+}
+
+pub fn escape_attr(attr: &str) -> String {
+    let re = regex!("^[A-Za-z_][A-Za-z_0-9'-]*$");
+    if re.is_match(attr) {
+        attr.to_string()
+    } else {
+        escape_string(attr)
+    }
+}
+
+pub fn escape_string(text: &str) -> String {
+    format!("\"{}\"", EscapeStringFragment(text))
+}
+#[derive(Debug, Clone)]
+pub struct EscapeStringFragment<'a>(pub &'a str);
+
+impl fmt::Display for EscapeStringFragment<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, ch) in self.0.char_indices() {
+            match ch {
+                '"' => "\\\"",
+                '\\' => "\\\\",
+                '\n' => "\\n",
+                '\r' => "\\r",
+                '\t' => "\\r",
+                '$' if self.0[i..].starts_with("${") => "\\$",
+                _ => {
+                    ch.fmt(f)?;
+                    continue;
+                }
+            }
+            .fmt(f)?;
+        }
+        Ok(())
+    }
 }
 
 // #[cfg(test)]
