@@ -21,17 +21,23 @@ use lsp::Backend;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::{LspService, Server};
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_ansi(false)
-        .with_writer(std::io::stderr)
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .or_else(|_| EnvFilter::try_new("trace"))
-                .unwrap(),
+    let console_layer = console_subscriber::spawn();
+    tracing_subscriber::registry()
+        .with(console_layer)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .without_time()
+                .with_writer(std::io::stderr)
+                .with_filter(
+                    EnvFilter::try_from_default_env()
+                        .or_else(|_| EnvFilter::try_new("trace"))
+                        .unwrap(),
+                ),
         )
         .init();
 

@@ -40,23 +40,20 @@ impl Analyzer {
     }
 
     pub async fn change_file(&self, path: &Path, contents: &str) {
-        match self.files.entry(path.into()) {
-            Entry::Occupied(mut occupied_entry) => {
-                occupied_entry.get_mut().contents = contents.into()
-            }
-            Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert(File {
-                    contents: contents.into(),
-                    file_info: get_file_info(
-                        self.evaluator.clone(),
-                        path,
-                        contents,
-                        self.temp_nixos_module_schema.clone(),
-                    )
-                    .await,
-                });
-            }
+        if let Some(mut x) = self.files.get_mut(path.into()) {
+            x.contents = contents.into();
         }
+        let file = File {
+            contents: contents.into(),
+            file_info: get_file_info(
+                self.evaluator.clone(),
+                path,
+                contents,
+                self.temp_nixos_module_schema.clone(),
+            )
+            .await,
+        };
+        self.files.insert(path.to_owned(), file);
     }
 
     pub fn get_file_contents(&self, path: &Path) -> Result<Rope> {

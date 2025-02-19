@@ -1,4 +1,4 @@
-use std::process::Stdio;
+use std::{process::Stdio, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
 use lru::LruCache;
@@ -6,6 +6,7 @@ use proto::nix_eval_server_client::NixEvalServerClient;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{ChildStdin, ChildStdout, Command},
+    time::{sleep, timeout},
 };
 use tonic::transport::Channel;
 use tracing::info;
@@ -55,6 +56,7 @@ impl Evaluator {
         }
     }
 
+    #[tracing::instrument]
     pub async fn get_attributes(
         &mut self,
         req: &GetAttributesRequest,
@@ -65,18 +67,29 @@ impl Evaluator {
         // } else {
         //     info!("Get attributes cache miss");
         //     let res: GetAttributesResponse = self.call(&Request::GetAttributes(req)).await?;
-        eprintln!("Get attributes Point A");
-        let future = self.client.get_attributes(tonic::Request::new(req.clone()));
-        eprintln!("Get attributes Point B");
-        let return_value = future.await;
-        eprintln!("Get attributes Point C {:?}", return_value);
-        Ok(return_value?.into_inner())
+        // eprintln!("Get attributes Point A");
+        // let future = self.client.get_attributes(tonic::Request::new(req.clone()));
+        // info!("SETTING TIMEOUT");
+        // let future = timeout(Duration::from_secs(5), future);
+        // eprintln!("Get attributes Point B");
+        // let return_value = future.await;
+        // eprintln!("Get attributes Point C {:?}", return_value);
+        info!("Starting to sleep");
+        sleep(Duration::from_secs(5)).await;
+        info!("Done sleeping");
+
+        Ok(GetAttributesResponse {
+            attributes: vec!["aaa".to_string(), "bbb".to_string()],
+        })
+
+        // Ok(return_value??.into_inner())
         //     self.get_attributes_cache.push(req.clone(), res.clone());
         //     Ok(res)
         // }
         // Ok(vec![])
     }
 
+    #[tracing::instrument]
     pub async fn lock_flake(&mut self, req: &LockFlakeRequest) -> Result<LockFlakeResponse> {
         info!(?req, "Sending lock_flake request");
         let result = self
