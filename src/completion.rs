@@ -1,7 +1,6 @@
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 
 use itertools::Itertools;
-use lazy_regex::regex;
 use rnix::{
     ast::{Expr, Param},
     TextRange, TextSize,

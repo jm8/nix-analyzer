@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    evaluator::{Evaluator, LockFlakeRequest},
+    evaluator::{Evaluator, GetAttributesRequest, LockFlakeRequest},
     file_types::FileType,
     safe_stringification::safe_stringify_opt,
     syntax::parse,
@@ -14,17 +14,35 @@ pub async fn get_flake_filetype(
     source: &str,
     _old_flake_lock: Option<&str>,
 ) -> Result<FileType> {
-    let lock_file = evaluator
+    let expression = safe_stringify_flake(source);
+    // let lock_file = evaluator
+    //     .lock()
+    //     .await
+    //     .lock_flake(&LockFlakeRequest {
+    //         expression,
+    //         old_lock_file: None,
+    //     })
+    //     .await?
+    //     .lock_file;
+    let x = evaluator
         .lock()
         .await
-        .lock_flake(&LockFlakeRequest {
-            expression: safe_stringify_opt(parse(source).expr().as_ref(), "/".as_ref()),
-            old_lock_file: None,
+        .get_attributes(&GetAttributesRequest {
+            expression: "{a=1;b=2;}".to_string(),
         })
-        .await?
-        .lock_file;
+        .await;
 
-    Ok(FileType::Flake { lock_file })
+    eprintln!("YOURMOMYOURMOM {:?}", x);
+
+    // let x = evaluator.lock();
+
+    Ok(FileType::Flake {
+        lock_file: format!("{:?}", x.unwrap()),
+    })
+}
+
+fn safe_stringify_flake(source: &str) -> String {
+    safe_stringify_opt(parse(source).expr().as_ref(), "/".as_ref())
 }
 
 #[cfg(test)]
@@ -36,7 +54,8 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn test_lock_flake() {
         let mut evaluator = evaluator::Evaluator::new().await;
-        let expr = r#"{ inputs.nixpkgs.url = "github:nixos/nixpkgs/67b8f2ca98f3bbc6f3b5f25cc28290111c921007"; }"#;
+        // let expr = r#"{ inputs.nixpkgs.url = "github:nixos/nixpkgs/67b8f2ca98f3bbc6f3b5f25cc28290111c921007"; }"#;
+        let expr = r#"{ inputs.flake-utils.url = "github:numtide/flake-utils/11707dc2f618dd54ca8739b309ec4fc024de578b"; outputs = ({flake-utils ? null, ...}: (flake-utils.lib.aa)); }"#;
         let lock_file = evaluator
             .lock_flake(&LockFlakeRequest {
                 expression: expr.to_owned(),

@@ -65,19 +65,23 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.analyzer.change_file(
-            Path::new(params.text_document.uri.path()),
-            &params.text_document.text,
-        );
+        self.analyzer
+            .change_file(
+                Path::new(params.text_document.uri.path()),
+                &params.text_document.text,
+            )
+            .await;
         eprintln!("Did open {}", params.text_document.uri);
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         for content_change in params.content_changes {
-            self.analyzer.change_file(
-                Path::new(params.text_document.uri.path()),
-                &content_change.text,
-            );
+            self.analyzer
+                .change_file(
+                    Path::new(params.text_document.uri.path()),
+                    &content_change.text,
+                )
+                .await;
         }
         eprintln!("Did change {}", params.text_document.uri);
     }

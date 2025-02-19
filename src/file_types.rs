@@ -1,4 +1,6 @@
-use crate::schema::Schema;
+use tokio::sync::Mutex;
+
+use crate::{evaluator::Evaluator, flakes::get_flake_filetype, schema::Schema};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -29,4 +31,26 @@ pub enum FileType {
         lambda_arg: String,
         schema: String,
     },
+}
+
+pub async fn get_file_info(
+    evaluator: Arc<Mutex<Evaluator>>,
+    path: &Path,
+    source: &str,
+    temp_nixos_module_schema: Arc<Schema>,
+) -> FileInfo {
+    FileInfo {
+        file_type: if path.ends_with("flake.nix") {
+            eprintln!("AAAAAAAAAAAAAAAAAAAAAAAAA");
+            let res = get_flake_filetype(evaluator, source, None).await.unwrap();
+            eprintln!("BBBBBBBBBBBBBBBBBBBBBBBBB");
+            res
+        } else {
+            FileType::Package {
+                nixpkgs_path: env!("nixpkgs").to_owned(),
+                schema: temp_nixos_module_schema.clone(),
+            }
+        },
+        path: path.to_owned(),
+    }
 }

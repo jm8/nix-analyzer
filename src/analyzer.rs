@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
 use crate::evaluator::Evaluator;
-use crate::file_types::{FileInfo, FileType};
+use crate::file_types::{get_file_info, FileInfo, FileType};
+use crate::flakes::get_flake_filetype;
 use crate::schema::Schema;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
-use dashmap::DashMap;
+use dashmap::{DashMap, Entry};
 use ropey::Rope;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -38,20 +39,24 @@ impl Analyzer {
         }
     }
 
-    pub fn change_file(&self, path: &Path, contents: &str) {
-        self.files
-            .entry(path.into())
-            .and_modify(|file| file.contents = contents.into())
-            .or_insert_with(|| File {
-                contents: contents.into(),
-                file_info: FileInfo {
-                    file_type: FileType::Package {
-                        nixpkgs_path: env!("nixpkgs").to_owned(),
-                        schema: self.temp_nixos_module_schema.clone(),
-                    },
-                    path: path.to_owned(),
-                },
-            });
+    pub async fn change_file(&self, path: &Path, contents: &str) {
+        match self.files.entry(path.into()) {
+            Entry::Occupied(mut occupied_entry) => {
+                occupied_entry.get_mut().contents = contents.into()
+            }
+            Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(File {
+                    contents: contents.into(),
+                    file_info: get_file_info(
+                        self.evaluator.clone(),
+                        path,
+                        contents,
+                        self.temp_nixos_module_schema.clone(),
+                    )
+                    .await,
+                });
+            }
+        }
     }
 
     pub fn get_file_contents(&self, path: &Path) -> Result<Rope> {
