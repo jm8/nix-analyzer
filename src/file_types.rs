@@ -42,9 +42,10 @@ pub async fn get_file_info(
     FileInfo {
         file_type: if path.ends_with("flake.nix") {
             eprintln!("AAAAAAAAAAAAAAAAAAAAAAAAA");
-            let res = get_flake_filetype(evaluator, source, None).await.unwrap();
+            let res = get_flake_filetype(evaluator, source, None).await;
+            eprintln!("ABABABABABABABABABABAB {:?}", res);
             eprintln!("BBBBBBBBBBBBBBBBBBBBBBBBB");
-            res
+            res.unwrap()
         } else {
             FileType::Package {
                 nixpkgs_path: env!("nixpkgs").to_owned(),

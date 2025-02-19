@@ -43,7 +43,9 @@ impl Evaluator {
             .parse()
             .expect("Failed to get port of nix-eval-server process");
 
-        let mut client = NixEvalServerClient::connect(format!("http://localhost:{}", port))
+        info!(?port, "nix-eval-server port");
+
+        let client = NixEvalServerClient::connect(format!("http://localhost:{}", port))
             .await
             .expect("Failed to connect to nix-eval-server");
 
@@ -63,11 +65,12 @@ impl Evaluator {
         // } else {
         //     info!("Get attributes cache miss");
         //     let res: GetAttributesResponse = self.call(&Request::GetAttributes(req)).await?;
-        Ok(self
-            .client
-            .get_attributes(tonic::Request::new(req.clone()))
-            .await?
-            .into_inner())
+        eprintln!("Get attributes Point A");
+        let future = self.client.get_attributes(tonic::Request::new(req.clone()));
+        eprintln!("Get attributes Point B");
+        let return_value = future.await;
+        eprintln!("Get attributes Point C {:?}", return_value);
+        Ok(return_value?.into_inner())
         //     self.get_attributes_cache.push(req.clone(), res.clone());
         //     Ok(res)
         // }
@@ -75,11 +78,13 @@ impl Evaluator {
     }
 
     pub async fn lock_flake(&mut self, req: &LockFlakeRequest) -> Result<LockFlakeResponse> {
-        Ok(self
+        info!(?req, "Sending lock_flake request");
+        let result = self
             .client
             .lock_flake(tonic::Request::new(req.clone()))
             .await?
-            .into_inner())
-        // self.call(&Request::LockFlake(req)).await
+            .into_inner();
+        eprintln!("BBBBBBBBBBBBBB {:?}", result);
+        Ok(result) // self.call(&Request::LockFlake(req)).await
     }
 }

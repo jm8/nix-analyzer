@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 use tower_lsp::{LspService, Server};
 use tracing_subscriber::EnvFilter;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     tracing_subscriber::fmt()
         .with_ansi(false)
