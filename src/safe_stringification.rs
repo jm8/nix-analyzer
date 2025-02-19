@@ -173,7 +173,14 @@ pub fn safe_stringify_str(str: &rnix::ast::Str, _base_path: &Path) -> String {
 
 pub fn safe_stringify_attr(attr: &Attr, base_path: &Path) -> String {
     match attr {
-        Attr::Ident(ident) => ident.to_string(),
+        Attr::Ident(ident) => {
+            let s = ident.to_string();
+            if s.is_empty() {
+                "null".to_string()
+            } else {
+                s
+            }
+        }
         Attr::Dynamic(dynamic) => format!(
             "${{{}}}",
             safe_stringify_opt(dynamic.expr().as_ref(), base_path),
@@ -210,9 +217,15 @@ pub fn safe_stringify_bindings(bindings: &impl HasEntry, base_path: &Path) -> St
 }
 
 pub fn safe_stringify_attrpath(expr: &Attrpath, base_path: &Path) -> String {
-    expr.attrs()
+    let s = expr
+        .attrs()
         .map(|attr| safe_stringify_attr(&attr, base_path))
-        .join(".")
+        .join(".");
+    if s.is_empty() {
+        "null".to_string()
+    } else {
+        s
+    }
 }
 
 pub fn safe_stringify_opt_attrpath(attrpath: Option<&Attrpath>, base_path: &Path) -> String {
@@ -506,7 +519,7 @@ mod test {
     fn select_parens() {
         check(
             r#"(import /nix/store/xif4dbqvi7bmcwfxiqqhq0nr7ax07liw-source)."#,
-            expect!["(((import /nix/store/xif4dbqvi7bmcwfxiqqhq0nr7ax07liw-source)).)"],
+            expect!["(((import /nix/store/xif4dbqvi7bmcwfxiqqhq0nr7ax07liw-source)).null)"],
         );
     }
 
@@ -570,5 +583,20 @@ mod test {
             r#"args @ {a ? 123, b}: a"#,
             expect!["({a ? 123, b ? null, ...} @ args: a)"],
         );
+    }
+
+    #[test]
+    fn empty_select() {
+        check(r#"x."#, expect!["(x.null)"]);
+    }
+
+    #[test]
+    fn select_containing_empty() {
+        check(r#"x.a..b"#, expect!["(x.a.b)"]);
+    }
+
+    #[test]
+    fn select_empty_end() {
+        check(r#"x.a."#, expect!["(x.a)"]);
     }
 }

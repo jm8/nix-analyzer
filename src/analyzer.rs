@@ -66,7 +66,7 @@ impl Analyzer {
     }
 
     pub fn get_diagnostics(&self, path: &Path) -> Result<Vec<Diagnostic>> {
-        let _source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
+        // let _source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
         Ok(vec![])
     }
 

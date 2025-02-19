@@ -56,40 +56,17 @@ impl Evaluator {
         }
     }
 
-    #[tracing::instrument]
     pub async fn get_attributes(
         &mut self,
         req: &GetAttributesRequest,
     ) -> Result<GetAttributesResponse> {
-        // if let Some(res) = self.get_attributes_cache.get(req) {
-        //     info!("Get attributes cache hit");
-        //     Ok(res.to_owned())
-        // } else {
-        //     info!("Get attributes cache miss");
-        //     let res: GetAttributesResponse = self.call(&Request::GetAttributes(req)).await?;
-        // eprintln!("Get attributes Point A");
-        // let future = self.client.get_attributes(tonic::Request::new(req.clone()));
-        // info!("SETTING TIMEOUT");
-        // let future = timeout(Duration::from_secs(5), future);
-        // eprintln!("Get attributes Point B");
-        // let return_value = future.await;
-        // eprintln!("Get attributes Point C {:?}", return_value);
-        info!("Starting to sleep");
-        sleep(Duration::from_secs(5)).await;
-        info!("Done sleeping");
-
-        Ok(GetAttributesResponse {
-            attributes: vec!["aaa".to_string(), "bbb".to_string()],
-        })
-
-        // Ok(return_value??.into_inner())
-        //     self.get_attributes_cache.push(req.clone(), res.clone());
-        //     Ok(res)
-        // }
-        // Ok(vec![])
+        Ok(self
+            .client
+            .get_attributes(tonic::Request::new(req.clone()))
+            .await?
+            .into_inner())
     }
 
-    #[tracing::instrument]
     pub async fn lock_flake(&mut self, req: &LockFlakeRequest) -> Result<LockFlakeResponse> {
         info!(?req, "Sending lock_flake request");
         let result = self
@@ -97,7 +74,7 @@ impl Evaluator {
             .lock_flake(tonic::Request::new(req.clone()))
             .await?
             .into_inner();
-        eprintln!("BBBBBBBBBBBBBB {:?}", result);
-        Ok(result) // self.call(&Request::LockFlake(req)).await
+        info!(?result, "lock_flake completed");
+        Ok(result)
     }
 }

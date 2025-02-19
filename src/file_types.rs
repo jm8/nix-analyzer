@@ -39,18 +39,17 @@ pub async fn get_file_info(
     source: &str,
     temp_nixos_module_schema: Arc<Schema>,
 ) -> FileInfo {
+    let default = FileType::Package {
+        nixpkgs_path: env!("nixpkgs").to_owned(),
+        schema: temp_nixos_module_schema.clone(),
+    };
     FileInfo {
         file_type: if path.ends_with("flake.nix") {
-            eprintln!("AAAAAAAAAAAAAAAAAAAAAAAAA");
-            let res = get_flake_filetype(evaluator, source, None).await;
-            eprintln!("ABABABABABABABABABABAB {:?}", res);
-            eprintln!("BBBBBBBBBBBBBBBBBBBBBBBBB");
-            res.unwrap()
+            get_flake_filetype(evaluator, source, None)
+                .await
+                .unwrap_or(default)
         } else {
-            FileType::Package {
-                nixpkgs_path: env!("nixpkgs").to_owned(),
-                schema: temp_nixos_module_schema.clone(),
-            }
+            default
         },
         path: path.to_owned(),
     }

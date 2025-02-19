@@ -25,9 +25,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 #[tokio::main]
 async fn main() {
-    let console_layer = console_subscriber::spawn();
+    // let console_layer = console_subscriber::spawn();
     tracing_subscriber::registry()
-        .with(console_layer)
+        // .with(console_layer)
         .with(
             tracing_subscriber::fmt::layer()
                 .with_ansi(false)
@@ -35,7 +35,9 @@ async fn main() {
                 .with_writer(std::io::stderr)
                 .with_filter(
                     EnvFilter::try_from_default_env()
-                        .or_else(|_| EnvFilter::try_new("trace"))
+                        .or_else(|_| {
+                            EnvFilter::try_new("nix_analyzer_new=trace,tower_lsp=trace,info")
+                        })
                         .unwrap(),
                 ),
         )

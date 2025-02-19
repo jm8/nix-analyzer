@@ -15,30 +15,17 @@ pub async fn get_flake_filetype(
     _old_flake_lock: Option<&str>,
 ) -> Result<FileType> {
     let expression = safe_stringify_flake(source);
-    // let lock_file = evaluator
-    //     .lock()
-    //     .await
-    //     .lock_flake(&LockFlakeRequest {
-    //         expression,
-    //         old_lock_file: None,
-    //     })
-    //     .await?
-    //     .lock_file;
-    let x = evaluator
+    let lock_file = evaluator
         .lock()
         .await
-        .get_attributes(&GetAttributesRequest {
-            expression: "{a=1;b=2;}".to_string(),
+        .lock_flake(&LockFlakeRequest {
+            expression,
+            old_lock_file: None,
         })
-        .await;
+        .await?
+        .lock_file;
 
-    eprintln!("YOURMOMYOURMOM {:?}", x);
-
-    // let x = evaluator.lock();
-
-    Ok(FileType::Flake {
-        lock_file: format!("{:?}", x.unwrap()),
-    })
+    Ok(FileType::Flake { lock_file })
 }
 
 fn safe_stringify_flake(source: &str) -> String {
@@ -54,7 +41,6 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn test_lock_flake() {
         let mut evaluator = evaluator::Evaluator::new().await;
-        // let expr = r#"{ inputs.nixpkgs.url = "github:nixos/nixpkgs/67b8f2ca98f3bbc6f3b5f25cc28290111c921007"; }"#;
         let expr = r#"{ inputs.flake-utils.url = "github:numtide/flake-utils/11707dc2f618dd54ca8739b309ec4fc024de578b"; outputs = ({flake-utils ? null, ...}: (flake-utils.lib.aa)); }"#;
         let lock_file = evaluator
             .lock_flake(&LockFlakeRequest {
@@ -67,25 +53,43 @@ mod test {
         expect![[r#"
             {
               "nodes": {
-                "nixpkgs": {
+                "flake-utils": {
+                  "inputs": {
+                    "systems": "systems"
+                  },
                   "locked": {
-                    "lastModified": 1739576677,
-                    "narHash": "sha256-8hW4ERFocCbxKptvySFQ2ydeQ4+kVxro4zjtpw21NvM=",
-                    "owner": "nixos",
-                    "repo": "nixpkgs",
-                    "rev": "67b8f2ca98f3bbc6f3b5f25cc28290111c921007",
+                    "lastModified": 1731533236,
+                    "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+                    "owner": "numtide",
+                    "repo": "flake-utils",
+                    "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
                     "type": "github"
                   },
                   "original": {
-                    "owner": "nixos",
-                    "repo": "nixpkgs",
-                    "rev": "67b8f2ca98f3bbc6f3b5f25cc28290111c921007",
+                    "owner": "numtide",
+                    "repo": "flake-utils",
+                    "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
                     "type": "github"
                   }
                 },
                 "root": {
                   "inputs": {
-                    "nixpkgs": "nixpkgs"
+                    "flake-utils": "flake-utils"
+                  }
+                },
+                "systems": {
+                  "locked": {
+                    "lastModified": 1681028828,
+                    "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+                    "owner": "nix-systems",
+                    "repo": "default",
+                    "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+                    "type": "github"
+                  },
+                  "original": {
+                    "owner": "nix-systems",
+                    "repo": "default",
+                    "type": "github"
                   }
                 }
               },
