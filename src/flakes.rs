@@ -19,8 +19,10 @@ pub async fn get_flake_filetype(
         .await
         .lock_flake(&LockFlakeRequest {
             expression: safe_stringify_opt(parse(source).expr().as_ref(), "/".as_ref()),
+            old_lock_file: None,
         })
-        .await?;
+        .await?
+        .lock_file;
 
     Ok(FileType::Flake { lock_file })
 }
@@ -33,14 +35,16 @@ mod test {
 
     #[test_log::test(tokio::test)]
     async fn test_lock_flake() {
-        let mut evaluator = evaluator::Evaluator::new();
+        let mut evaluator = evaluator::Evaluator::new().await;
         let expr = r#"{ inputs.nixpkgs.url = "github:nixos/nixpkgs/67b8f2ca98f3bbc6f3b5f25cc28290111c921007"; }"#;
         let lock_file = evaluator
             .lock_flake(&LockFlakeRequest {
                 expression: expr.to_owned(),
+                old_lock_file: None,
             })
             .await
-            .unwrap();
+            .unwrap()
+            .lock_file;
         expect![[r#"
             {
               "nodes": {

@@ -23,7 +23,7 @@
           (rust-bin.nightly.latest.default.override {
             extensions = ["rust-src"];
           })
-          capnproto
+          protobuf
         ];
         NIX_EVAL_SERVER = "${nix-eval-server.packages.${system}.nix-eval-server}";
         ALEJANDRA = "${pkgs.alejandra}/bin/alejandra";

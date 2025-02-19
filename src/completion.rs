@@ -36,6 +36,7 @@ pub async fn complete(
             .get_attributes(&GetAttributesRequest { expression })
             .await
             .ok()
+            .map(|x| x.attributes)
             .unwrap_or_default(),
         None => vec![],
     };
@@ -196,7 +197,7 @@ mod test {
         let (left, right) = source.split("$0").collect_tuple().unwrap();
         let offset = left.len() as u32;
 
-        let evaluator = Arc::new(Mutex::new(Evaluator::new()));
+        let evaluator = Arc::new(Mutex::new(Evaluator::new().await));
 
         let source = format!("{}{}", left, right);
         let actual = complete(
@@ -233,7 +234,7 @@ mod test {
         let (left, right) = source.split("$0").collect_tuple().unwrap();
         let offset = left.len() as u32;
 
-        let evaluator = Arc::new(Mutex::new(Evaluator::new()));
+        let evaluator = Arc::new(Mutex::new(Evaluator::new().await));
 
         let file_type = get_flake_filetype(evaluator.clone(), source, old_lock_file)
             .await
@@ -952,7 +953,19 @@ mod test {
             None,
             expect![[r#"
                 [
-                    "c",
+                    "allSystems",
+                    "check-utils",
+                    "defaultSystems",
+                    "eachDefaultSystem",
+                    "eachDefaultSystemMap",
+                    "eachSystem",
+                    "eachSystemMap",
+                    "filterPackages",
+                    "flattenTree",
+                    "meld",
+                    "mkApp",
+                    "simpleFlake",
+                    "system",
                 ]
             "#]],
         )

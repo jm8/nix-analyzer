@@ -38,7 +38,7 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let evaluator = Arc::new(Mutex::new(Evaluator::new()));
+    let evaluator = Arc::new(Mutex::new(Evaluator::new().await));
     let (service, socket) = LspService::new(|client| Backend {
         client,
         analyzer: Analyzer::new(evaluator.clone()),
