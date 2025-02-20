@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
+use lsp_types::{
+    request::Completion, CompletionItem, CompletionList, CompletionResponse, CompletionTextEdit,
+    Position, Range, TextEdit,
+};
 use rnix::{
     ast::{Expr, Param},
     TextRange, TextSize,
@@ -178,9 +181,10 @@ mod test {
     use itertools::Itertools;
 
     use crate::{
-        evaluator::Evaluator,
+        evaluator::{Evaluator, LockFlakeRequest},
         file_types::{FileInfo, FileType},
-        // flakes::get_flake_filetype,
+        safe_stringification::safe_stringify_flake,
+        syntax::parse,
     };
 
     use super::complete;
@@ -228,16 +232,27 @@ mod test {
 
         let mut evaluator = Evaluator::new().await;
 
-        // let file_type = get_flake_filetype(&mut evaluator, source, old_lock_file)
-        //     .await
-        //     .unwrap();
-
         let source = format!("{}{}", left, right);
+
+        let lock_file = evaluator
+            .lock_flake(&LockFlakeRequest {
+                expression: safe_stringify_flake(
+                    parse(&source).expr().as_ref(),
+                    "/test/path".as_ref(),
+                ),
+                old_lock_file: None,
+            })
+            .await
+            .unwrap()
+            .lock_file;
+
         let actual = complete(
             &source,
             &FileInfo {
-                file_type: FileType::Flake,
-                path: "/test/path".into(),
+                file_type: FileType::Flake {
+                    locked: crate::file_types::LockedFlake::Locked { lock_file },
+                },
+                path: "/test/path/whatever.nix".into(),
             },
             offset,
             &mut evaluator,
