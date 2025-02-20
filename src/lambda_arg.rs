@@ -2,9 +2,9 @@ use rnix::ast::{Expr, Lambda};
 use rowan::ast::AstNode;
 
 use crate::{
-    file_types::{FileInfo, FileType},
+    file_types::{FileInfo, FileType, LockedFlake},
     safe_stringification::safe_stringify_opt,
-    syntax::{ancestor_exprs, parse},
+    syntax::{ancestor_exprs, escape_string, parse},
 };
 
 pub fn get_lambda_arg(lambda: &Lambda, file_info: &FileInfo) -> String {
@@ -13,7 +13,7 @@ pub fn get_lambda_arg(lambda: &Lambda, file_info: &FileInfo) -> String {
             return root_lambda;
         }
     }
-    "null".to_owned()
+    "{}".to_owned()
 }
 
 pub fn get_root_lambda(file_info: &FileInfo) -> Option<String> {
@@ -23,7 +23,15 @@ pub fn get_root_lambda(file_info: &FileInfo) -> Option<String> {
             parse(lambda_arg).expr().as_ref(),
             file_info.base_path(),
         )),
-        FileType::Flake { locked } => Some("{}".to_string()),
+        FileType::Flake {
+            locked: LockedFlake::Pending | LockedFlake::None,
+        } => Some("{}".to_string()),
+        FileType::Flake {
+            locked: LockedFlake::Locked { lock_file },
+        } => Some(format!(
+            "(import /var/home/josh/src/nix-analyzer-new/src/get-flake-inputs.nix {} {{}})",
+            escape_string(lock_file),
+        )),
     }
 }
 

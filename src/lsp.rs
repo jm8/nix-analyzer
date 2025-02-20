@@ -70,6 +70,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
 
     info!("Welcome to nix-analyzer!");
     for msg in &connection.receiver {
+        analyzer.process_fetcher_output();
         match msg {
             Message::Request(req) => {
                 if connection.handle_shutdown(&req)? {
@@ -91,6 +92,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
                 handle_notification(&mut analyzer, not)?;
             }
         }
+        analyzer.process_fetcher_output();
     }
     Ok(())
 }

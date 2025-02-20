@@ -136,6 +136,12 @@ impl Fetcher {
             match response {
                 Ok(response) => {
                     self.info(format!("{}", response.lock_file));
+                    self.sender
+                        .send(FetcherOutput {
+                            path: input.path,
+                            lock_file: response.lock_file,
+                        })
+                        .unwrap();
                 }
                 Err(_) => {
                     self.error(format!(
@@ -146,13 +152,6 @@ impl Fetcher {
             };
 
             self.finish_progress(token);
-
-            // self.sender
-            //     .send(FetcherOutput {
-            //         path: input.path,
-            //         lock_file: response.lock_file,
-            //     })
-            //     .unwrap();
         }
     }
 }

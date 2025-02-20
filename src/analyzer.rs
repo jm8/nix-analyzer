@@ -53,22 +53,25 @@ impl Analyzer {
             x.contents = contents.into();
             return;
         }
-        let file = File {
+        let mut file = File {
             contents: contents.into(),
             file_info: init_file_info(path, contents, self.temp_nixos_module_schema.clone()),
         };
-        info!(?file, "change_file");
         match file.file_info.file_type {
             FileType::Flake {
                 locked: LockedFlake::None,
-            } => self
-                .fetcher_input_send
-                .send(FetcherInput {
-                    path: path.to_path_buf(),
-                    source: contents.to_string(),
-                    old_lock_file: None,
-                })
-                .unwrap(),
+            } => {
+                self.fetcher_input_send
+                    .send(FetcherInput {
+                        path: path.to_path_buf(),
+                        source: contents.to_string(),
+                        old_lock_file: None,
+                    })
+                    .unwrap();
+                file.file_info.file_type = FileType::Flake {
+                    locked: LockedFlake::Pending,
+                };
+            }
             _ => {}
         }
         self.files.insert(path.to_owned(), file);
@@ -141,5 +144,20 @@ impl Analyzer {
         let new_text =
             String::from_utf8(output.stdout).context("formatter output contains invalid utf-8")?;
         Ok(new_text)
+    }
+
+    pub fn process_fetcher_output(&mut self) {
+        if let Ok(output) = self.fetcher_output_recv.try_recv() {
+            self.files
+                .get_mut(&output.path)
+                .into_iter()
+                .for_each(|file| {
+                    file.file_info.file_type = FileType::Flake {
+                        locked: LockedFlake::Locked {
+                            lock_file: output.lock_file.clone(),
+                        },
+                    }
+                });
+        }
     }
 }
