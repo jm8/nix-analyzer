@@ -23,7 +23,7 @@ pub fn get_root_lambda(file_info: &FileInfo) -> Option<String> {
             parse(lambda_arg).expr().as_ref(),
             file_info.base_path(),
         )),
-        FileType::Flake => Some("{}".to_string()),
+        FileType::Flake { locked } => Some("{}".to_string()),
     }
 }
 

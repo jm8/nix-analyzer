@@ -133,24 +133,19 @@ impl Fetcher {
                 old_lock_file: input.old_lock_file,
             }));
 
-            let response = match response {
-                Ok(response) => response,
+            match response {
+                Ok(response) => {
+                    self.info(format!("{}", response.lock_file));
+                }
                 Err(_) => {
                     self.error(format!(
                         "Failed to fetch flake inputs for {}",
                         input.path.display()
                     ));
-                    continue;
                 }
             };
 
-            sleep(Duration::from_secs(5));
-
             self.finish_progress(token);
-
-            self.info(format!("{}", response.lock_file));
-
-            sleep(Duration::from_secs(5));
 
             // self.sender
             //     .send(FetcherOutput {

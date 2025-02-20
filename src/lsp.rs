@@ -55,7 +55,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
         crossbeam::channel::unbounded::<FetcherOutput>();
 
     let fetcher_connection_sender = connection.sender.clone();
-    let fetcher_thread = thread::spawn(move || {
+    let _ = thread::spawn(move || {
         info!("Fetcher thread started");
         Fetcher::new(
             fetcher_output_send,
@@ -65,14 +65,8 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
         .run();
     });
 
-    fetcher_input_send.send(FetcherInput {
-        path: "/flake.nix".into(),
-        source: "{}".into(),
-        old_lock_file: None,
-    })?;
-
     let evaluator = TOKIO_RUNTIME.block_on(async { Evaluator::new().await });
-    let mut analyzer = Analyzer::new(evaluator);
+    let mut analyzer = Analyzer::new(evaluator, fetcher_input_send, fetcher_output_recv);
 
     info!("Welcome to nix-analyzer!");
     for msg in &connection.receiver {
@@ -94,7 +88,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
             }
             Message::Response(_) => {}
             Message::Notification(not) => {
-                handle_notification(&mut analyzer, not, &fetcher_input_send)?;
+                handle_notification(&mut analyzer, not)?;
             }
         }
     }
@@ -170,12 +164,12 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
 
             let range = Range {
                 start: Position {
-                    line: 1,
-                    character: 1,
+                    line: 0,
+                    character: 0,
                 },
                 end: Position {
                     line: 99999999,
-                    character: 1,
+                    character: 0,
                 },
             };
 
@@ -191,11 +185,7 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
     bail!("Unhandled request");
 }
 
-fn handle_notification(
-    analyzer: &mut Analyzer,
-    not: Notification,
-    sender: &Sender<FetcherInput>,
-) -> Result<()> {
+fn handle_notification(analyzer: &mut Analyzer, not: Notification) -> Result<()> {
     let not = match cast_not::<DidOpenTextDocument>(not) {
         Ok(params) => {
             let path = Path::new(params.text_document.uri.path().as_str());

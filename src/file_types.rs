@@ -17,7 +17,7 @@ impl FileInfo {
 }
 
 #[derive(Debug, Clone)]
-enum LockedFlake {
+pub enum LockedFlake {
     None,
     Pending,
     Locked { lock_file: String },
@@ -29,21 +29,29 @@ pub enum FileType {
         nixpkgs_path: String,
         schema: Arc<Schema>,
     },
-    Flake,
+    Flake {
+        locked: LockedFlake,
+    },
     Custom {
         lambda_arg: String,
         schema: String,
     },
 }
 
-pub fn get_file_info(path: &Path, source: &str, temp_nixos_module_schema: Arc<Schema>) -> FileInfo {
+pub fn init_file_info(
+    path: &Path,
+    source: &str,
+    temp_nixos_module_schema: Arc<Schema>,
+) -> FileInfo {
     let default = FileType::Package {
         nixpkgs_path: env!("nixpkgs").to_owned(),
         schema: temp_nixos_module_schema.clone(),
     };
     FileInfo {
         file_type: if path.ends_with("flake.nix") {
-            FileType::Flake
+            FileType::Flake {
+                locked: LockedFlake::None,
+            }
         } else {
             default
         },

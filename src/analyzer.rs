@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 
 use crate::evaluator::Evaluator;
-use crate::file_types::{get_file_info, FileInfo};
+use crate::fetcher::{FetcherInput, FetcherOutput};
+use crate::file_types::{init_file_info, FileInfo, FileType, LockedFlake};
 use crate::schema::Schema;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
+use crossbeam::channel::{Receiver, Sender};
 use lsp_types::{CompletionItem, Diagnostic};
 use ropey::Rope;
 use std::collections::HashMap;
@@ -12,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
+use tracing::info;
 
 #[derive(Debug)]
 pub struct File {
@@ -24,16 +27,24 @@ pub struct Analyzer {
     pub evaluator: Evaluator,
     pub files: HashMap<PathBuf, File>,
     pub temp_nixos_module_schema: Arc<Schema>,
+    pub fetcher_input_send: Sender<FetcherInput>,
+    pub fetcher_output_recv: Receiver<FetcherOutput>,
 }
 
 impl Analyzer {
-    pub fn new(evaluator: Evaluator) -> Self {
+    pub fn new(
+        evaluator: Evaluator,
+        fetcher_input_send: Sender<FetcherInput>,
+        fetcher_output_recv: Receiver<FetcherOutput>,
+    ) -> Self {
         Self {
             temp_nixos_module_schema: Arc::new(
                 serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap(),
             ),
             evaluator,
             files: HashMap::new(),
+            fetcher_input_send,
+            fetcher_output_recv,
         }
     }
 
@@ -44,8 +55,22 @@ impl Analyzer {
         }
         let file = File {
             contents: contents.into(),
-            file_info: get_file_info(path, contents, self.temp_nixos_module_schema.clone()),
+            file_info: init_file_info(path, contents, self.temp_nixos_module_schema.clone()),
         };
+        info!(?file, "change_file");
+        match file.file_info.file_type {
+            FileType::Flake {
+                locked: LockedFlake::None,
+            } => self
+                .fetcher_input_send
+                .send(FetcherInput {
+                    path: path.to_path_buf(),
+                    source: contents.to_string(),
+                    old_lock_file: None,
+                })
+                .unwrap(),
+            _ => {}
+        }
         self.files.insert(path.to_owned(), file);
     }
 
