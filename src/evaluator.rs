@@ -1,19 +1,25 @@
 use std::process::Stdio;
 
 use anyhow::{Context, Result};
+use lru::LruCache;
 use proto::nix_eval_server_client::NixEvalServerClient;
 use tokio::{io::AsyncBufReadExt, process::Command};
 use tonic::transport::Channel;
-use tracing::info;
+use tracing::{info, Instrument};
 
 pub mod proto {
     tonic::include_proto!("nix_eval_server");
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct GetAttributesCacheKey {
+    expression: String,
+}
+
 #[derive(Debug)]
 pub struct Evaluator {
     client: NixEvalServerClient<Channel>,
-    // get_attributes_cache: LruCache<GetAttributesRequest, GetAttributesResponse>,
+    get_attributes_cache: LruCache<GetAttributesCacheKey, GetAttributesResponse>,
 }
 
 pub use proto::{GetAttributesRequest, GetAttributesResponse, LockFlakeRequest, LockFlakeResponse};
@@ -45,9 +51,10 @@ impl Evaluator {
             .await
             .expect("Failed to connect to nix-eval-server");
 
-        // let get_attributes_cache = LruCache::new(20.try_into().unwrap());
+        let get_attributes_cache = LruCache::new(40.try_into().unwrap());
         Self {
-            client, // get_attributes_cache,
+            client,
+            get_attributes_cache,
         }
     }
 
@@ -55,11 +62,19 @@ impl Evaluator {
         &mut self,
         req: &GetAttributesRequest,
     ) -> Result<GetAttributesResponse> {
-        Ok(self
+        let key = GetAttributesCacheKey {
+            expression: req.expression.clone(),
+        };
+        if let Some(cached) = self.get_attributes_cache.get(&key) {
+            return Ok(cached.clone());
+        }
+        let result = self
             .client
             .get_attributes(tonic::Request::new(req.clone()))
             .await?
-            .into_inner())
+            .into_inner();
+        self.get_attributes_cache.push(key, result.clone());
+        Ok(result)
     }
 
     pub async fn lock_flake(&mut self, req: &LockFlakeRequest) -> Result<LockFlakeResponse> {
