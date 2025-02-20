@@ -37,20 +37,14 @@ impl Analyzer {
         }
     }
 
-    pub async fn change_file(&mut self, path: &Path, contents: &str) {
+    pub fn change_file(&mut self, path: &Path, contents: &str) {
         if let Some(x) = self.files.get_mut(path) {
             x.contents = contents.into();
             return;
         }
         let file = File {
             contents: contents.into(),
-            file_info: get_file_info(
-                &mut self.evaluator,
-                path,
-                contents,
-                self.temp_nixos_module_schema.clone(),
-            )
-            .await,
+            file_info: get_file_info(path, contents, self.temp_nixos_module_schema.clone()),
         };
         self.files.insert(path.to_owned(), file);
     }

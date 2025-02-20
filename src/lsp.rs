@@ -171,7 +171,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
             }
             Message::Response(_) => {}
             Message::Notification(not) => {
-                handle_notification(&mut analyzer, not)?;
+                handle_notification(&mut analyzer, not, &fetcher_input_send)?;
             }
         }
     }
@@ -279,7 +279,7 @@ fn handle_notification(
 
             info!(?path, "Opened document");
 
-            TOKIO_RUNTIME.block_on(analyzer.change_file(path, &params.text_document.text));
+            analyzer.change_file(path, &params.text_document.text);
 
             return Ok(());
         }
@@ -299,7 +299,7 @@ fn handle_notification(
             for change in params.content_changes {
                 contents = change.text;
             }
-            TOKIO_RUNTIME.block_on(analyzer.change_file(path, &contents));
+            analyzer.change_file(path, &contents);
 
             return Ok(());
         }

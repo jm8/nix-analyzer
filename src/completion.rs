@@ -1,4 +1,3 @@
-
 use itertools::Itertools;
 use lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
 use rnix::{
@@ -174,16 +173,14 @@ fn rope_text_range_to_range(rope: &Rope, text_range: TextRange) -> Range {
 }
 #[cfg(test)]
 mod test {
-    
 
     use expect_test::{expect, Expect};
     use itertools::Itertools;
-    
 
     use crate::{
         evaluator::Evaluator,
         file_types::{FileInfo, FileType},
-        flakes::get_flake_filetype,
+        // flakes::get_flake_filetype,
     };
 
     use super::complete;

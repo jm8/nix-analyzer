@@ -1,4 +1,3 @@
-
 use crate::{
     evaluator::{Evaluator, LockFlakeRequest},
     file_types::FileType,
@@ -6,23 +5,6 @@ use crate::{
     syntax::parse,
 };
 use anyhow::Result;
-
-pub async fn get_flake_filetype(
-    evaluator: &mut Evaluator,
-    source: &str,
-    _old_flake_lock: Option<&str>,
-) -> Result<FileType> {
-    let expression = safe_stringify_flake(source);
-    let lock_file = evaluator
-        .lock_flake(&LockFlakeRequest {
-            expression,
-            old_lock_file: None,
-        })
-        .await?
-        .lock_file;
-
-    Ok(FileType::Flake { lock_file })
-}
 
 fn safe_stringify_flake(source: &str) -> String {
     safe_stringify_opt(parse(source).expr().as_ref(), "/".as_ref())

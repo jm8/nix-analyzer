@@ -1,4 +1,3 @@
-
 use crate::{evaluator::Evaluator, flakes::get_flake_filetype, schema::Schema};
 use std::{
     path::{Path, PathBuf},
@@ -18,13 +17,20 @@ impl FileInfo {
 }
 
 #[derive(Debug, Clone)]
+enum LockedFlake {
+    None,
+    Pending,
+    Locked { lock_file: String },
+}
+
+#[derive(Debug, Clone)]
 pub enum FileType {
     Package {
         nixpkgs_path: String,
         schema: Arc<Schema>,
     },
     Flake {
-        lock_file: String,
+        locked: LockedFlake,
     },
     Custom {
         lambda_arg: String,
@@ -32,21 +38,16 @@ pub enum FileType {
     },
 }
 
-pub async fn get_file_info(
-    evaluator: &mut Evaluator,
-    path: &Path,
-    source: &str,
-    temp_nixos_module_schema: Arc<Schema>,
-) -> FileInfo {
+pub fn get_file_info(path: &Path, source: &str, temp_nixos_module_schema: Arc<Schema>) -> FileInfo {
     let default = FileType::Package {
         nixpkgs_path: env!("nixpkgs").to_owned(),
         schema: temp_nixos_module_schema.clone(),
     };
     FileInfo {
         file_type: if path.ends_with("flake.nix") {
-            get_flake_filetype(evaluator, source, None)
-                .await
-                .unwrap_or(default)
+            FileType::Flake {
+                locked: LockedFlake::None,
+            }
         } else {
             default
         },
