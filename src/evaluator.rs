@@ -2,10 +2,7 @@ use std::process::Stdio;
 
 use anyhow::{Context, Result};
 use proto::nix_eval_server_client::NixEvalServerClient;
-use tokio::{
-    io::AsyncBufReadExt,
-    process::Command,
-};
+use tokio::{io::AsyncBufReadExt, process::Command};
 use tonic::transport::Channel;
 use tracing::info;
 

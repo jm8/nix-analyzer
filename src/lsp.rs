@@ -1,16 +1,29 @@
 use anyhow::{bail, Result};
+use crossbeam::channel::Sender;
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
-    notification::{DidChangeTextDocument, DidOpenTextDocument},
-    request::{Completion, Formatting, HoverRequest},
+    notification::{
+        DidChangeTextDocument, DidOpenTextDocument, Notification as _, Progress, ShowMessage,
+    },
+    request::{self, Completion, Formatting, HoverRequest, Request as _, WorkDoneProgressCreate},
     CompletionOptions, CompletionResponse, Hover, HoverContents, HoverProviderCapability,
-    InitializeParams, MarkupContent, MarkupKind, OneOf, Position, Range, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, WorkDoneProgressOptions,
+    InitializeParams, MarkupContent, MarkupKind, MessageType, NumberOrString, OneOf, Position,
+    ProgressParams, ProgressParamsValue, Range, ServerCapabilities, ShowMessageParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, WorkDoneProgressBegin,
+    WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressOptions,
 };
-use std::path::Path;
+use std::{
+    path::{Path, PathBuf},
+    thread::{self, sleep, Thread},
+    time::Duration,
+};
 use tracing::{error, info, warn};
 
-use crate::{analyzer::Analyzer, evaluator::Evaluator, TOKIO_RUNTIME};
+use crate::{
+    analyzer::Analyzer,
+    evaluator::{self, Evaluator, LockFlakeRequest},
+    TOKIO_RUNTIME,
+};
 
 pub fn capabilities() -> ServerCapabilities {
     ServerCapabilities {
@@ -34,12 +47,106 @@ pub fn capabilities() -> ServerCapabilities {
             completion_item: None,
         }),
         document_formatting_provider: Some(OneOf::Left(true)),
+
         ..Default::default()
     }
 }
 
+struct FetcherInput {
+    path: PathBuf,
+    source: String,
+    old_lock_file: Option<String>,
+}
+
+struct FetcherOutput {
+    path: PathBuf,
+    lock_file: String,
+}
+
 pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()> {
     let _params: InitializeParams = serde_json::from_value(params).unwrap();
+
+    let (fetcher_input_send, fetcher_input_recv) = crossbeam::channel::unbounded::<FetcherInput>();
+    let (fetcher_output_send, fetcher_output_recv) =
+        crossbeam::channel::unbounded::<FetcherOutput>();
+
+    let fetcher_connection_sender = connection.sender.clone();
+    let fetcher_thread = thread::spawn(move || -> Result<()> {
+        info!("Fetcher thread started");
+        let mut evaluator = TOKIO_RUNTIME.block_on(async { Evaluator::new().await });
+        let mut curr_id = 0;
+        let mut curr_token = 0;
+        loop {
+            let input = fetcher_input_recv.recv().unwrap();
+            let token = NumberOrString::Number(curr_token);
+            let id = RequestId::from(curr_id);
+            curr_token += 1;
+            curr_id += 1;
+
+            fetcher_connection_sender
+                .send(Message::Request(Request::new(
+                    id,
+                    WorkDoneProgressCreate::METHOD.to_string(),
+                    WorkDoneProgressCreateParams {
+                        token: token.clone(),
+                    },
+                )))
+                .unwrap();
+            fetcher_connection_sender
+                .send(Message::Notification(Notification::new(
+                    Progress::METHOD.to_string(),
+                    ProgressParams {
+                        token: token.clone(),
+                        value: ProgressParamsValue::WorkDone(lsp_types::WorkDoneProgress::Begin(
+                            WorkDoneProgressBegin {
+                                title: "Fetching flake inputs".to_string(),
+                                cancellable: Some(false),
+                                message: None,
+                                percentage: None,
+                            },
+                        )),
+                    },
+                )))
+                .unwrap();
+            let response = TOKIO_RUNTIME.block_on(evaluator.lock_flake(&LockFlakeRequest {
+                expression: input.source,
+                old_lock_file: input.old_lock_file,
+            }));
+
+            let response = match response {
+                Ok(response) => response,
+                Err(err) => {
+                    fetcher_connection_sender
+                        .send(Message::Request(Request::new(
+                            curr_id.into(),
+                            ShowMessage::METHOD.to_string(),
+                            ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: "Failed to fetch flake inputs".to_string(),
+                            },
+                        )))
+                        .unwrap();
+                    curr_id += 1;
+                    continue;
+                }
+            };
+
+            fetcher_connection_sender.send(Message::Notification(Notification::new(
+                Progress::METHOD.to_string(),
+                ProgressParams {
+                    token: token.clone(),
+                    value: ProgressParamsValue::WorkDone(lsp_types::WorkDoneProgress::End(
+                        WorkDoneProgressEnd { message: None },
+                    )),
+                },
+            )))?;
+
+            fetcher_output_send.send(FetcherOutput {
+                path: input.path,
+                lock_file: response.lock_file,
+            })?;
+        }
+    });
 
     let evaluator = TOKIO_RUNTIME.block_on(async { Evaluator::new().await });
     let mut analyzer = Analyzer::new(evaluator);
@@ -161,7 +268,11 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
     bail!("Unhandled request");
 }
 
-fn handle_notification(analyzer: &mut Analyzer, not: Notification) -> Result<()> {
+fn handle_notification(
+    analyzer: &mut Analyzer,
+    not: Notification,
+    sender: &Sender<FetcherInput>,
+) -> Result<()> {
     let not = match cast_not::<DidOpenTextDocument>(not) {
         Ok(params) => {
             let path = Path::new(params.text_document.uri.path().as_str());
