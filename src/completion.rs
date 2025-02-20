@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 use itertools::Itertools;
 use lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
@@ -7,7 +6,6 @@ use rnix::{
     TextRange, TextSize,
 };
 use ropey::Rope;
-use tokio::sync::Mutex;
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
@@ -176,11 +174,11 @@ fn rope_text_range_to_range(rope: &Rope, text_range: TextRange) -> Range {
 }
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    
 
     use expect_test::{expect, Expect};
     use itertools::Itertools;
-    use tokio::sync::Mutex;
+    
 
     use crate::{
         evaluator::Evaluator,

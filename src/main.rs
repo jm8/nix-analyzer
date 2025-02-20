@@ -15,15 +15,11 @@ mod safe_stringification;
 mod schema;
 mod syntax;
 
-use analyzer::Analyzer;
 use anyhow::Result;
-use evaluator::Evaluator;
 use lazy_static::lazy_static;
 use lsp::{capabilities, main_loop};
-use lsp_server::{Connection, Message};
-use lsp_types::InitializeParams;
-use std::sync::Arc;
-use tokio::{runtime::Runtime, sync::Mutex};
+use lsp_server::Connection;
+use tokio::runtime::Runtime;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 lazy_static! {
@@ -55,7 +51,7 @@ fn main() -> Result<()> {
         .init();
 
     let (connection, io_threads) = Connection::stdio();
-    let server_capabilities = serde_json::to_value(&capabilities()).unwrap();
+    let server_capabilities = serde_json::to_value(capabilities()).unwrap();
     let initialization_params = match connection.initialize(server_capabilities) {
         Ok(it) => it,
         Err(e) => {

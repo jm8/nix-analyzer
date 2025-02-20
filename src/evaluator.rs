@@ -1,12 +1,10 @@
-use std::{process::Stdio, time::Duration};
+use std::process::Stdio;
 
-use anyhow::{anyhow, Context, Result};
-use lru::LruCache;
+use anyhow::{Context, Result};
 use proto::nix_eval_server_client::NixEvalServerClient;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{ChildStdin, ChildStdout, Command},
-    time::{sleep, timeout},
+    io::AsyncBufReadExt,
+    process::Command,
 };
 use tonic::transport::Channel;
 use tracing::info;

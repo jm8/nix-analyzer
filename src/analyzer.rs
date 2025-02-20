@@ -1,12 +1,10 @@
 #![allow(dead_code)]
 
 use crate::evaluator::Evaluator;
-use crate::file_types::{get_file_info, FileInfo, FileType};
-use crate::flakes::get_flake_filetype;
+use crate::file_types::{get_file_info, FileInfo};
 use crate::schema::Schema;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
-use dashmap::{DashMap, Entry};
 use lsp_types::{CompletionItem, Diagnostic};
 use ropey::Rope;
 use std::collections::HashMap;
@@ -14,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
-use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub struct File {
@@ -41,7 +38,7 @@ impl Analyzer {
     }
 
     pub async fn change_file(&mut self, path: &Path, contents: &str) {
-        if let Some(x) = self.files.get_mut(path.into()) {
+        if let Some(x) = self.files.get_mut(path) {
             x.contents = contents.into();
             return;
         }
@@ -67,7 +64,7 @@ impl Analyzer {
             .clone())
     }
 
-    pub fn get_diagnostics(&self, path: &Path) -> Result<Vec<Diagnostic>> {
+    pub fn get_diagnostics(&self, _path: &Path) -> Result<Vec<Diagnostic>> {
         // let _source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
         Ok(vec![])
     }

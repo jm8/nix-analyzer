@@ -1,13 +1,11 @@
-use std::sync::Arc;
 
 use crate::{
-    evaluator::{Evaluator, GetAttributesRequest, LockFlakeRequest},
+    evaluator::{Evaluator, LockFlakeRequest},
     file_types::FileType,
     safe_stringification::safe_stringify_opt,
     syntax::parse,
 };
 use anyhow::Result;
-use tokio::sync::Mutex;
 
 pub async fn get_flake_filetype(
     evaluator: &mut Evaluator,
