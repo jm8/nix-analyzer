@@ -82,4 +82,4 @@ overrides: let
     )
     lockFile.nodes;
 in
-  builtins.mapAttrs (key: value: allNodes.${key}) lockFile.nodes.${lockFile.root}.inputs
+  builtins.mapAttrs (key: value: allNodes.${key}.outputs) lockFile.nodes.${lockFile.root}.inputs

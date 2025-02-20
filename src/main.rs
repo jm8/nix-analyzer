@@ -16,15 +16,26 @@ mod schema;
 mod syntax;
 
 use analyzer::Analyzer;
+use anyhow::Result;
 use evaluator::Evaluator;
-use lsp::Backend;
+use lazy_static::lazy_static;
+use lsp::{capabilities, main_loop};
+use lsp_server::{Connection, Message};
+use lsp_types::InitializeParams;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use tower_lsp::{LspService, Server};
+use tokio::{runtime::Runtime, sync::Mutex};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
-#[tokio::main]
-async fn main() {
+lazy_static! {
+    static ref TOKIO_RUNTIME: Runtime = tokio::runtime::Builder::new_multi_thread()
+        .thread_name("tokio")
+        // .max_blocking_threads(MAX_BLOCKING_THREADS)
+        .enable_all()
+        .build()
+        .unwrap();
+}
+
+fn main() -> Result<()> {
     // let console_layer = console_subscriber::spawn();
     tracing_subscriber::registry()
         // .with(console_layer)
@@ -36,21 +47,26 @@ async fn main() {
                 .with_filter(
                     EnvFilter::try_from_default_env()
                         .or_else(|_| {
-                            EnvFilter::try_new("nix_analyzer_new=trace,tower_lsp=trace,info")
+                            EnvFilter::try_new("nix_analyzer_new=trace,lsp_server::msg=debug,info")
                         })
                         .unwrap(),
                 ),
         )
         .init();
 
-    let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
+    let (connection, io_threads) = Connection::stdio();
+    let server_capabilities = serde_json::to_value(&capabilities()).unwrap();
+    let initialization_params = match connection.initialize(server_capabilities) {
+        Ok(it) => it,
+        Err(e) => {
+            if e.channel_is_disconnected() {
+                io_threads.join()?;
+            }
+            return Err(e.into());
+        }
+    };
 
-    let evaluator = Arc::new(Mutex::new(Evaluator::new().await));
-    let (service, socket) = LspService::new(|client| Backend {
-        client,
-        analyzer: Analyzer::new(evaluator.clone()),
-        evaluator,
-    });
-    Server::new(stdin, stdout, socket).serve(service).await;
+    main_loop(connection, initialization_params)?;
+
+    Ok(())
 }

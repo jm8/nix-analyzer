@@ -34,7 +34,7 @@ pub enum FileType {
 }
 
 pub async fn get_file_info(
-    evaluator: Arc<Mutex<Evaluator>>,
+    evaluator: &mut Evaluator,
     path: &Path,
     source: &str,
     temp_nixos_module_schema: Arc<Schema>,

@@ -10,14 +10,12 @@ use anyhow::Result;
 use tokio::sync::Mutex;
 
 pub async fn get_flake_filetype(
-    evaluator: Arc<Mutex<Evaluator>>,
+    evaluator: &mut Evaluator,
     source: &str,
     _old_flake_lock: Option<&str>,
 ) -> Result<FileType> {
     let expression = safe_stringify_flake(source);
     let lock_file = evaluator
-        .lock()
-        .await
         .lock_flake(&LockFlakeRequest {
             expression,
             old_lock_file: None,

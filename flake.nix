@@ -3,6 +3,7 @@
 
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs";
   inputs.nix-eval-server.url = "path:/var/home/josh/src/nix-analyzer-new/nix-eval-server";
 
   outputs = {

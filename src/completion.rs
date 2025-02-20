@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use itertools::Itertools;
+use lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
 use rnix::{
     ast::{Expr, Param},
     TextRange, TextSize,
 };
 use ropey::Rope;
 use tokio::sync::Mutex;
-use tower_lsp::lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
 
 use crate::{
     evaluator::{Evaluator, GetAttributesRequest},
@@ -24,14 +24,12 @@ pub async fn complete(
     source: &str,
     file_info: &FileInfo,
     offset: u32,
-    evaluator: Arc<Mutex<Evaluator>>,
+    evaluator: &mut Evaluator,
 ) -> Option<Vec<CompletionItem>> {
     let strategy = get_completion_strategy(source, file_info, offset)?;
 
     let attr_completions = match strategy.attrs_expression {
         Some(expression) => evaluator
-            .lock()
-            .await
             .get_attributes(&GetAttributesRequest { expression })
             .await
             .ok()
@@ -196,7 +194,7 @@ mod test {
         let (left, right) = source.split("$0").collect_tuple().unwrap();
         let offset = left.len() as u32;
 
-        let evaluator = Arc::new(Mutex::new(Evaluator::new().await));
+        let mut evaluator = Evaluator::new().await;
 
         let source = format!("{}{}", left, right);
         let actual = complete(
@@ -206,7 +204,7 @@ mod test {
                 path: "/test/path".into(),
             },
             offset,
-            evaluator,
+            &mut evaluator,
         )
         .await
         .unwrap()
@@ -233,9 +231,9 @@ mod test {
         let (left, right) = source.split("$0").collect_tuple().unwrap();
         let offset = left.len() as u32;
 
-        let evaluator = Arc::new(Mutex::new(Evaluator::new().await));
+        let mut evaluator = Evaluator::new().await;
 
-        let file_type = get_flake_filetype(evaluator.clone(), source, old_lock_file)
+        let file_type = get_flake_filetype(&mut evaluator, source, old_lock_file)
             .await
             .unwrap();
 
@@ -247,7 +245,7 @@ mod test {
                 path: "/test/path".into(),
             },
             offset,
-            evaluator,
+            &mut evaluator,
         )
         .await
         .unwrap()

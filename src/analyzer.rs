@@ -7,13 +7,14 @@ use crate::schema::Schema;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::{DashMap, Entry};
+use lsp_types::{CompletionItem, Diagnostic};
 use ropey::Rope;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tower_lsp::lsp_types::{CompletionItem, Diagnostic};
 
 #[derive(Debug)]
 pub struct File {
@@ -23,30 +24,31 @@ pub struct File {
 
 #[derive(Debug)]
 pub struct Analyzer {
-    evaluator: Arc<Mutex<Evaluator>>,
-    files: DashMap<PathBuf, File>,
-    temp_nixos_module_schema: Arc<Schema>,
+    pub evaluator: Evaluator,
+    pub files: HashMap<PathBuf, File>,
+    pub temp_nixos_module_schema: Arc<Schema>,
 }
 
 impl Analyzer {
-    pub fn new(evaluator: Arc<Mutex<Evaluator>>) -> Self {
+    pub fn new(evaluator: Evaluator) -> Self {
         Self {
             temp_nixos_module_schema: Arc::new(
                 serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap(),
             ),
             evaluator,
-            files: DashMap::new(),
+            files: HashMap::new(),
         }
     }
 
-    pub async fn change_file(&self, path: &Path, contents: &str) {
-        if let Some(mut x) = self.files.get_mut(path.into()) {
+    pub async fn change_file(&mut self, path: &Path, contents: &str) {
+        if let Some(x) = self.files.get_mut(path.into()) {
             x.contents = contents.into();
+            return;
         }
         let file = File {
             contents: contents.into(),
             file_info: get_file_info(
-                self.evaluator.clone(),
+                &mut self.evaluator,
                 path,
                 contents,
                 self.temp_nixos_module_schema.clone(),
@@ -70,7 +72,12 @@ impl Analyzer {
         Ok(vec![])
     }
 
-    pub async fn complete(&self, path: &Path, line: u32, col: u32) -> Result<Vec<CompletionItem>> {
+    pub async fn complete(
+        &mut self,
+        path: &Path,
+        line: u32,
+        col: u32,
+    ) -> Result<Vec<CompletionItem>> {
         let file = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
         let offset = file.contents.line_to_byte(line as usize) + col as usize;
 
@@ -78,7 +85,7 @@ impl Analyzer {
             &file.contents.to_string(),
             &file.file_info,
             offset as u32,
-            self.evaluator.clone(),
+            &mut self.evaluator,
         )
         .await
         .unwrap_or_default())
