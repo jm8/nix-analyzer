@@ -1,7 +1,7 @@
 use std::{path::Path, sync::Arc};
 
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
-use tokio::{runtime, sync::Mutex};
+use tokio::{runtime, sync::Mutex, time::error::Elapsed};
 // use crate::evaluator::Evaluator;
 // use crate::Analyzer;
 // use std::path::Path;
@@ -12,7 +12,7 @@ use anyhow::{bail, Result};
 // use tower_lsp::lsp_types::notification::PublishDiagnostics;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
-    request::{Completion, GotoDefinition, HoverRequest},
+    request::{Completion, Formatting, GotoDefinition, HoverRequest},
     CompletionItem, CompletionOptions, CompletionParams, CompletionResponse, DiagnosticOptions,
     DiagnosticServerCapabilities, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
@@ -160,6 +160,37 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
             return Ok(Response::new_ok(
                 id,
                 Some(CompletionResponse::Array(result.unwrap_or_default())),
+            ));
+        }
+        Err(err @ ExtractError::JsonError { .. }) => panic!("{err:?}"),
+        Err(ExtractError::MethodMismatch(req)) => req,
+    };
+    let req = match cast::<Formatting>(req) {
+        Ok((id, params)) => {
+            let path = Path::new(params.text_document.uri.path().as_str().into());
+
+            let new_text = match TOKIO_RUNTIME.block_on(analyzer.format(path)) {
+                Ok(new_text) => new_text,
+                Err(err) => {
+                    error!(?err, "Failed to format");
+                    return Ok(Response::new_ok(id, None::<Vec<TextEdit>>));
+                }
+            };
+
+            let range = Range {
+                start: Position {
+                    line: 1,
+                    character: 1,
+                },
+                end: Position {
+                    line: 99999999,
+                    character: 1,
+                },
+            };
+
+            return Ok(Response::new_ok(
+                id,
+                Some(vec![TextEdit { range, new_text }]),
             ));
         }
         Err(err @ ExtractError::JsonError { .. }) => panic!("{err:?}"),
