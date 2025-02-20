@@ -3,7 +3,7 @@ use rowan::ast::AstNode;
 
 use crate::{
     file_types::{FileInfo, FileType, LockedFlake},
-    safe_stringification::safe_stringify_opt,
+    safe_stringification::{safe_stringify_opt, safe_stringify_opt_param},
     syntax::{ancestor_exprs, escape_string, parse},
 };
 
@@ -12,6 +12,9 @@ pub fn get_lambda_arg(lambda: &Lambda, file_info: &FileInfo) -> String {
         if let Some(root_lambda) = get_root_lambda(file_info) {
             return root_lambda;
         }
+    }
+    if safe_stringify_opt_param(lambda.param().as_ref(), file_info.base_path()) == "system" {
+        return "builtins.currentSystem".to_string();
     }
     "{}".to_owned()
 }

@@ -975,4 +975,20 @@ mod test {
         )
         .await;
     }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_system() {
+        check_complete(
+            r#"
+            let x = {x86_64-linux = {a=1;};}; in
+            _: (system: x.${system}.$0)
+        "#,
+            expect![[r#"
+                [
+                    "a",
+                ]
+            "#]],
+        )
+        .await
+    }
 }
