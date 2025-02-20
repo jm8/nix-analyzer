@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use itertools::Itertools;
 use rnix::ast::{self, Attr, Attrpath, Expr, HasEntry};
 
-use crate::walk_attrs::{walk_attrs, Item, Subscript};
+use crate::walk_attrs::{walk_attrs, Subscript};
 
 /// Convert an expression to a string while guaranteeing that the
 /// resulting string is syntactically correct.

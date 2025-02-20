@@ -5,7 +5,7 @@ use lru::LruCache;
 use proto::nix_eval_server_client::NixEvalServerClient;
 use tokio::{io::AsyncBufReadExt, process::Command};
 use tonic::transport::Channel;
-use tracing::{info, Instrument};
+use tracing::info;
 
 pub mod proto {
     tonic::include_proto!("nix_eval_server");

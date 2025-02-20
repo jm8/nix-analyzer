@@ -1,9 +1,8 @@
 use anyhow::{bail, Result};
-use crossbeam::channel::Sender;
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
-    notification::{DidChangeTextDocument, DidOpenTextDocument, Notification as _},
-    request::{Completion, Formatting, HoverRequest, Request as _},
+    notification::{DidChangeTextDocument, DidOpenTextDocument},
+    request::{Completion, Formatting, HoverRequest},
     CompletionOptions, CompletionResponse, Hover, HoverContents, HoverProviderCapability,
     InitializeParams, MarkupContent, MarkupKind, OneOf, Position, Range, ServerCapabilities,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, WorkDoneProgressOptions,

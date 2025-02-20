@@ -6,7 +6,6 @@ use lsp_types::{
     MessageType, NumberOrString, ProgressParams, ProgressParamsValue, ShowMessageParams,
     WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
-use rnix::ast::Str;
 use std::{path::PathBuf, thread::sleep, time::Duration};
 
 use crate::{
@@ -65,7 +64,7 @@ impl Fetcher {
                     token: NumberOrString::Number(self.counter),
                     value: ProgressParamsValue::WorkDone(lsp_types::WorkDoneProgress::Begin(
                         WorkDoneProgressBegin {
-                            title: title,
+                            title,
                             cancellable: Some(false),
                             message: None,
                             percentage: None,
@@ -85,7 +84,7 @@ impl Fetcher {
                 ShowMessage::METHOD.to_string(),
                 ShowMessageParams {
                     typ: MessageType::ERROR,
-                    message: message,
+                    message,
                 },
             )))
             .unwrap();
@@ -97,7 +96,7 @@ impl Fetcher {
                 ShowMessage::METHOD.to_string(),
                 ShowMessageParams {
                     typ: MessageType::INFO,
-                    message: message,
+                    message,
                 },
             )))
             .unwrap();
@@ -135,7 +134,7 @@ impl Fetcher {
 
             match response {
                 Ok(response) => {
-                    self.info(format!("{}", response.lock_file));
+                    self.info(response.lock_file.to_string());
                     self.sender
                         .send(FetcherOutput {
                             path: input.path,

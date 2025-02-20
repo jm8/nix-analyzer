@@ -1,8 +1,5 @@
 use itertools::Itertools;
-use lsp_types::{
-    request::Completion, CompletionItem, CompletionList, CompletionResponse, CompletionTextEdit,
-    Position, Range, TextEdit,
-};
+use lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
 use rnix::{
     ast::{Expr, Param},
     TextRange, TextSize,
@@ -226,7 +223,7 @@ mod test {
         .await;
     }
 
-    async fn check_complete_flake(source: &str, old_lock_file: Option<&str>, expected: Expect) {
+    async fn check_complete_flake(source: &str, _old_lock_file: Option<&str>, expected: Expect) {
         let (left, right) = source.split("$0").collect_tuple().unwrap();
         let offset = left.len() as u32;
 

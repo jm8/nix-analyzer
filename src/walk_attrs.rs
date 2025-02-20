@@ -59,7 +59,7 @@ pub fn walk_attrs(attrs: &AttrSet) -> Vec<Item> {
         let stack = stack
             .iter()
             .cloned()
-            .chain(attrs.into_iter())
+            .chain(attrs)
             .collect::<Vec<_>>();
 
         rec_expr(items, &stack, &expr);

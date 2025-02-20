@@ -16,7 +16,6 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
-use tracing::info;
 
 #[derive(Debug)]
 pub struct File {
@@ -59,25 +58,22 @@ impl Analyzer {
             contents: contents.into(),
             file_info: init_file_info(path, contents, self.temp_nixos_module_schema.clone()),
         };
-        match file.file_info.file_type {
-            FileType::Flake {
+        if let FileType::Flake {
                 locked: LockedFlake::None,
-            } => {
-                self.fetcher_input_send
-                    .send(FetcherInput {
-                        path: path.to_path_buf(),
-                        source: safe_stringify_flake(
-                            parse(contents).expr().as_ref(),
-                            path.parent().unwrap(),
-                        ),
-                        old_lock_file: None,
-                    })
-                    .unwrap();
-                file.file_info.file_type = FileType::Flake {
-                    locked: LockedFlake::Pending,
-                };
-            }
-            _ => {}
+            } = file.file_info.file_type {
+            self.fetcher_input_send
+                .send(FetcherInput {
+                    path: path.to_path_buf(),
+                    source: safe_stringify_flake(
+                        parse(contents).expr().as_ref(),
+                        path.parent().unwrap(),
+                    ),
+                    old_lock_file: None,
+                })
+                .unwrap();
+            file.file_info.file_type = FileType::Flake {
+                locked: LockedFlake::Pending,
+            };
         }
         self.files.insert(path.to_owned(), file);
     }

@@ -40,7 +40,7 @@ pub enum FileType {
 
 pub fn init_file_info(
     path: &Path,
-    source: &str,
+    _source: &str,
     temp_nixos_module_schema: Arc<Schema>,
 ) -> FileInfo {
     let default = FileType::Package {
