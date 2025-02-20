@@ -2,9 +2,7 @@ use anyhow::{bail, Result};
 use crossbeam::channel::Sender;
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
-    notification::{
-        DidChangeTextDocument, DidOpenTextDocument, Notification as _,
-    },
+    notification::{DidChangeTextDocument, DidOpenTextDocument, Notification as _},
     request::{Completion, Formatting, HoverRequest, Request as _},
     CompletionOptions, CompletionResponse, Hover, HoverContents, HoverProviderCapability,
     InitializeParams, MarkupContent, MarkupKind, OneOf, Position, Range, ServerCapabilities,
@@ -18,7 +16,7 @@ use tracing::{error, info, warn};
 
 use crate::{
     analyzer::Analyzer,
-    evaluator::{Evaluator},
+    evaluator::Evaluator,
     fetcher::{Fetcher, FetcherInput, FetcherOutput},
     TOKIO_RUNTIME,
 };
@@ -66,6 +64,12 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
         )
         .run();
     });
+
+    fetcher_input_send.send(FetcherInput {
+        path: "/flake.nix".into(),
+        source: "{}".into(),
+        old_lock_file: None,
+    })?;
 
     let evaluator = TOKIO_RUNTIME.block_on(async { Evaluator::new().await });
     let mut analyzer = Analyzer::new(evaluator);

@@ -1,21 +1,16 @@
 use crossbeam::channel::{Receiver, Sender};
 use lsp_server::{Message, Notification, Request};
 use lsp_types::{
-    notification::{
-        Notification as _, Progress, ShowMessage,
-    },
-    request::{Request as _, WorkDoneProgressCreate}, MessageType, NumberOrString,
-    ProgressParams, ProgressParamsValue, ShowMessageParams, WorkDoneProgressBegin,
-    WorkDoneProgressCreateParams, WorkDoneProgressEnd,
+    notification::{Notification as _, Progress, ShowMessage},
+    request::{Request as _, WorkDoneProgressCreate},
+    MessageType, NumberOrString, ProgressParams, ProgressParamsValue, ShowMessageParams,
+    WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
-use std::{
-    path::PathBuf,
-    thread::{sleep},
-    time::Duration,
-};
+use rnix::ast::Str;
+use std::{path::PathBuf, thread::sleep, time::Duration};
 
 use crate::{
-    evaluator::{Evaluator},
+    evaluator::{Evaluator, LockFlakeRequest},
     TOKIO_RUNTIME,
 };
 
@@ -53,7 +48,7 @@ impl Fetcher {
         }
     }
 
-    fn start_progress(&mut self, title: &str) -> i32 {
+    fn start_progress(&mut self, title: String) -> i32 {
         self.connection_send
             .send(Message::Request(Request::new(
                 self.counter.into(),
@@ -70,7 +65,7 @@ impl Fetcher {
                     token: NumberOrString::Number(self.counter),
                     value: ProgressParamsValue::WorkDone(lsp_types::WorkDoneProgress::Begin(
                         WorkDoneProgressBegin {
-                            title: title.to_string(),
+                            title: title,
                             cancellable: Some(false),
                             message: None,
                             percentage: None,
@@ -84,25 +79,25 @@ impl Fetcher {
         token
     }
 
-    fn error(&self, message: &str) {
+    fn error(&self, message: String) {
         self.connection_send
             .send(Message::Notification(Notification::new(
                 ShowMessage::METHOD.to_string(),
                 ShowMessageParams {
                     typ: MessageType::ERROR,
-                    message: message.to_string(),
+                    message: message,
                 },
             )))
             .unwrap();
     }
 
-    fn info(&self, message: &str) {
+    fn info(&self, message: String) {
         self.connection_send
             .send(Message::Notification(Notification::new(
                 ShowMessage::METHOD.to_string(),
                 ShowMessageParams {
                     typ: MessageType::INFO,
-                    message: message.to_string(),
+                    message: message,
                 },
             )))
             .unwrap();
@@ -124,28 +119,36 @@ impl Fetcher {
 
     pub fn run(&mut self) {
         loop {
-            // let input = self.receiver.recv().unwrap();
+            let input = self.receiver.recv().unwrap();
 
-            let token = self.start_progress("Eating cheese");
+            let token = self.start_progress(format!(
+                "Fetching flake inputs for {}",
+                input.path.display()
+            ));
 
-            // let response = TOKIO_RUNTIME.block_on(self.evaluator.lock_flake(&LockFlakeRequest {
-            //     expression: input.source,
-            //     old_lock_file: input.old_loc_file,
-            // }));
+            sleep(Duration::from_secs(5));
 
-            // let response = match response {
-            //     Ok(response) => response,
-            //     Err(_) => {
-            //         self.error("failed to fetch flake inputs");
-            //         continue;
-            //     }
-            // };
+            let response = TOKIO_RUNTIME.block_on(self.evaluator.lock_flake(&LockFlakeRequest {
+                expression: input.source,
+                old_lock_file: input.old_lock_file,
+            }));
+
+            let response = match response {
+                Ok(response) => response,
+                Err(_) => {
+                    self.error(format!(
+                        "Failed to fetch flake inputs for {}",
+                        input.path.display()
+                    ));
+                    continue;
+                }
+            };
 
             sleep(Duration::from_secs(5));
 
             self.finish_progress(token);
 
-            self.info("Test");
+            self.info(format!("{}", response.lock_file));
 
             sleep(Duration::from_secs(5));
 
