@@ -5,6 +5,7 @@
 mod analyzer;
 mod completion;
 mod evaluator;
+mod fetcher;
 mod file_types;
 mod flakes;
 mod hover;

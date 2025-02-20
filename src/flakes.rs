@@ -1,10 +1,7 @@
 use crate::{
-    evaluator::{Evaluator, LockFlakeRequest},
-    file_types::FileType,
     safe_stringification::safe_stringify_opt,
     syntax::parse,
 };
-use anyhow::Result;
 
 fn safe_stringify_flake(source: &str) -> String {
     safe_stringify_opt(parse(source).expr().as_ref(), "/".as_ref())

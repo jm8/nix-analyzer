@@ -1,4 +1,4 @@
-use crate::{evaluator::Evaluator, flakes::get_flake_filetype, schema::Schema};
+use crate::schema::Schema;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -29,9 +29,7 @@ pub enum FileType {
         nixpkgs_path: String,
         schema: Arc<Schema>,
     },
-    Flake {
-        locked: LockedFlake,
-    },
+    Flake,
     Custom {
         lambda_arg: String,
         schema: String,
@@ -45,9 +43,7 @@ pub fn get_file_info(path: &Path, source: &str, temp_nixos_module_schema: Arc<Sc
     };
     FileInfo {
         file_type: if path.ends_with("flake.nix") {
-            FileType::Flake {
-                locked: LockedFlake::None,
-            }
+            FileType::Flake
         } else {
             default
         },

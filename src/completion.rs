@@ -228,15 +228,15 @@ mod test {
 
         let mut evaluator = Evaluator::new().await;
 
-        let file_type = get_flake_filetype(&mut evaluator, source, old_lock_file)
-            .await
-            .unwrap();
+        // let file_type = get_flake_filetype(&mut evaluator, source, old_lock_file)
+        //     .await
+        //     .unwrap();
 
         let source = format!("{}{}", left, right);
         let actual = complete(
             &source,
             &FileInfo {
-                file_type: file_type.clone(),
+                file_type: FileType::Flake,
                 path: "/test/path".into(),
             },
             offset,

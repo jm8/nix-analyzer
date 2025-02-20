@@ -4,7 +4,7 @@ use rowan::ast::AstNode;
 use crate::{
     file_types::{FileInfo, FileType},
     safe_stringification::safe_stringify_opt,
-    syntax::{ancestor_exprs, escape_string, parse},
+    syntax::{ancestor_exprs, parse},
 };
 
 pub fn get_lambda_arg(lambda: &Lambda, file_info: &FileInfo) -> String {
@@ -23,10 +23,7 @@ pub fn get_root_lambda(file_info: &FileInfo) -> Option<String> {
             parse(lambda_arg).expr().as_ref(),
             file_info.base_path(),
         )),
-        FileType::Flake { lock_file } => Some(format!(
-            "(import /var/home/josh/src/nix-analyzer-new/src/get-flake-inputs.nix {} {{}})",
-            escape_string(lock_file),
-        )),
+        FileType::Flake => Some("{}".to_string()),
     }
 }
 
