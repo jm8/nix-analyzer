@@ -15,6 +15,7 @@ mod modules;
 mod safe_stringification;
 mod schema;
 mod syntax;
+mod walk_attrs;
 
 use anyhow::Result;
 use lazy_static::lazy_static;

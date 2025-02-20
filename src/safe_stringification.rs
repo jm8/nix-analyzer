@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use itertools::Itertools;
 use rnix::ast::{self, Attr, Attrpath, Expr, HasEntry};
 
+use crate::walk_attrs::{walk_attrs, Item, Subscript};
+
 /// Convert an expression to a string while guaranteeing that the
 /// resulting string is syntactically correct.
 pub fn safe_stringify(expr: &Expr, base_path: &Path) -> String {
@@ -239,6 +241,39 @@ pub fn safe_stringify_opt(expr: Option<&Expr>, base_path: &Path) -> String {
     match expr {
         Some(expr) => safe_stringify(expr, base_path),
         None => "null".to_string(),
+    }
+}
+
+pub fn safe_stringify_flake(expr: Option<&Expr>, base_path: &Path) -> String {
+    match expr {
+        Some(Expr::AttrSet(attrs)) => {
+            format!(
+                "{{ {} }}",
+                walk_attrs(attrs)
+                    .iter()
+                    .filter(|item| item.position.first()
+                        == Some(&Subscript::Attr("inputs".to_string())))
+                    .filter(|item| {
+                        item.position
+                            .iter()
+                            .all(|x| matches!(x, Subscript::Attr(_)))
+                    })
+                    .map(|item| format!(
+                        "{} = {};",
+                        item.position
+                            .iter()
+                            .map(|x| match x {
+                                Subscript::Attr(attr) => attr,
+                                _ => unreachable!(),
+                            })
+                            .join("."),
+                        safe_stringify(&item.expr, base_path),
+                    ))
+                    .join(" ")
+            )
+        }
+
+        _ => "{}".to_string(),
     }
 }
 

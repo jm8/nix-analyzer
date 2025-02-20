@@ -3,7 +3,9 @@
 use crate::evaluator::Evaluator;
 use crate::fetcher::{FetcherInput, FetcherOutput};
 use crate::file_types::{init_file_info, FileInfo, FileType, LockedFlake};
+use crate::safe_stringification::safe_stringify_flake;
 use crate::schema::Schema;
+use crate::syntax::parse;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
 use crossbeam::channel::{Receiver, Sender};
@@ -64,7 +66,10 @@ impl Analyzer {
                 self.fetcher_input_send
                     .send(FetcherInput {
                         path: path.to_path_buf(),
-                        source: contents.to_string(),
+                        source: safe_stringify_flake(
+                            parse(contents).expr().as_ref(),
+                            path.parent().unwrap(),
+                        ),
                         old_lock_file: None,
                     })
                     .unwrap();
