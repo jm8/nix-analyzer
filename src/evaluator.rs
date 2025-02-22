@@ -2,7 +2,7 @@ use std::process::Stdio;
 
 use anyhow::{Context, Result};
 use lru::LruCache;
-use proto::nix_eval_server_client::NixEvalServerClient;
+use proto::{nix_eval_server_client::NixEvalServerClient, HoverRequest, HoverResponse};
 use tokio::{io::AsyncBufReadExt, process::Command};
 use tonic::transport::Channel;
 use tracing::info;
@@ -12,14 +12,15 @@ pub mod proto {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct GetAttributesCacheKey {
+struct CacheKey {
     expression: String,
 }
 
 #[derive(Debug)]
 pub struct Evaluator {
     client: NixEvalServerClient<Channel>,
-    get_attributes_cache: LruCache<GetAttributesCacheKey, GetAttributesResponse>,
+    get_attributes_cache: LruCache<CacheKey, GetAttributesResponse>,
+    hover_cache: LruCache<CacheKey, HoverResponse>,
 }
 
 pub use proto::{GetAttributesRequest, GetAttributesResponse, LockFlakeRequest, LockFlakeResponse};
@@ -52,9 +53,11 @@ impl Evaluator {
             .expect("Failed to connect to nix-eval-server");
 
         let get_attributes_cache = LruCache::new(40.try_into().unwrap());
+        let hover_cache = LruCache::new(40.try_into().unwrap());
         Self {
             client,
             get_attributes_cache,
+            hover_cache,
         }
     }
 
@@ -62,7 +65,7 @@ impl Evaluator {
         &mut self,
         req: &GetAttributesRequest,
     ) -> Result<GetAttributesResponse> {
-        let key = GetAttributesCacheKey {
+        let key = CacheKey {
             expression: req.expression.clone(),
         };
         if let Some(cached) = self.get_attributes_cache.get(&key) {
@@ -85,6 +88,22 @@ impl Evaluator {
             .await?
             .into_inner();
         info!(?result, "lock_flake completed");
+        Ok(result)
+    }
+
+    pub async fn hover(&mut self, req: &HoverRequest) -> Result<HoverResponse> {
+        let key = CacheKey {
+            expression: req.expression.clone(),
+        };
+        if let Some(cached) = self.hover_cache.get(&key) {
+            return Ok(cached.clone());
+        }
+        let result = self
+            .client
+            .hover(tonic::Request::new(req.clone()))
+            .await?
+            .into_inner();
+        self.hover_cache.push(key, result.clone());
         Ok(result)
     }
 }

@@ -108,9 +108,16 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
                     .as_str(),
             );
 
-            let _position = params.text_document_position_params.position;
+            let position = params.text_document_position_params.position;
 
-            let md = analyzer.get_file_contents(path)?.to_string();
+            let md = match TOKIO_RUNTIME.block_on(analyzer.hover(
+                path,
+                position.line,
+                position.character,
+            ))? {
+                Some(md) => md,
+                None => return Ok(Response::new_ok(id, None::<Hover>)),
+            };
 
             fn markdown_hover(md: String) -> Hover {
                 Hover {

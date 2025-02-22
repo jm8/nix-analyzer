@@ -59,8 +59,9 @@ impl Analyzer {
             file_info: init_file_info(path, contents, self.temp_nixos_module_schema.clone()),
         };
         if let FileType::Flake {
-                locked: LockedFlake::None,
-            } = file.file_info.file_type {
+            locked: LockedFlake::None,
+        } = file.file_info.file_type
+        {
             self.fetcher_input_send
                 .send(FetcherInput {
                     path: path.to_path_buf(),
@@ -111,13 +112,19 @@ impl Analyzer {
         .unwrap_or_default())
     }
 
-    pub fn hover(&self, path: &Path, line: u32, col: u32) -> Result<String> {
+    pub async fn hover(&mut self, path: &Path, line: u32, col: u32) -> Result<Option<String>> {
         let file = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
         let offset = file.contents.line_to_byte(line as usize) + col as usize;
 
-        Ok(hover::hover(&file.contents.to_string(), offset as u32)
-            .map(|hover_result| hover_result.md)
-            .unwrap_or_default())
+        Ok(hover::hover(
+            &file.contents.to_string(),
+            &file.file_info,
+            offset as u32,
+            &mut self.evaluator,
+        )
+        .await
+        .map(|hover_result| hover_result.md)
+        .ok())
     }
 
     pub async fn format(&self, path: &Path) -> Result<String> {
