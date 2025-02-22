@@ -31,6 +31,8 @@ struct HoverStrategy {
     origin: HoverOrigin,
 }
 
+const DOCROOT: &'static str = "https://nix.dev/manual/nix/2.25";
+
 pub async fn hover(
     source: &str,
     file_info: &FileInfo,
@@ -50,7 +52,11 @@ pub async fn hover(
         .await?;
 
     let md = if result.r#type == "primop" {
-        result.value
+        // TODO: make better
+        result
+            .value
+            .replace("@docroot@", DOCROOT)
+            .replace(".md", "")
     } else {
         format!("### {}\n\n```nix\n{}\n```", result.r#type, result.value)
     };
