@@ -1,9 +1,14 @@
 use itertools::Itertools;
 use lazy_regex::regex;
+use lsp_types::{Position, Range};
 use rnix::{
-    ast::{Attr, Attrpath, Expr, HasEntry, Inherit, Param, PatBind, PatEntry, Root},
-    SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
+    ast::{
+        Attr, Attrpath, AttrpathValue, Expr, HasEntry, IdentParam, Inherit, Param, PatBind,
+        PatEntry, Root,
+    },
+    SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
+use ropey::Rope;
 use rowan::ast::AstNode;
 use std::{fmt, iter};
 use tracing::info;
@@ -261,6 +266,101 @@ pub fn get_variables(expr: &Expr) -> Vec<String> {
     variables
 }
 
+pub enum FoundVariable {
+    PatBind(PatBind),
+    PatEntry(PatEntry),
+    IdentParam(IdentParam),
+    AttrpathValue(AttrpathValue),
+    Inherit(Inherit),
+    Builtin,
+}
+
+pub fn find_variable(expr: &Expr, name: &str) -> Option<FoundVariable> {
+    fn search_in_entries(entries: impl HasEntry, name: &str) -> Option<FoundVariable> {
+        let attr_to_string = |attr| match attr {
+            Attr::Ident(ident) => Some(ident.to_string()),
+            Attr::Dynamic(_) => None,
+            Attr::Str(_) => None, // TODO: this should handle valid identifiers: let "hello" = null; in $0
+        };
+
+        for entry in entries.attrpath_values() {
+            let var = entry
+                .attrpath()
+                .and_then(|attrpath| attrpath.attrs().next())
+                .and_then(attr_to_string);
+
+            if var.as_ref().map(|s| s.as_str()) == Some(name) {
+                return Some(FoundVariable::AttrpathValue(entry));
+            }
+        }
+        for inherit in entries.inherits() {
+            for attr in inherit.attrs() {
+                let var = attr_to_string(attr);
+                if var.as_ref().map(|s| s.as_str()) == Some(name) {
+                    return Some(FoundVariable::Inherit(inherit));
+                }
+            }
+        }
+        return None;
+    }
+
+    for ancestor in ancestor_exprs(expr) {
+        match ancestor {
+            Expr::Lambda(lambda) => match lambda.param() {
+                Some(Param::Pattern(pattern)) => {
+                    if let Some(pat_bind) = pattern.pat_bind()
+                        && let Some(ident) = pat_bind.ident()
+                        && ident.to_string().as_str() == name
+                    {
+                        return Some(FoundVariable::PatBind(pat_bind));
+                    }
+                    for entry in pattern.pat_entries() {
+                        if let Some(ident) = entry.ident()
+                            && ident.to_string().as_str() == name
+                        {
+                            return Some(FoundVariable::PatEntry(entry));
+                        }
+                    }
+                }
+                Some(Param::IdentParam(ident_param)) => {
+                    if let Some(ident) = ident_param.ident()
+                        && ident.to_string() == name
+                    {
+                        return Some(FoundVariable::IdentParam(ident_param));
+                    }
+                }
+                None => {}
+            },
+            Expr::LegacyLet(legacy_let) => {
+                if let Some(found) = search_in_entries(legacy_let, name) {
+                    return Some(found);
+                }
+            }
+            Expr::LetIn(let_in) => {
+                if let Some(found) = search_in_entries(let_in, name) {
+                    return Some(found);
+                }
+            }
+            Expr::AttrSet(attr_set) => {
+                if attr_set.rec_token().is_some() {
+                    if let Some(found) = search_in_entries(attr_set, name) {
+                        return Some(found);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for builtin in BUILTIN_IDS {
+        if name == builtin {
+            return Some(FoundVariable::Builtin);
+        }
+    }
+
+    None
+}
+
 pub fn escape_attr(attr: &str) -> String {
     let re = regex!("^[A-Za-z_][A-Za-z_0-9'-]*$");
     if re.is_match(attr) {
@@ -295,6 +395,19 @@ impl fmt::Display for EscapeStringFragment<'_> {
         }
         Ok(())
     }
+}
+
+pub fn rope_offset_to_position(rope: &Rope, offset: impl Into<usize>) -> Position {
+    let offset = Into::<usize>::into(offset);
+    let line = rope.byte_to_line(offset) as u32;
+    let character = (offset - rope.line_to_byte(line as usize)) as u32;
+    Position { line, character }
+}
+
+pub fn rope_text_range_to_range(rope: &Rope, text_range: TextRange) -> Range {
+    let start = rope_offset_to_position(rope, text_range.start());
+    let end = rope_offset_to_position(rope, text_range.end());
+    Range { start, end }
 }
 
 // #[cfg(test)]

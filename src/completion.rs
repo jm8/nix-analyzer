@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
+use lsp_types::{CompletionItem, CompletionTextEdit, Range, TextEdit};
 use rnix::{
     ast::{Expr, Param},
     TextRange, TextSize,
@@ -13,7 +13,7 @@ use crate::{
     schema::get_schema,
     syntax::{
         escape_attr, get_variables, in_context, in_context_with_select, locate_cursor, parse,
-        with_expression, LocationWithinExpr,
+        rope_text_range_to_range, with_expression, LocationWithinExpr,
     },
 };
 
@@ -157,19 +157,6 @@ fn get_completion_strategy(
         }
         LocationWithinExpr::PatBind => None,
     }
-}
-
-fn rope_offset_to_position(rope: &Rope, offset: impl Into<usize>) -> Position {
-    let offset = Into::<usize>::into(offset);
-    let line = rope.byte_to_line(offset) as u32;
-    let character = (offset - rope.line_to_byte(line as usize)) as u32;
-    Position { line, character }
-}
-
-fn rope_text_range_to_range(rope: &Rope, text_range: TextRange) -> Range {
-    let start = rope_offset_to_position(rope, text_range.start());
-    let end = rope_offset_to_position(rope, text_range.end());
-    Range { start, end }
 }
 #[cfg(test)]
 mod test {
