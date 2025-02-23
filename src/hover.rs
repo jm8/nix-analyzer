@@ -8,10 +8,12 @@ use std::{ops::Not, path::PathBuf};
 use crate::{
     evaluator::{proto::HoverRequest, Evaluator},
     file_types::FileInfo,
+    safe_stringification::safe_stringify_attr,
     schema::get_schema,
     syntax::{
-        ancestor_exprs, find_variable, get_variables, in_context, locate_cursor, parse,
-        rope_text_range_to_range, with_expression, FoundVariable, LocationWithinExpr,
+        ancestor_exprs, ancestor_exprs_inclusive, find_variable, get_variables, in_context,
+        in_context_custom, in_context_with_select, locate_cursor, parse, rope_text_range_to_range,
+        with_expression, FoundVariable, LocationWithinExpr,
     },
 };
 
@@ -20,6 +22,7 @@ enum HoverOrigin {
     Param(TextRange),
     Binding(TextRange),
     With(TextRange),
+    Select,
     Builtin,
 }
 
@@ -82,95 +85,119 @@ fn get_hover_strategy(source: &str, file_info: &FileInfo, offset: u32) -> Option
 
     let schema = get_schema(&location.expr, file_info);
 
-    match location.location_within {
-        LocationWithinExpr::Normal => {
-            let name = location.token.to_string();
-            if let Some(found) = find_variable(&location.expr, &name) {
+    fn hover_variable(
+        name: &str,
+        expr: &Expr,
+        range: Range,
+        file_info: &FileInfo,
+    ) -> Option<HoverStrategy> {
+        if let Some(found) = find_variable(expr, &name) {
+            Some(HoverStrategy {
+                range,
+                expression: Some(in_context_custom(
+                    &name,
+                    ancestor_exprs_inclusive(expr),
+                    file_info,
+                )),
+                attr: None,
+                origin: match found {
+                    FoundVariable::PatBind(pat_bind) => {
+                        HoverOrigin::Param(pat_bind.syntax().text_range())
+                    }
+                    FoundVariable::PatEntry(pat_entry) => {
+                        HoverOrigin::Param(pat_entry.syntax().text_range())
+                    }
+                    FoundVariable::IdentParam(ident_param) => {
+                        HoverOrigin::Param(ident_param.syntax().text_range())
+                    }
+                    FoundVariable::AttrpathValue(attrpath_value) => {
+                        HoverOrigin::Binding(attrpath_value.syntax().text_range())
+                    }
+                    FoundVariable::Inherit(inherit) => {
+                        HoverOrigin::Binding(inherit.syntax().text_range())
+                    }
+                    FoundVariable::Builtin => HoverOrigin::Builtin,
+                },
+            })
+        } else {
+            let with = ancestor_exprs(expr).find_map(|ancestor| match ancestor {
+                Expr::With(with) => Some(with),
+                _ => None,
+            });
+
+            if let Some(with) = with
+                && let Some(namespace) = with.namespace()
+            {
                 Some(HoverStrategy {
                     range,
-                    expression: Some(in_context(&location.expr, file_info)),
-                    attr: None,
-                    origin: match found {
-                        FoundVariable::PatBind(pat_bind) => {
-                            HoverOrigin::Param(pat_bind.syntax().text_range())
-                        }
-                        FoundVariable::PatEntry(pat_entry) => {
-                            HoverOrigin::Param(pat_entry.syntax().text_range())
-                        }
-                        FoundVariable::IdentParam(ident_param) => {
-                            HoverOrigin::Param(ident_param.syntax().text_range())
-                        }
-                        FoundVariable::AttrpathValue(attrpath_value) => {
-                            HoverOrigin::Binding(attrpath_value.syntax().text_range())
-                        }
-                        FoundVariable::Inherit(inherit) => {
-                            HoverOrigin::Binding(inherit.syntax().text_range())
-                        }
-                        FoundVariable::Builtin => HoverOrigin::Builtin,
-                    },
+                    expression: Some(in_context(&namespace, file_info)),
+                    attr: Some(name.to_string()),
+                    origin: HoverOrigin::With(with.syntax().text_range()),
                 })
             } else {
-                let with = ancestor_exprs(&location.expr).find_map(|ancestor| match ancestor {
-                    Expr::With(with) => Some(with),
-                    _ => None,
-                });
-
-                if let Some(with) = with
-                    && let Some(namespace) = with.namespace()
-                {
-                    Some(HoverStrategy {
-                        range,
-                        expression: Some(in_context(&namespace, file_info)),
-                        attr: Some(name),
-                        origin: HoverOrigin::With(with.syntax().text_range()),
-                    })
-                } else {
-                    None
-                }
+                None
             }
         }
-        // LocationWithinExpr::Inherit(inherit) => Some(match inherit.from() {
-        //     Some(inherit_from) => CompletionStrategy {
-        //         range,
-        //         attrs_expression: Some(in_context(&inherit_from.expr()?, file_info)),
-        //         variables: vec![],
-        //     },
-        //     None => CompletionStrategy {
-        //         range,
-        //         attrs_expression: None,
-        //         variables: get_variables(&location.expr),
-        //     },
-        // }),
-        // LocationWithinExpr::Attrpath(attrpath, index) => match location.expr {
-        //     Expr::Select(select) => {
-        //         let attrs = select.expr().unwrap();
+    }
+    match location.location_within {
+        LocationWithinExpr::Normal => hover_variable(
+            &location.token.to_string(),
+            &location.expr,
+            range,
+            file_info,
+        ),
+        LocationWithinExpr::Inherit(inherit, index) => match inherit.from() {
+            Some(inherit_from) => Some(HoverStrategy {
+                range,
+                expression: Some(in_context(&inherit_from.expr()?, file_info)),
+                attr: Some(safe_stringify_attr(
+                    &inherit.attrs().nth(index).unwrap(),
+                    file_info.base_path(),
+                )),
+                origin: HoverOrigin::Binding(inherit.syntax().text_range()),
+            }),
+            None => hover_variable(
+                &location.token.to_string(),
+                &location.expr,
+                range,
+                file_info,
+            ),
+        },
+        LocationWithinExpr::Attrpath(attrpath, index) => match location.expr {
+            Expr::Select(select) => {
+                let attrs = select.expr().unwrap();
 
-        //         let attrs_expression = Some(in_context_with_select(
-        //             &attrs,
-        //             attrpath.attrs().take(index),
-        //             file_info,
-        //         ));
+                let expression = Some(in_context_with_select(
+                    &attrs,
+                    attrpath.attrs().take(index),
+                    file_info,
+                ));
 
-        //         Some(CompletionStrategy {
-        //             attrs_expression,
-        //             range,
-        //             variables: vec![],
-        //         })
-        //     }
-        //     Expr::AttrSet(_) => {
-        //         let mut schema = schema;
-        //         for attr in attrpath.attrs().take(index) {
-        //             schema = schema.attr_subschema(&attr).clone();
-        //         }
+                Some(HoverStrategy {
+                    range,
+                    expression,
+                    attr: Some(safe_stringify_attr(
+                        &attrpath.attrs().nth(index).unwrap(),
+                        file_info.base_path(),
+                    )),
+                    origin: HoverOrigin::Select,
+                })
+            }
+            Expr::AttrSet(_) => {
+                let mut schema = schema;
+                for attr in attrpath.attrs().take(index) {
+                    schema = schema.attr_subschema(&attr).clone();
+                }
 
-        //         Some(CompletionStrategy {
-        //             attrs_expression: None,
-        //             range,
-        //             variables: schema.properties(),
-        //         })
-        //     }
-        //     _ => None,
-        // },
+                // Some(HoverStrategy {
+                //     attrs_expression: None,
+                //     range,
+                //     variables: schema.properties(),
+                // })
+                None
+            }
+            _ => None,
+        },
         // LocationWithinExpr::PatEntry => {
         //     let lambda = match location.expr {
         //         Expr::Lambda(lambda) => lambda,
@@ -372,12 +399,80 @@ mod test {
         check_hover(
             "let yourmother = 1; in with {aaa = 1; bbb = 2;}; aa$0a",
             expect![[r#"
-                <<string>>:1:28
+                <<string>>:1:57
 
                 ### attrset
 
                 ```nix
                 1
+                ```"#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_inherit() {
+        check_hover(
+            r#"let aaa = "hello"; bbb = "world"; in { inherit aa$0a; }"#,
+            expect![[r#"
+                no position
+
+                ### string
+
+                ```nix
+                "hello"
+                ```"#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_inherit_from() {
+        check_hover(
+            r#"let x = {aaa = "hello"; bbb = "world";}; in { inherit (x) aa$0a; }"#,
+            expect![[r#"
+                <<string>>:1:12
+
+                ### attrset
+
+                ```nix
+                "hello"
+                ```"#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_select() {
+        check_hover(
+            r#"let x = {aaa.bbb.ccc = 2;}; in x.aaa.b$0bb.ccc"#,
+            expect![[r#"
+                <<string>>:1:12
+
+                ### attrset
+
+                ```nix
+                {
+                  ccc = 2;
+                }
+                ```"#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_select_with() {
+        check_hover(
+            r#"let x = {yyy.aaa.bbb.ccc = 2;}; in with x; yyy.a$0aa.bbb"#,
+            expect![[r#"
+                <<string>>:1:12
+
+                ### attrset
+
+                ```nix
+                {
+                  bbb = { /* ... */ };
+                }
                 ```"#]],
         )
         .await;

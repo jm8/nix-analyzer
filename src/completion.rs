@@ -88,7 +88,7 @@ fn get_completion_strategy(
                 variables,
             })
         }
-        LocationWithinExpr::Inherit(inherit) => Some(match inherit.from() {
+        LocationWithinExpr::Inherit(inherit, _) => Some(match inherit.from() {
             Some(inherit_from) => CompletionStrategy {
                 range,
                 attrs_expression: Some(in_context(&inherit_from.expr()?, file_info)),

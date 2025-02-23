@@ -17,7 +17,8 @@ use crate::{
     file_types::FileInfo,
     lambda_arg::get_lambda_arg,
     safe_stringification::{
-        safe_stringify, safe_stringify_attr, safe_stringify_bindings, safe_stringify_opt_param,
+        safe_stringify, safe_stringify_attr, safe_stringify_bindings, safe_stringify_opt,
+        safe_stringify_opt_param,
     },
 };
 
@@ -54,7 +55,7 @@ pub fn parse(source: &str) -> Root {
 #[derive(Debug)]
 pub enum LocationWithinExpr {
     Normal,
-    Inherit(Inherit),
+    Inherit(Inherit, usize),
     Attrpath(Attrpath, usize),
     PatEntry,
     PatBind,
@@ -120,7 +121,11 @@ fn locate_token(token: &SyntaxToken) -> Option<TokenLocation> {
         location_within = LocationWithinExpr::Attrpath(attrpath.clone(), pos);
         expr = nearest_expr(attrpath.syntax().clone());
     } else if let Some(inherit) = Inherit::cast(expr.syntax().parent().unwrap()) {
-        location_within = LocationWithinExpr::Inherit(inherit.clone());
+        let (pos, _attr) = inherit
+            .attrs()
+            .find_position(|attr| attr.syntax() == expr.syntax())
+            .unwrap();
+        location_within = LocationWithinExpr::Inherit(inherit.clone(), pos);
         expr = nearest_expr(inherit.syntax().clone());
     } else if let Some(pat_entry) = PatEntry::cast(expr.syntax().parent().unwrap()) {
         location_within = LocationWithinExpr::PatEntry;
@@ -137,21 +142,13 @@ fn locate_token(token: &SyntaxToken) -> Option<TokenLocation> {
     })
 }
 
-pub fn in_context_with_select(
-    expr: &Expr,
-    attrs: impl Iterator<Item = Attr>,
+pub fn in_context_custom(
+    string_to_eval: &str,
+    ancestors: impl Iterator<Item = Expr>,
     file_info: &FileInfo,
 ) -> String {
-    let mut string_to_eval = safe_stringify(expr, file_info.base_path());
-    for attr in attrs {
-        string_to_eval = format!(
-            "{}.{}",
-            string_to_eval,
-            safe_stringify_attr(&attr, file_info.base_path())
-        );
-    }
-
-    for ancestor in ancestor_exprs(expr) {
+    let mut string_to_eval = string_to_eval.to_string();
+    for ancestor in ancestors {
         match ancestor {
             Expr::LetIn(ref letin) => {
                 string_to_eval = format!(
@@ -178,6 +175,14 @@ pub fn in_context_with_select(
                     arg
                 );
             }
+            Expr::With(ref with) => {
+                string_to_eval = format!(
+                    "(with {}; {})",
+                    safe_stringify_opt(with.namespace().as_ref(), file_info.base_path()),
+                    string_to_eval,
+                );
+            }
+
             _ => continue,
         }
     }
@@ -185,6 +190,23 @@ pub fn in_context_with_select(
     info!(?string_to_eval);
 
     string_to_eval
+}
+
+pub fn in_context_with_select(
+    expr: &Expr,
+    attrs: impl Iterator<Item = Attr>,
+    file_info: &FileInfo,
+) -> String {
+    let mut string_to_eval = safe_stringify(expr, file_info.base_path());
+    for attr in attrs {
+        string_to_eval = format!(
+            "{}.{}",
+            string_to_eval,
+            safe_stringify_attr(&attr, file_info.base_path())
+        );
+    }
+
+    in_context_custom(&string_to_eval, ancestor_exprs_inclusive(expr), file_info)
 }
 
 pub fn in_context(expr: &Expr, file_info: &FileInfo) -> String {

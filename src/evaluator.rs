@@ -110,7 +110,6 @@ impl Evaluator {
 
 impl Drop for Evaluator {
     fn drop(&mut self) {
-        eprintln!("DROP IMPLICITLY CALLED!!!!!!!!!!!!");
         _ = self.child.kill();
         _ = self.child.wait();
     }
