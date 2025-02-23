@@ -6,7 +6,15 @@ use lsp_types::{
     MessageType, NumberOrString, ProgressParams, ProgressParamsValue, ShowMessageParams,
     WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
-use std::{path::PathBuf, thread::sleep, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread::sleep,
+    time::Duration,
+};
 
 use crate::{
     evaluator::{Evaluator, LockFlakeRequest},
@@ -30,10 +38,12 @@ pub struct Fetcher {
     pub connection_send: Sender<Message>,
     evaluator: Evaluator,
     counter: i32,
+    pub cancel: Arc<AtomicBool>,
 }
 
 impl Fetcher {
     pub fn new(
+        cancel: Arc<AtomicBool>,
         sender: Sender<FetcherOutput>,
         receiver: Receiver<FetcherInput>,
         connection_send: Sender<Message>,
@@ -44,6 +54,7 @@ impl Fetcher {
             connection_send,
             counter: 0,
             evaluator: TOKIO_RUNTIME.block_on(Evaluator::new()),
+            cancel,
         }
     }
 
@@ -116,8 +127,12 @@ impl Fetcher {
             .unwrap();
     }
 
-    pub fn run(&mut self) {
+    pub fn run(mut self) {
         loop {
+            if self.cancel.load(Ordering::Relaxed) {
+                drop(self.evaluator);
+                break;
+            }
             let input = self.receiver.recv().unwrap();
 
             let token = self.start_progress(format!(

@@ -287,7 +287,7 @@ mod test {
                 >
                 > Unlike some languages, `import` is a regular function in Nix.
 
-                The *path* argument must meet the same criteria as an [interpolated expression](@docroot@/language/string-interpolation.md#interpolated-expression).
+                The *path* argument must meet the same criteria as an [interpolated expression](https://nix.dev/manual/nix/2.25/language/string-interpolation#interpolated-expression).
 
                 If *path* is a directory, the file `default.nix` in that directory is used if it exists.
 

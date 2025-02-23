@@ -9,6 +9,10 @@ use lsp_types::{
 };
 use std::{
     path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread::{self},
 };
 use tracing::{error, info, warn};
@@ -54,9 +58,12 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
         crossbeam::channel::unbounded::<FetcherOutput>();
 
     let fetcher_connection_sender = connection.sender.clone();
-    let _ = thread::spawn(move || {
+    let fetcher_cancel = Arc::new(AtomicBool::new(false));
+    let fetcher_cancel_clone = fetcher_cancel.clone();
+    let fetcher_thread = thread::spawn(move || {
         info!("Fetcher thread started");
         Fetcher::new(
+            fetcher_cancel_clone,
             fetcher_output_send,
             fetcher_input_recv,
             fetcher_connection_sender,
@@ -73,6 +80,8 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
         match msg {
             Message::Request(req) => {
                 if connection.handle_shutdown(&req)? {
+                    fetcher_cancel.store(true, Ordering::Relaxed);
+                    let _ = fetcher_thread.join();
                     return Ok(());
                 }
 

@@ -1,9 +1,8 @@
-use std::process::Stdio;
-
 use anyhow::{Context, Result};
 use lru::LruCache;
 use proto::{nix_eval_server_client::NixEvalServerClient, HoverRequest, HoverResponse};
-use tokio::{io::AsyncBufReadExt, process::Command};
+use std::io::BufRead;
+use std::process::{Child, Command, Stdio};
 use tonic::transport::Channel;
 use tracing::info;
 
@@ -21,6 +20,7 @@ pub struct Evaluator {
     client: NixEvalServerClient<Channel>,
     get_attributes_cache: LruCache<CacheKey, GetAttributesResponse>,
     hover_cache: LruCache<CacheKey, HoverResponse>,
+    child: Child,
 }
 
 pub use proto::{GetAttributesRequest, GetAttributesResponse, LockFlakeRequest, LockFlakeResponse};
@@ -35,11 +35,10 @@ impl Evaluator {
             .unwrap();
 
         let reader = child.stdout.take().unwrap();
-        let mut reader = tokio::io::BufReader::new(reader);
+        let mut reader = std::io::BufReader::new(reader);
         let mut buf = String::new();
         reader
             .read_line(&mut buf)
-            .await
             .expect("Failed to get port of nix-eval-server process");
         let port: u64 = buf
             .trim()
@@ -55,6 +54,7 @@ impl Evaluator {
         let get_attributes_cache = LruCache::new(40.try_into().unwrap());
         let hover_cache = LruCache::new(40.try_into().unwrap());
         Self {
+            child,
             client,
             get_attributes_cache,
             hover_cache,
@@ -105,5 +105,13 @@ impl Evaluator {
             .into_inner();
         self.hover_cache.push(key, result.clone());
         Ok(result)
+    }
+}
+
+impl Drop for Evaluator {
+    fn drop(&mut self) {
+        eprintln!("DROP IMPLICITLY CALLED!!!!!!!!!!!!");
+        _ = self.child.kill();
+        _ = self.child.wait();
     }
 }

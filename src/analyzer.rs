@@ -12,6 +12,7 @@ use crossbeam::channel::{Receiver, Sender};
 use lsp_types::{CompletionItem, Diagnostic};
 use ropey::Rope;
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
@@ -62,6 +63,10 @@ impl Analyzer {
             locked: LockedFlake::None,
         } = file.file_info.file_type
         {
+            let old_lock_file = self
+                .get_file_contents(&path.parent().unwrap().join("flake.lock"))
+                .map(|s| s.to_string())
+                .ok();
             self.fetcher_input_send
                 .send(FetcherInput {
                     path: path.to_path_buf(),
@@ -69,7 +74,7 @@ impl Analyzer {
                         parse(contents).expr().as_ref(),
                         path.parent().unwrap(),
                     ),
-                    old_lock_file: None,
+                    old_lock_file,
                 })
                 .unwrap();
             file.file_info.file_type = FileType::Flake {
@@ -79,15 +84,15 @@ impl Analyzer {
         self.files.insert(path.to_owned(), file);
     }
 
-    pub fn get_file_contents(&self, path: &Path) -> Result<Rope> {
-        Ok(self
-            .files
-            .get(path)
-            .ok_or_else(|| anyhow!("file doesn't exist"))?
-            .contents
-            .clone())
-    }
+    pub fn get_file_contents(&mut self, path: &Path) -> Result<Rope> {
+        if let Some(contents) = self.files.get(path).map(|file| file.contents.clone()) {
+            return Ok(contents);
+        }
 
+        let contents = std::fs::read_to_string(path)?;
+        self.change_file(path, &contents);
+        Ok(Rope::from(contents))
+    }
     pub fn get_diagnostics(&self, _path: &Path) -> Result<Vec<Diagnostic>> {
         // let _source = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
         Ok(vec![])
@@ -127,7 +132,7 @@ impl Analyzer {
         .ok())
     }
 
-    pub async fn format(&self, path: &Path) -> Result<String> {
+    pub async fn format(&mut self, path: &Path) -> Result<String> {
         let source = self.get_file_contents(path)?.to_string().into_bytes();
         let mut child = Command::new(env!("ALEJANDRA"))
             .args(["-q", "-"])
