@@ -4,7 +4,7 @@ use rowan::ast::AstNode;
 use crate::{
     file_types::{FileInfo, FileType, LockedFlake},
     safe_stringification::{safe_stringify_opt, safe_stringify_opt_param},
-    syntax::{ancestor_exprs, escape_string, parse},
+    syntax::{ancestor_exprs, parse},
 };
 
 pub fn get_lambda_arg(lambda: &Lambda, file_info: &FileInfo) -> String {

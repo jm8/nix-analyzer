@@ -311,19 +311,19 @@ pub fn find_variable(expr: &Expr, name: &str) -> Option<FoundVariable> {
                 .and_then(|attrpath| attrpath.attrs().next())
                 .and_then(attr_to_string);
 
-            if var.as_ref().map(|s| s.as_str()) == Some(name) {
+            if var.as_deref() == Some(name) {
                 return Some(FoundVariable::AttrpathValue(entry));
             }
         }
         for inherit in entries.inherits() {
             for attr in inherit.attrs() {
                 let var = attr_to_string(attr);
-                if var.as_ref().map(|s| s.as_str()) == Some(name) {
+                if var.as_deref() == Some(name) {
                     return Some(FoundVariable::Inherit(inherit));
                 }
             }
         }
-        return None;
+        None
     }
 
     for ancestor in ancestor_exprs(expr) {

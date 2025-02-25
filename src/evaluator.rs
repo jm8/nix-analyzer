@@ -142,6 +142,13 @@ impl Evaluator {
     }
 }
 
+impl Drop for Evaluator {
+    fn drop(&mut self) {
+        _ = self.child.kill();
+        _ = self.child.wait();
+    }
+}
+
 #[cfg(test)]
 mod test {
     use expect_test::expect;
@@ -168,12 +175,5 @@ mod test {
             ]
         "#]]
         .assert_debug_eq(&actual);
-    }
-}
-
-impl Drop for Evaluator {
-    fn drop(&mut self) {
-        _ = self.child.kill();
-        _ = self.child.wait();
     }
 }

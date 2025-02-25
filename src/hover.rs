@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use lsp_types::{Hover, Range};
+use lsp_types::Range;
 use rnix::{ast::Expr, TextRange};
 use ropey::Rope;
 use rowan::ast::AstNode;
@@ -11,9 +11,8 @@ use crate::{
     safe_stringification::safe_stringify_attr,
     schema::get_schema,
     syntax::{
-        ancestor_exprs, ancestor_exprs_inclusive, find_variable, get_variables, in_context,
-        in_context_custom, in_context_with_select, locate_cursor, parse, rope_text_range_to_range,
-        with_expression, FoundVariable, LocationWithinExpr,
+        ancestor_exprs, ancestor_exprs_inclusive, find_variable, in_context,
+        in_context_custom, in_context_with_select, locate_cursor, parse, rope_text_range_to_range, FoundVariable, LocationWithinExpr,
     },
 };
 
@@ -34,7 +33,7 @@ struct HoverStrategy {
     origin: HoverOrigin,
 }
 
-const DOCROOT: &'static str = "https://nix.dev/manual/nix/2.25";
+const DOCROOT: &str = "https://nix.dev/manual/nix/2.25";
 
 pub async fn hover(
     source: &str,
@@ -75,10 +74,10 @@ pub async fn hover(
 }
 
 fn get_hover_strategy(source: &str, file_info: &FileInfo, offset: u32) -> Option<HoverStrategy> {
-    let root = parse(&source);
+    let root = parse(source);
     let location = locate_cursor(&root, offset)?;
 
-    let rope = Rope::from_str(&source);
+    let rope = Rope::from_str(source);
     let text_range = location.token.text_range();
     let text_range = TextRange::new(text_range.start(), text_range.end());
     let range = rope_text_range_to_range(&rope, text_range);
@@ -91,11 +90,11 @@ fn get_hover_strategy(source: &str, file_info: &FileInfo, offset: u32) -> Option
         range: Range,
         file_info: &FileInfo,
     ) -> Option<HoverStrategy> {
-        if let Some(found) = find_variable(expr, &name) {
+        if let Some(found) = find_variable(expr, name) {
             Some(HoverStrategy {
                 range,
                 expression: Some(in_context_custom(
-                    &name,
+                    name,
                     ancestor_exprs_inclusive(expr),
                     file_info,
                 )),

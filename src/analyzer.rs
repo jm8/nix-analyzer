@@ -13,7 +13,6 @@ use crossbeam::channel::{Receiver, Sender};
 use lsp_types::{CompletionItem, Diagnostic};
 use ropey::Rope;
 use std::collections::HashMap;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
