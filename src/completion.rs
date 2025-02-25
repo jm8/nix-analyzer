@@ -167,6 +167,7 @@ mod test {
     use crate::{
         evaluator::{Evaluator, LockFlakeRequest},
         file_types::{FileInfo, FileType},
+        flakes::get_flake_inputs,
         safe_stringification::safe_stringify_flake,
         syntax::parse,
     };
@@ -230,11 +231,13 @@ mod test {
             .unwrap()
             .lock_file;
 
+        let inputs = get_flake_inputs(&mut evaluator, &lock_file).await.unwrap();
+
         let actual = complete(
             &source,
             &FileInfo {
                 file_type: FileType::Flake {
-                    locked: crate::file_types::LockedFlake::Locked { lock_file },
+                    locked: crate::file_types::LockedFlake::Locked { lock_file, inputs },
                 },
                 path: "/test/path/whatever.nix".into(),
             },

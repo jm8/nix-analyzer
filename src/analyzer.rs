@@ -3,6 +3,7 @@
 use crate::evaluator::Evaluator;
 use crate::fetcher::{FetcherInput, FetcherOutput};
 use crate::file_types::{init_file_info, FileInfo, FileType, LockedFlake};
+use crate::flakes::get_flake_inputs;
 use crate::safe_stringification::safe_stringify_flake;
 use crate::schema::Schema;
 use crate::syntax::parse;
@@ -159,8 +160,9 @@ impl Analyzer {
         Ok(new_text)
     }
 
-    pub fn process_fetcher_output(&mut self) {
+    pub async fn process_fetcher_output(&mut self) -> Result<()> {
         if let Ok(output) = self.fetcher_output_recv.try_recv() {
+            let inputs = get_flake_inputs(&mut self.evaluator, &output.lock_file).await?;
             self.files
                 .get_mut(&output.path)
                 .into_iter()
@@ -168,9 +170,11 @@ impl Analyzer {
                     file.file_info.file_type = FileType::Flake {
                         locked: LockedFlake::Locked {
                             lock_file: output.lock_file.clone(),
+                            inputs: inputs.clone(),
                         },
                     }
                 });
         }
+        Ok(())
     }
 }

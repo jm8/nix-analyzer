@@ -30,11 +30,12 @@ pub fn get_root_lambda(file_info: &FileInfo) -> Option<String> {
             locked: LockedFlake::Pending | LockedFlake::None,
         } => Some("{}".to_string()),
         FileType::Flake {
-            locked: LockedFlake::Locked { lock_file },
-        } => Some(format!(
-            "(import /var/home/josh/src/nix-analyzer-new/src/get-flake-inputs.nix {} {{}})",
-            escape_string(lock_file),
-        )),
+            locked:
+                LockedFlake::Locked {
+                    lock_file: _,
+                    inputs,
+                },
+        } => Some(inputs.clone()),
     }
 }
 

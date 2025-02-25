@@ -55,13 +55,23 @@ impl Evaluator {
 
         let get_attributes_cache = LruCache::new(40.try_into().unwrap());
         let hover_cache = LruCache::new(40.try_into().unwrap());
-        Self {
+        let mut evaluator = Self {
             child,
             client,
             get_attributes_cache,
             hover_cache,
             var_number: 0,
-        }
+        };
+
+        evaluator
+            .add_variable(&AddVariableRequest {
+                name: "__nix_analyzer_get_flake_inputs".to_string(),
+                expression: include_str!("get-flake-inputs.nix").to_string(),
+            })
+            .await
+            .expect("Failed to initialize evaluator");
+
+        evaluator
     }
 
     pub async fn get_attributes(

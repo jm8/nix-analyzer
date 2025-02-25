@@ -20,7 +20,7 @@ impl FileInfo {
 pub enum LockedFlake {
     None,
     Pending,
-    Locked { lock_file: String },
+    Locked { lock_file: String, inputs: String },
 }
 
 #[derive(Debug, Clone)]

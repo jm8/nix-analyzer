@@ -1,10 +1,13 @@
-use crate::{
-    safe_stringification::safe_stringify_opt,
-    syntax::parse,
-};
+use crate::{evaluator::Evaluator, syntax::escape_string};
+use anyhow::Result;
 
-fn safe_stringify_flake(source: &str) -> String {
-    safe_stringify_opt(parse(source).expr().as_ref(), "/".as_ref())
+pub async fn get_flake_inputs(evaluator: &mut Evaluator, lock_file: &str) -> Result<String> {
+    evaluator
+        .add_anonymous_variable(&format!(
+            "__nix_analyzer_get_flake_inputs {} {{}}",
+            escape_string(lock_file)
+        ))
+        .await
 }
 
 #[cfg(test)]
