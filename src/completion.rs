@@ -969,7 +969,7 @@ mod test {
             r#"
             let x = {x86_64-linux = {a=1;};}; in
             _: (system: x.${system}.$0)
-        "#,
+            "#,
             expect![[r#"
                 [
                     "a",

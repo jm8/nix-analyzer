@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use lru::LruCache;
+use proto::AddVariableRequest;
 use proto::{nix_eval_server_client::NixEvalServerClient, HoverRequest, HoverResponse};
 use std::io::BufRead;
 use std::process::{Child, Command, Stdio};
@@ -21,6 +22,7 @@ pub struct Evaluator {
     get_attributes_cache: LruCache<CacheKey, GetAttributesResponse>,
     hover_cache: LruCache<CacheKey, HoverResponse>,
     child: Child,
+    var_number: u64,
 }
 
 pub use proto::{GetAttributesRequest, GetAttributesResponse, LockFlakeRequest, LockFlakeResponse};
@@ -58,6 +60,7 @@ impl Evaluator {
             client,
             get_attributes_cache,
             hover_cache,
+            var_number: 0,
         }
     }
 
@@ -105,6 +108,56 @@ impl Evaluator {
             .into_inner();
         self.hover_cache.push(key, result.clone());
         Ok(result)
+    }
+
+    pub async fn add_variable(&mut self, req: &AddVariableRequest) -> Result<()> {
+        self.client
+            .add_variable(tonic::Request::new(req.clone()))
+            .await?
+            .into_inner();
+        Ok(())
+    }
+
+    pub async fn add_anonymous_variable(&mut self, expression: &str) -> Result<String> {
+        self.var_number += 1;
+        let name = format!("__nix_analyzer_{}", self.var_number);
+        self.client
+            .add_variable(tonic::Request::new(AddVariableRequest {
+                name: name.to_string(),
+                expression: expression.to_string(),
+            }))
+            .await?
+            .into_inner();
+        Ok(name)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use expect_test::expect;
+
+    use crate::evaluator::{Evaluator, GetAttributesRequest};
+
+    #[tokio::test]
+    async fn test_add_variable() {
+        let mut evaluator = Evaluator::new().await;
+        let name = evaluator
+            .add_anonymous_variable("{ alpha = 1; beta = 2; gamma = 3;}")
+            .await
+            .unwrap();
+        let actual = evaluator
+            .get_attributes(&GetAttributesRequest { expression: name })
+            .await
+            .unwrap()
+            .attributes;
+        expect![[r#"
+            [
+                "alpha",
+                "beta",
+                "gamma",
+            ]
+        "#]]
+        .assert_debug_eq(&actual);
     }
 }
 
