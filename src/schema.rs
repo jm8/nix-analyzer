@@ -41,6 +41,8 @@ pub struct Schema {
 lazy_static! {
     static ref NIXOS_MODULE_SCHEMA: Arc<Schema> =
         Arc::new(serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap(),);
+    static ref HOME_MANAGER_SCHEMA: Arc<Schema> =
+        Arc::new(serde_json::from_str(include_str!("home_manager_schema.json")).unwrap(),);
 }
 
 impl Schema {

@@ -2,13 +2,15 @@ use anyhow::{bail, Result};
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
-    request::{Completion, Formatting, HoverRequest},
-    CompletionOptions, CompletionResponse, Hover, HoverContents, HoverProviderCapability,
-    InitializeParams, MarkupContent, MarkupKind, OneOf, Position, Range, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, WorkDoneProgressOptions,
+    request::{Completion, Formatting, GotoDefinition, HoverRequest},
+    CompletionOptions, CompletionResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverProviderCapability, InitializeParams, Location, MarkupContent, MarkupKind,
+    OneOf, Position, Range, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextEdit, Uri, WorkDoneProgressOptions,
 };
 use std::{
     path::Path,
+    str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -21,12 +23,13 @@ use crate::{
     analyzer::Analyzer,
     evaluator::Evaluator,
     fetcher::{Fetcher, FetcherInput, FetcherOutput},
+    hover::HoverResult,
     TOKIO_RUNTIME,
 };
 
 pub fn capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        hover_provider: Some(HoverProviderCapability::Simple(true)),
+        // hover_provider: Some(HoverProviderCapability::Simple(true)),
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         // diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
         //     identifier: None,
@@ -46,7 +49,7 @@ pub fn capabilities() -> ServerCapabilities {
             completion_item: None,
         }),
         document_formatting_provider: Some(OneOf::Left(true)),
-
+        definition_provider: Some(OneOf::Left(true)),
         ..Default::default()
     }
 }
@@ -124,7 +127,7 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
                 position.line,
                 position.character,
             ))? {
-                Some(md) => md,
+                Some(hover) => format!("{:?}\n\n{}", hover.position, hover.md),
                 None => return Ok(Response::new_ok(id, None::<Hover>)),
             };
 
@@ -139,6 +142,51 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
             }
 
             return Ok(Response::new_ok(id, markdown_hover(md)));
+        }
+        Err(err @ ExtractError::JsonError { .. }) => panic!("{err:?}"),
+        Err(ExtractError::MethodMismatch(req)) => req,
+    };
+    let req = match cast::<GotoDefinition>(req) {
+        Ok((id, params)) => {
+            let path = Path::new(
+                params
+                    .text_document_position_params
+                    .text_document
+                    .uri
+                    .path()
+                    .as_str(),
+            );
+
+            let position = params.text_document_position_params.position;
+
+            let position = match TOKIO_RUNTIME.block_on(analyzer.hover(
+                path,
+                position.line,
+                position.character,
+            ))? {
+                Some(HoverResult {
+                    md: _,
+                    position: Some(position),
+                }) => position,
+                _ => return Ok(Response::new_ok(id, None::<GotoDefinitionResponse>)),
+            };
+
+            return Ok(Response::new_ok(
+                id,
+                GotoDefinitionResponse::Scalar(Location {
+                    uri: Uri::from_str(&format!("file://{}", position.path.display()))?,
+                    range: Range {
+                        start: Position {
+                            line: position.line,
+                            character: position.col,
+                        },
+                        end: Position {
+                            line: position.line,
+                            character: position.col + 1,
+                        },
+                    },
+                }),
+            ));
         }
         Err(err @ ExtractError::JsonError { .. }) => panic!("{err:?}"),
         Err(ExtractError::MethodMismatch(req)) => req,

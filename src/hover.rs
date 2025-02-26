@@ -84,8 +84,8 @@ pub async fn hover(
     } else if !result.path.is_empty() && result.path != "<<string>>" {
         Some(Position {
             path: result.path.into(),
-            line: result.row as u32,
-            col: result.col as u32,
+            line: (result.row - 1) as u32,
+            col: (result.col - 1) as u32,
         })
     } else {
         None

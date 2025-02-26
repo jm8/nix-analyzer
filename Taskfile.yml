@@ -3,4 +3,5 @@ version: "3"
 tasks:
   gen_schemas:
     cmds:
-      - uv run --directory cli preview.py '{{.USER_WORKING_DIR}}'
+      - nix eval --impure --json --file src/nixos_module_schema.nix > src/nixos_module_schema.json
+      - nix eval --impure --json --file src/home_manager_schema.nix > src/home_manager_schema.json

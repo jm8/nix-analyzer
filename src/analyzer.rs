@@ -4,6 +4,7 @@ use crate::evaluator::Evaluator;
 use crate::fetcher::{FetcherInput, FetcherOutput};
 use crate::file_types::{init_file_info, FileInfo, FileType, LockedFlake};
 use crate::flakes::get_flake_inputs;
+use crate::hover::HoverResult;
 use crate::safe_stringification::safe_stringify_flake;
 use crate::schema::Schema;
 use crate::syntax::parse;
@@ -117,7 +118,7 @@ impl Analyzer {
         .unwrap_or_default())
     }
 
-    pub async fn hover(&mut self, path: &Path, line: u32, col: u32) -> Result<Option<String>> {
+    pub async fn hover(&mut self, path: &Path, line: u32, col: u32) -> Result<Option<HoverResult>> {
         let file = self.files.get(path).ok_or(anyhow!("file doesn't exist"))?;
         let offset = file.contents.line_to_byte(line as usize) + col as usize;
 
@@ -128,7 +129,6 @@ impl Analyzer {
             &mut self.evaluator,
         )
         .await
-        .map(|hover_result| hover_result.md)
         .ok())
     }
 
