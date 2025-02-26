@@ -4,6 +4,7 @@ use rnix::{ast::Expr, TextRange};
 use ropey::Rope;
 use rowan::ast::AstNode;
 use std::{ops::Not, path::PathBuf};
+use tokio::sync::OwnedRwLockWriteGuard;
 
 use crate::{
     evaluator::{proto::HoverRequest, Evaluator},
@@ -11,8 +12,9 @@ use crate::{
     safe_stringification::safe_stringify_attr,
     schema::get_schema,
     syntax::{
-        ancestor_exprs, ancestor_exprs_inclusive, find_variable, in_context,
-        in_context_custom, in_context_with_select, locate_cursor, parse, rope_text_range_to_range, FoundVariable, LocationWithinExpr,
+        ancestor_exprs, ancestor_exprs_inclusive, find_variable, in_context, in_context_custom,
+        in_context_with_select, locate_cursor, parse, rope_text_range_to_range, FoundVariable,
+        LocationWithinExpr,
     },
 };
 
@@ -63,14 +65,33 @@ pub async fn hover(
         format!("### {}\n\n```nix\n{}\n```", result.r#type, result.value)
     };
 
-    Ok(HoverResult {
-        md,
-        position: result.path.is_empty().not().then_some(Position {
+    let rope = Rope::from_str(source);
+
+    let origin_range = match strategy.origin {
+        HoverOrigin::Param(text_range) => Some(rope_text_range_to_range(&rope, text_range)),
+        HoverOrigin::Binding(text_range) => Some(rope_text_range_to_range(&rope, text_range)),
+        HoverOrigin::With(_) => None,
+        HoverOrigin::Select => None,
+        HoverOrigin::Builtin => None,
+    };
+
+    let position = if let Some(origin_range) = origin_range {
+        Some(Position {
+            path: file_info.path.clone(),
+            line: origin_range.start.line,
+            col: origin_range.start.character,
+        })
+    } else if !result.path.is_empty() && result.path != "<<string>>" {
+        Some(Position {
+            path: result.path.into(),
             line: result.row as u32,
             col: result.col as u32,
-            path: result.path.into(),
-        }),
-    })
+        })
+    } else {
+        None
+    };
+
+    Ok(HoverResult { md, position })
 }
 
 fn get_hover_strategy(source: &str, file_info: &FileInfo, offset: u32) -> Option<HoverStrategy> {
@@ -382,7 +403,7 @@ mod test {
         check_hover(
             "let x = 5; in x$0",
             expect![[r#"
-                no position
+                /test/test.nix:0:4
 
                 ### integer
 
@@ -398,7 +419,7 @@ mod test {
         check_hover(
             "let yourmother = 1; in with {aaa = 1; bbb = 2;}; aa$0a",
             expect![[r#"
-                <<string>>:1:57
+                no position
 
                 ### integer
 
@@ -414,7 +435,7 @@ mod test {
         check_hover(
             r#"let aaa = "hello"; bbb = "world"; in { inherit aa$0a; }"#,
             expect![[r#"
-                no position
+                /test/test.nix:0:4
 
                 ### string
 
@@ -430,7 +451,7 @@ mod test {
         check_hover(
             r#"let x = {aaa = "hello"; bbb = "world";}; in { inherit (x) aa$0a; }"#,
             expect![[r#"
-                <<string>>:1:12
+                /test/test.nix:0:46
 
                 ### string
 
@@ -446,7 +467,7 @@ mod test {
         check_hover(
             r#"let x = {aaa.bbb.ccc = 2;}; in x.aaa.b$0bb.ccc"#,
             expect![[r#"
-                <<string>>:1:12
+                no position
 
                 ### attrset
 
@@ -464,7 +485,7 @@ mod test {
         check_hover(
             r#"let x = {yyy.aaa.bbb.ccc = 2;}; in with x; yyy.a$0aa.bbb"#,
             expect![[r#"
-                <<string>>:1:12
+                no position
 
                 ### attrset
 
