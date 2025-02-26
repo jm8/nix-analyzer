@@ -12,15 +12,21 @@ pub mod proto {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct CacheKey {
+struct GetAttributesCacheKey {
     expression: String,
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct HoverCacheKey {
+    expression: String,
+    attr: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct Evaluator {
     client: NixEvalServerClient<Channel>,
-    get_attributes_cache: LruCache<CacheKey, GetAttributesResponse>,
-    hover_cache: LruCache<CacheKey, HoverResponse>,
+    get_attributes_cache: LruCache<GetAttributesCacheKey, GetAttributesResponse>,
+    hover_cache: LruCache<HoverCacheKey, HoverResponse>,
     child: Child,
     var_number: u64,
 }
@@ -66,7 +72,7 @@ impl Evaluator {
         evaluator
             .add_variable(&AddVariableRequest {
                 name: "__nix_analyzer_get_flake_inputs".to_string(),
-                expression: include_str!("get-flake-inputs.nix").to_string(),
+                expression: include_str!("get_flake_inputs.nix").to_string(),
             })
             .await
             .expect("Failed to initialize evaluator");
@@ -78,7 +84,7 @@ impl Evaluator {
         &mut self,
         req: &GetAttributesRequest,
     ) -> Result<GetAttributesResponse> {
-        let key = CacheKey {
+        let key = GetAttributesCacheKey {
             expression: req.expression.clone(),
         };
         if let Some(cached) = self.get_attributes_cache.get(&key) {
@@ -105,8 +111,9 @@ impl Evaluator {
     }
 
     pub async fn hover(&mut self, req: &HoverRequest) -> Result<HoverResponse> {
-        let key = CacheKey {
+        let key = HoverCacheKey {
             expression: req.expression.clone(),
+            attr: req.attr.clone(),
         };
         if let Some(cached) = self.hover_cache.get(&key) {
             return Ok(cached.clone());

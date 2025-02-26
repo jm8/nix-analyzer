@@ -305,7 +305,7 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn test_complete_nixpkgs() {
         check_complete(
-            &format!("(import {} {{}}).hello.$0", env!("nixpkgs")),
+            &format!("(import {} {{}}).hello.$0", env!("NIXPKGS")),
             expect![[r#"
                 [
                     "__ignoreNulls",
@@ -865,6 +865,7 @@ mod test {
                     "hardware",
                     "i18n",
                     "ids",
+                    "image",
                     "isSpecialisation",
                     "jobs",
                     "krb5",
@@ -976,6 +977,80 @@ mod test {
             expect![[r#"
                 [
                     "a",
+                ]
+            "#]],
+        )
+        .await
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_with_search_path() {
+        check_complete(
+            r#"
+            (import <nixpkgs> {}).pkgs.lib.lists.$0
+            "#,
+            expect![[r#"
+                [
+                    "all",
+                    "allUnique",
+                    "any",
+                    "commonPrefix",
+                    "compareLists",
+                    "concatLists",
+                    "concatMap",
+                    "count",
+                    "crossLists",
+                    "drop",
+                    "dropEnd",
+                    "elem",
+                    "elemAt",
+                    "filter",
+                    "findFirst",
+                    "findFirstIndex",
+                    "findSingle",
+                    "flatten",
+                    "fold",
+                    "foldl",
+                    "foldl'",
+                    "foldr",
+                    "forEach",
+                    "genList",
+                    "groupBy",
+                    "groupBy'",
+                    "hasPrefix",
+                    "head",
+                    "ifilter0",
+                    "imap0",
+                    "imap1",
+                    "init",
+                    "intersectLists",
+                    "isList",
+                    "last",
+                    "length",
+                    "listDfs",
+                    "map",
+                    "mutuallyExclusive",
+                    "naturalSort",
+                    "optional",
+                    "optionals",
+                    "partition",
+                    "range",
+                    "remove",
+                    "removePrefix",
+                    "replicate",
+                    "reverseList",
+                    "singleton",
+                    "sort",
+                    "sortOn",
+                    "sublist",
+                    "subtractLists",
+                    "tail",
+                    "take",
+                    "toList",
+                    "toposort",
+                    "unique",
+                    "zipLists",
+                    "zipListsWith",
                 ]
             "#]],
         )

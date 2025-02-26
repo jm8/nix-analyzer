@@ -1,12 +1,12 @@
-use itertools::Itertools;
-use rnix::ast::{Attr, Expr, HasEntry};
-use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc};
-
 use crate::{
     file_types::{FileInfo, FileType},
     syntax::ancestor_exprs_inclusive,
 };
+use itertools::Itertools;
+use lazy_static::lazy_static;
+use rnix::ast::{Attr, Expr, HasEntry};
+use serde::Deserialize;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
@@ -36,6 +36,11 @@ pub struct Schema {
     description: Option<String>,
     additional_properties: Option<Arc<Schema>>,
     properties: Option<HashMap<String, Arc<Schema>>>,
+}
+
+lazy_static! {
+    static ref NIXOS_MODULE_SCHEMA: Arc<Schema> =
+        Arc::new(serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap(),);
 }
 
 impl Schema {

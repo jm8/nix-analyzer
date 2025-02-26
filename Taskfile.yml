@@ -1,0 +1,6 @@
+version: "3"
+
+tasks:
+  gen_schemas:
+    cmds:
+      - uv run --directory cli preview.py '{{.USER_WORKING_DIR}}'

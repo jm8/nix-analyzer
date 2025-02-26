@@ -37,11 +37,16 @@ pub fn safe_stringify(expr: &Expr, base_path: &Path) -> String {
         ),
         Expr::Str(str_node) => safe_stringify_str(str_node, base_path),
         Expr::Path(path) => {
-            let path = PathBuf::from(path.to_string());
-            if path.is_relative() {
-                base_path.join(path).to_string_lossy().to_string()
+            let s = path.to_string();
+            if s.starts_with("<") && s.ends_with(">") {
+                s
             } else {
-                path.to_string_lossy().to_string()
+                let path = PathBuf::from(s);
+                if path.is_relative() {
+                    base_path.join(path).to_string_lossy().to_string()
+                } else {
+                    path.to_string_lossy().to_string()
+                }
             }
         }
         Expr::Literal(literal) => literal.to_string(),

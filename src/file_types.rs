@@ -44,7 +44,7 @@ pub fn init_file_info(
     temp_nixos_module_schema: Arc<Schema>,
 ) -> FileInfo {
     let default = FileType::Package {
-        nixpkgs_path: env!("nixpkgs").to_owned(),
+        nixpkgs_path: env!("NIXPKGS").to_owned(),
         schema: temp_nixos_module_schema.clone(),
     };
     FileInfo {

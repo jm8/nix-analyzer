@@ -400,7 +400,7 @@ mod test {
             expect![[r#"
                 <<string>>:1:57
 
-                ### attrset
+                ### integer
 
                 ```nix
                 1
@@ -432,7 +432,7 @@ mod test {
             expect![[r#"
                 <<string>>:1:12
 
-                ### attrset
+                ### string
 
                 ```nix
                 "hello"
