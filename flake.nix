@@ -5,7 +5,7 @@
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
   inputs.nixpkgs.url = "github:nixos/nixpkgs";
   inputs.home-manager.url = "github:nix-community/home-manager";
-  inputs.nix-eval-server.url = "path:/var/home/josh/src/nix-analyzer-new/nix-eval-server";
+  inputs.nix-eval-server.url = "github:jm8/nix-eval-server";
   inputs.crane.url = "github:ipetkov/crane";
 
   outputs = {

@@ -147,14 +147,17 @@
         "nixpkgs-regression": "nixpkgs-regression"
       },
       "locked": {
-        "lastModified": 1740542843,
-        "narHash": "sha256-vLna3NpKXBGQjf8d0GwAtFz9odUV6+pyIw7TwTVWBqQ=",
-        "path": "/var/home/josh/src/nix-analyzer-new/nix-eval-server",
-        "type": "path"
+        "lastModified": 1740542840,
+        "narHash": "sha256-H8ojtkNo9wMO1IEOp1eTOAyWenoZR0b/2nQabHQo8OU=",
+        "owner": "jm8",
+        "repo": "nix-eval-server",
+        "rev": "03163e626a1795cb33e1315479f0a00ea3c6d95e",
+        "type": "github"
       },
       "original": {
-        "path": "/var/home/josh/src/nix-analyzer-new/nix-eval-server",
-        "type": "path"
+        "owner": "jm8",
+        "repo": "nix-eval-server",
+        "type": "github"
       }
     },
     "nixpkgs": {
