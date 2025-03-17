@@ -29,7 +29,7 @@ use crate::{
 
 pub fn capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        // hover_provider: Some(HoverProviderCapability::Simple(true)),
+        hover_provider: Some(HoverProviderCapability::Simple(true)),
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         // diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
         //     identifier: None,

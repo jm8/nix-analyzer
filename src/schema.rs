@@ -39,10 +39,12 @@ pub struct Schema {
 }
 
 lazy_static! {
-    static ref NIXOS_MODULE_SCHEMA: Arc<Schema> =
-        Arc::new(serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap(),);
-    static ref HOME_MANAGER_SCHEMA: Arc<Schema> =
-        Arc::new(serde_json::from_str(include_str!("home_manager_schema.json")).unwrap(),);
+    pub static ref NIXOS_MODULE_SCHEMA: Arc<Schema> =
+        Arc::new(serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap());
+    pub static ref HOME_MANAGER_SCHEMA: Arc<Schema> =
+        Arc::new(serde_json::from_str(include_str!("home_manager_schema.json")).unwrap());
+    pub static ref FLAKE_SCHEMA: Arc<Schema> =
+        Arc::new(serde_json::from_str(include_str!("flake_schema.json")).unwrap());
 }
 
 impl Schema {
@@ -120,7 +122,7 @@ pub fn get_schema_root(expr: &Expr, file_info: &FileInfo) -> (Arc<Schema>, Expr)
             lambda_arg: _,
             schema,
         } => Arc::new(serde_json::from_str(schema).unwrap_or_default()),
-        FileType::Flake { .. } => Arc::new(Schema::default()),
+        FileType::Flake { .. } => FLAKE_SCHEMA.clone(),
     };
     (root_schema, root_expr)
 }

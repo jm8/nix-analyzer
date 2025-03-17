@@ -1,4 +1,4 @@
-use crate::schema::Schema;
+use crate::schema::{Schema, HOME_MANAGER_SCHEMA};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -38,14 +38,10 @@ pub enum FileType {
     },
 }
 
-pub fn init_file_info(
-    path: &Path,
-    _source: &str,
-    temp_nixos_module_schema: Arc<Schema>,
-) -> FileInfo {
+pub fn init_file_info(path: &Path, _source: &str) -> FileInfo {
     let default = FileType::Package {
         nixpkgs_path: env!("NIXPKGS").to_owned(),
-        schema: temp_nixos_module_schema.clone(),
+        schema: HOME_MANAGER_SCHEMA.clone(),
     };
     FileInfo {
         file_type: if path.ends_with("flake.nix") {

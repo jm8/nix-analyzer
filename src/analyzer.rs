@@ -6,7 +6,7 @@ use crate::file_types::{init_file_info, FileInfo, FileType, LockedFlake};
 use crate::flakes::get_flake_inputs;
 use crate::hover::HoverResult;
 use crate::safe_stringification::safe_stringify_flake;
-use crate::schema::Schema;
+use crate::schema::{Schema, HOME_MANAGER_SCHEMA};
 use crate::syntax::parse;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
@@ -29,7 +29,6 @@ pub struct File {
 pub struct Analyzer {
     pub evaluator: Evaluator,
     pub files: HashMap<PathBuf, File>,
-    pub temp_nixos_module_schema: Arc<Schema>,
     pub fetcher_input_send: Sender<FetcherInput>,
     pub fetcher_output_recv: Receiver<FetcherOutput>,
 }
@@ -41,9 +40,6 @@ impl Analyzer {
         fetcher_output_recv: Receiver<FetcherOutput>,
     ) -> Self {
         Self {
-            temp_nixos_module_schema: Arc::new(
-                serde_json::from_str(include_str!("nixos_module_schema.json")).unwrap(),
-            ),
             evaluator,
             files: HashMap::new(),
             fetcher_input_send,
@@ -58,7 +54,7 @@ impl Analyzer {
         }
         let mut file = File {
             contents: contents.into(),
-            file_info: init_file_info(path, contents, self.temp_nixos_module_schema.clone()),
+            file_info: init_file_info(path, contents),
         };
         if let FileType::Flake {
             locked: LockedFlake::None,
