@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use crossbeam::channel::{Receiver, Sender};
 use lsp_server::{Message, Notification, Request};
 use lsp_types::{
@@ -17,7 +18,9 @@ use std::{
 };
 
 use crate::{
-    evaluator::{Evaluator, LockFlakeRequest},
+    evaluator::{proto::HoverRequest, Evaluator, LockFlakeRequest, LockFlakeResponse},
+    flakes::get_flake_inputs,
+    syntax::escape_string,
     TOKIO_RUNTIME,
 };
 
@@ -140,15 +143,30 @@ impl Fetcher {
                 input.path.display()
             ));
 
-            sleep(Duration::from_secs(5));
+            // let response = TOKIO_RUNTIME.block_on(self.evaluator.lock_flake(&LockFlakeRequest {
+            //     expression: input.source,
+            //     old_lock_file: input.old_lock_file,
+            // }));
 
-            let response = TOKIO_RUNTIME.block_on(self.evaluator.lock_flake(&LockFlakeRequest {
-                expression: input.source,
-                old_lock_file: input.old_lock_file,
-            }));
+            // XXX: TODO: There is something broken when using follows, see Jackson's nix-home
+            let response = match input.old_lock_file {
+                Some(old_lock_file) => Ok(LockFlakeResponse {
+                    lock_file: old_lock_file.clone(),
+                }),
+                None => Err(anyhow!("No lock file")),
+            };
 
             match response {
                 Ok(response) => {
+                    // Evaluate the flake inputs to make sure everything has been downloaded
+                    let _ = TOKIO_RUNTIME.block_on(self.evaluator.hover(&HoverRequest {
+                        expression: format!(
+                            "__nix_analyzer_get_flake_inputs {} {{}}",
+                            escape_string(&response.lock_file),
+                        ),
+                        attr: None,
+                    }));
+
                     self.info(response.lock_file.to_string());
                     self.sender
                         .send(FetcherOutput {
