@@ -3,8 +3,7 @@ use lsp_types::Range;
 use rnix::{ast::Expr, TextRange};
 use ropey::Rope;
 use rowan::ast::AstNode;
-use std::{ops::Not, path::PathBuf};
-use tokio::sync::OwnedRwLockWriteGuard;
+use std::path::PathBuf;
 
 use crate::{
     evaluator::{proto::HoverRequest, Evaluator},

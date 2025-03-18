@@ -3,9 +3,9 @@ use lsp_server::{Connection, ExtractError, Message, Notification, Request, Reque
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
     request::{Completion, Formatting, GotoDefinition, HoverRequest},
-    CompletionOptions, CompletionResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverProviderCapability, InitializeParams, Location, MarkupContent, MarkupKind,
-    OneOf, Position, Range, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    CompletionOptions, CompletionResponse, GotoDefinitionResponse, Hover, HoverContents,
+    HoverProviderCapability, InitializeParams, Location, MarkupContent, MarkupKind, OneOf,
+    Position, Range, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextEdit, Uri, WorkDoneProgressOptions,
 };
 use std::{

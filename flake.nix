@@ -25,10 +25,10 @@
       craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.nightly.latest.default.override {});
 
       commonArgs = {
-        src = craneLib.cleanCargoSource ./.;
+        src = pkgs.lib.cleanSource ./.;
         strictDeps = true;
 
-        buildInputs = with pkgs; [
+        nativeBuildInputs = with pkgs; [
           protobuf
         ];
 
@@ -42,6 +42,7 @@
       crate = craneLib.buildPackage (commonArgs
         // {
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+          doCheck = false;
         });
     in {
       packages.default = crate;

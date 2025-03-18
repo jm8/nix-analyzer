@@ -6,7 +6,6 @@ use crate::file_types::{init_file_info, FileInfo, FileType, LockedFlake};
 use crate::flakes::get_flake_inputs;
 use crate::hover::HoverResult;
 use crate::safe_stringification::safe_stringify_flake;
-use crate::schema::{Schema, HOME_MANAGER_SCHEMA};
 use crate::syntax::parse;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
@@ -16,7 +15,6 @@ use ropey::Rope;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::Arc;
 use tokio::process::Command;
 
 #[derive(Debug)]
