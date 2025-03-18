@@ -256,6 +256,7 @@ pub fn safe_stringify_flake(expr: Option<&Expr>, base_path: &Path) -> String {
                 "{{ {} }}",
                 walk_attrs(attrs)
                     .iter()
+                    .filter(|item| !matches!(item.expr, Expr::AttrSet(_)))
                     .filter(|item| item.position.first()
                         == Some(&Subscript::Attr("inputs".to_string())))
                     .filter(|item| {
