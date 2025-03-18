@@ -216,7 +216,6 @@ fn get_hover_strategy(source: &str, file_info: &FileInfo, offset: u32) -> Option
                 let mut schema = schema;
                 for attr in attrpath.attrs().take(index + 1) {
                     schema = schema.attr_subschema(&attr).clone();
-                    eprintln!("subschema {:?}", schema);
                 }
 
                 Some(HoverStrategy {
@@ -513,6 +512,46 @@ mod test {
     async fn test_hover_schema() {
         check_hover_with_filetype(
             r#"{ programs.zsh.enableAutosug$0gestions = false;  }"#,
+            expect![[r#"
+                no position
+
+                ### option `programs.zsh.enableAutosuggestions`
+                Alias of {option}`programs.zsh.autosuggestion.enable`.
+
+                *Type:* boolean
+            "#]],
+            &FileType::Package {
+                nixpkgs_path: env!("NIXPKGS").to_string(),
+                schema: HOME_MANAGER_SCHEMA.clone(),
+            },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_lambda() {
+        check_hover_with_filetype(
+            r#"{ pkgs }: { programs.zsh.enableAutosug$0gestions = false;  }"#,
+            expect![[r#"
+                no position
+
+                ### option `programs.zsh.enableAutosuggestions`
+                Alias of {option}`programs.zsh.autosuggestion.enable`.
+
+                *Type:* boolean
+            "#]],
+            &FileType::Package {
+                nixpkgs_path: env!("NIXPKGS").to_string(),
+                schema: HOME_MANAGER_SCHEMA.clone(),
+            },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_lambda_let() {
+        check_hover_with_filetype(
+            r#"{ pkgs }: let four = 2+2; in { programs.zsh.enableAutosug$0gestions = false;  }"#,
             expect![[r#"
                 no position
 

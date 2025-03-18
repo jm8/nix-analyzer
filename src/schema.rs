@@ -108,6 +108,7 @@ pub fn get_schema(expr: &Expr, file_info: &FileInfo) -> Arc<Schema> {
                     None => return Arc::new(Schema::default()),
                 }
             }
+            Expr::LetIn(_) | Expr::Lambda(_) | Expr::With(_) => {}
             _ => return Arc::new(Schema::default()),
         }
     }
