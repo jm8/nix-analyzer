@@ -127,7 +127,7 @@ fn handle_request(analyzer: &mut Analyzer, req: Request) -> Result<Response> {
                 position.line,
                 position.character,
             ))? {
-                Some(hover) => format!("{:?}\n\n{}", hover.position, hover.md),
+                Some(hover) => hover.md,
                 None => return Ok(Response::new_ok(id, None::<Hover>)),
             };
 

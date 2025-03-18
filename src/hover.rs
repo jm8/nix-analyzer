@@ -3,13 +3,13 @@ use lsp_types::Range;
 use rnix::{ast::Expr, TextRange};
 use ropey::Rope;
 use rowan::ast::AstNode;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use crate::{
     evaluator::{proto::HoverRequest, Evaluator},
     file_types::FileInfo,
     safe_stringification::safe_stringify_attr,
-    schema::get_schema,
+    schema::{get_schema, Schema},
     syntax::{
         ancestor_exprs, ancestor_exprs_inclusive, find_variable, in_context, in_context_custom,
         in_context_with_select, locate_cursor, parse, rope_text_range_to_range, FoundVariable,
@@ -24,6 +24,7 @@ enum HoverOrigin {
     With(TextRange),
     Select,
     Builtin,
+    Schema(Arc<Schema>),
 }
 
 #[derive(Debug)]
@@ -44,6 +45,14 @@ pub async fn hover(
 ) -> Result<HoverResult> {
     let strategy =
         get_hover_strategy(source, file_info, offset).ok_or(anyhow!("can't hover this"))?;
+
+    if let HoverOrigin::Schema(schema) = strategy.origin {
+        let md = schema
+            .description()
+            .ok_or(anyhow!("no description"))?
+            .to_string();
+        return Ok(HoverResult { md, position: None });
+    }
 
     let expression = strategy.expression.ok_or(anyhow!("no expression"))?;
 
@@ -72,6 +81,7 @@ pub async fn hover(
         HoverOrigin::With(_) => None,
         HoverOrigin::Select => None,
         HoverOrigin::Builtin => None,
+        HoverOrigin::Schema(_) => None,
     };
 
     let position = if let Some(origin_range) = origin_range {
@@ -204,16 +214,17 @@ fn get_hover_strategy(source: &str, file_info: &FileInfo, offset: u32) -> Option
             }
             Expr::AttrSet(_) => {
                 let mut schema = schema;
-                for attr in attrpath.attrs().take(index) {
+                for attr in attrpath.attrs().take(index + 1) {
                     schema = schema.attr_subschema(&attr).clone();
+                    eprintln!("subschema {:?}", schema);
                 }
 
-                // Some(HoverStrategy {
-                //     attrs_expression: None,
-                //     range,
-                //     variables: schema.properties(),
-                // })
-                None
+                Some(HoverStrategy {
+                    expression: None,
+                    range,
+                    attr: None,
+                    origin: HoverOrigin::Schema(schema),
+                })
             }
             _ => None,
         },
@@ -268,6 +279,7 @@ mod test {
     use crate::{
         evaluator::Evaluator,
         file_types::{FileInfo, FileType},
+        schema::HOME_MANAGER_SCHEMA,
     };
 
     use super::hover;
@@ -493,6 +505,26 @@ mod test {
                   bbb = { /* ... */ };
                 }
                 ```"#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_schema() {
+        check_hover_with_filetype(
+            r#"{ programs.zsh.enableAutosug$0gestions = false;  }"#,
+            expect![[r#"
+                no position
+
+                ### option `programs.zsh.enableAutosuggestions`
+                Alias of {option}`programs.zsh.autosuggestion.enable`.
+
+                *Type:* boolean
+            "#]],
+            &FileType::Package {
+                nixpkgs_path: env!("NIXPKGS").to_string(),
+                schema: HOME_MANAGER_SCHEMA.clone(),
+            },
         )
         .await;
     }

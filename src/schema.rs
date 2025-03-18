@@ -48,6 +48,10 @@ lazy_static! {
 }
 
 impl Schema {
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_ref().map(|x| x.as_str())
+    }
+
     pub fn properties(&self) -> Vec<String> {
         self.properties
             .as_ref()
