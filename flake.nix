@@ -47,6 +47,9 @@
     in {
       packages.default = crate;
 
-      devShells.default = craneLib.devShell (builtins.removeAttrs commonArgs ["src" "strictDeps"]);
+      devShells.default = craneLib.devShell ((builtins.removeAttrs commonArgs ["src" "strictDeps" "nativeBuildInputs"])
+        // {
+          buildInputs = commonArgs.nativeBuildInputs;
+        });
     });
 }
