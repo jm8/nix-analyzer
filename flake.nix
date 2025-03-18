@@ -22,7 +22,7 @@
         inherit system;
         overlays = [(import rust-overlay)];
       };
-      craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.nightly.latest.default.override {});
+      craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.nightly.latest.default.override {extensions = ["rust-src"];});
 
       commonArgs = {
         src = pkgs.lib.cleanSource ./.;

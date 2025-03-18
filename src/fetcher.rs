@@ -13,13 +13,10 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    thread::sleep,
-    time::Duration,
 };
 
 use crate::{
-    evaluator::{proto::HoverRequest, Evaluator, LockFlakeRequest, LockFlakeResponse},
-    flakes::get_flake_inputs,
+    evaluator::{proto::HoverRequest, Evaluator, LockFlakeResponse},
     syntax::escape_string,
     TOKIO_RUNTIME,
 };

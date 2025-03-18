@@ -27,16 +27,13 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 lazy_static! {
     static ref TOKIO_RUNTIME: Runtime = tokio::runtime::Builder::new_multi_thread()
         .thread_name("tokio")
-        // .max_blocking_threads(MAX_BLOCKING_THREADS)
         .enable_all()
         .build()
         .unwrap();
 }
 
 fn main() -> Result<()> {
-    // let console_layer = console_subscriber::spawn();
     tracing_subscriber::registry()
-        // .with(console_layer)
         .with(
             tracing_subscriber::fmt::layer()
                 .with_ansi(false)
