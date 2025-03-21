@@ -165,11 +165,8 @@ mod test {
     use itertools::Itertools;
 
     use crate::{
-        evaluator::{Evaluator, LockFlakeRequest},
+        evaluator::Evaluator,
         file_types::{FileInfo, FileType},
-        flakes::get_flake_inputs,
-        safe_stringification::safe_stringify_flake,
-        syntax::parse,
     };
 
     use super::complete;
@@ -211,47 +208,9 @@ mod test {
         .await;
     }
 
-    async fn check_complete_flake(source: &str, _old_lock_file: Option<&str>, expected: Expect) {
-        let (left, right) = source.split("$0").collect_tuple().unwrap();
-        let offset = left.len() as u32;
-
-        let mut evaluator = Evaluator::new().await;
-
-        let source = format!("{}{}", left, right);
-
-        let lock_file = evaluator
-            .lock_flake(&LockFlakeRequest {
-                expression: safe_stringify_flake(
-                    parse(&source).expr().as_ref(),
-                    "/test/path".as_ref(),
-                ),
-                old_lock_file: None,
-            })
-            .await
-            .unwrap()
-            .lock_file;
-
-        let inputs = get_flake_inputs(&mut evaluator, &lock_file).await.unwrap();
-
-        let actual = complete(
-            &source,
-            &FileInfo {
-                file_type: FileType::Flake {
-                    locked: crate::file_types::LockedFlake::Locked { lock_file, inputs },
-                },
-                path: "/test/path/whatever.nix".into(),
-            },
-            offset,
-            &mut evaluator,
-        )
-        .await
-        .unwrap()
-        .iter()
-        .map(|item| item.label.clone())
-        .collect_vec();
-
-        expected.assert_debug_eq(&actual);
-    }
+    // async fn check_complete_files(input: &str, expected: Expect) {
+    //     // let input = par
+    // }
 
     #[test_log::test(tokio::test)]
     async fn test_complete_let_in() {
@@ -930,37 +889,6 @@ mod test {
             expect![[r#"
                 [
                     "c",
-                ]
-            "#]],
-        )
-        .await;
-    }
-
-    #[test_log::test(tokio::test)]
-    async fn test_complete_flake_inputs() {
-        check_complete_flake(
-            r#"
-            {
-              inputs.flake-utils.url = "github:numtide/flake-utils?rev=919d646de7be200f3bf08cb76ae1f09402b6f9b4";
-              outputs = {flake-utils}: flake-utils.lib.$0
-            }
-            "#,
-            None,
-            expect![[r#"
-                [
-                    "allSystems",
-                    "check-utils",
-                    "defaultSystems",
-                    "eachDefaultSystem",
-                    "eachDefaultSystemMap",
-                    "eachSystem",
-                    "eachSystemMap",
-                    "filterPackages",
-                    "flattenTree",
-                    "meld",
-                    "mkApp",
-                    "simpleFlake",
-                    "system",
                 ]
             "#]],
         )

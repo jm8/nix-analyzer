@@ -15,6 +15,7 @@ mod modules;
 mod safe_stringification;
 mod schema;
 mod syntax;
+mod testing;
 mod walk_attrs;
 
 use anyhow::Result;
