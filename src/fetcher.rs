@@ -18,6 +18,7 @@ use std::{
     path::PathBuf,
     thread::{self, JoinHandle},
 };
+use tonic::async_trait;
 use tracing::info;
 
 #[derive(Debug)]
@@ -165,7 +166,7 @@ impl NonBlockingFetcherThread {
                 "Fetching flake inputs for {}",
                 input.path.display()
             ));
-            let result = process(input, &mut self.evaluator);
+            let result = TOKIO_RUNTIME.block_on(process(input, &mut self.evaluator));
             if let Err(ref err) = result {
                 self.error(err.to_string());
             }
@@ -182,32 +183,43 @@ pub struct BlockingFetcher {
     outputs: VecDeque<Result<FetcherOutput>>,
 }
 
-pub trait Fetcher {
-    fn send(&mut self, input: FetcherInput, evaluator: &mut Evaluator);
-    fn try_recv(&mut self) -> Option<Result<FetcherOutput>>;
+impl BlockingFetcher {
+    pub fn new() -> Self {
+        Self {
+            outputs: VecDeque::new(),
+        }
+    }
 }
 
+#[async_trait]
+pub trait Fetcher {
+    async fn send(&mut self, input: FetcherInput, evaluator: &mut Evaluator);
+    async fn try_recv(&mut self) -> Option<Result<FetcherOutput>>;
+}
+
+#[async_trait]
 impl Fetcher for NonBlockingFetcher {
-    fn send(&mut self, input: FetcherInput, _evaluator: &mut Evaluator) {
+    async fn send(&mut self, input: FetcherInput, _evaluator: &mut Evaluator) {
         let _ = self.fetcher_input_send.send(input);
     }
 
-    fn try_recv(&mut self) -> Option<Result<FetcherOutput>> {
+    async fn try_recv(&mut self) -> Option<Result<FetcherOutput>> {
         self.fetcher_output_recv.try_recv().ok()
     }
 }
 
+#[async_trait]
 impl Fetcher for BlockingFetcher {
-    fn send(&mut self, input: FetcherInput, evaluator: &mut Evaluator) {
-        self.outputs.push_back(process(input, evaluator));
+    async fn send(&mut self, input: FetcherInput, evaluator: &mut Evaluator) {
+        self.outputs.push_back(process(input, evaluator).await);
     }
 
-    fn try_recv(&mut self) -> Option<Result<FetcherOutput>> {
+    async fn try_recv(&mut self) -> Option<Result<FetcherOutput>> {
         self.outputs.pop_front()
     }
 }
 
-fn process(input: FetcherInput, evaluator: &mut Evaluator) -> Result<FetcherOutput> {
+async fn process(input: FetcherInput, evaluator: &mut Evaluator) -> Result<FetcherOutput> {
     // let response = TOKIO_RUNTIME.block_on(self.evaluator.lock_flake(&LockFlakeRequest {
     //     expression: input.source,
     //     old_lock_file: input.old_lock_file,
@@ -222,13 +234,15 @@ fn process(input: FetcherInput, evaluator: &mut Evaluator) -> Result<FetcherOutp
     }?;
 
     // Evaluate the flake inputs to make sure everything has been downloaded
-    let _ = TOKIO_RUNTIME.block_on(evaluator.hover(&HoverRequest {
-        expression: format!(
-            "__nix_analyzer_get_flake_inputs {} {{}}",
-            escape_string(&response.lock_file),
-        ),
-        attr: None,
-    }));
+    let _ = evaluator
+        .hover(&HoverRequest {
+            expression: format!(
+                "__nix_analyzer_get_flake_inputs {} {{}}",
+                escape_string(&response.lock_file),
+            ),
+            attr: None,
+        })
+        .await;
 
     Ok(FetcherOutput {
         path: input.path,

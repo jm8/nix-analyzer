@@ -37,7 +37,7 @@ impl Analyzer {
         }
     }
 
-    pub fn change_file(&mut self, path: &Path, contents: &str) {
+    pub async fn change_file(&mut self, path: &Path, contents: &str) {
         if let Some(x) = self.files.get_mut(path) {
             x.contents = contents.into();
             return;
@@ -50,21 +50,24 @@ impl Analyzer {
             locked: LockedFlake::None,
         } = file.file_info.file_type
         {
-            let old_lock_file = self
-                .get_file_contents(&path.parent().unwrap().join("flake.lock"))
-                .map(|s| s.to_string())
-                .ok();
-            self.fetcher.send(
-                FetcherInput {
-                    path: path.to_path_buf(),
-                    source: safe_stringify_flake(
-                        parse(contents).expr().as_ref(),
-                        path.parent().unwrap(),
-                    ),
-                    old_lock_file,
-                },
-                &mut self.evaluator,
-            );
+            let old_lock_file =
+                Box::pin(self.get_file_contents(&path.parent().unwrap().join("flake.lock")))
+                    .await
+                    .map(|s| s.to_string())
+                    .ok();
+            self.fetcher
+                .send(
+                    FetcherInput {
+                        path: path.to_path_buf(),
+                        source: safe_stringify_flake(
+                            parse(contents).expr().as_ref(),
+                            path.parent().unwrap(),
+                        ),
+                        old_lock_file,
+                    },
+                    &mut self.evaluator,
+                )
+                .await;
             file.file_info.file_type = FileType::Flake {
                 locked: LockedFlake::Pending,
             };
@@ -72,13 +75,13 @@ impl Analyzer {
         self.files.insert(path.to_owned(), file);
     }
 
-    pub fn get_file_contents(&mut self, path: &Path) -> Result<Rope> {
+    pub async fn get_file_contents(&mut self, path: &Path) -> Result<Rope> {
         if let Some(contents) = self.files.get(path).map(|file| file.contents.clone()) {
             return Ok(contents);
         }
 
         let contents = std::fs::read_to_string(path)?;
-        self.change_file(path, &contents);
+        self.change_file(path, &contents).await;
         Ok(Rope::from(contents))
     }
     pub fn get_diagnostics(&self, _path: &Path) -> Result<Vec<Diagnostic>> {
@@ -120,7 +123,7 @@ impl Analyzer {
     }
 
     pub async fn format(&mut self, path: &Path) -> Result<String> {
-        let source = self.get_file_contents(path)?.to_string().into_bytes();
+        let source = self.get_file_contents(path).await?.to_string().into_bytes();
         let mut child = Command::new(env!("ALEJANDRA"))
             .args(["-q", "-"])
             .stdin(Stdio::piped())
@@ -146,12 +149,14 @@ impl Analyzer {
         Ok(new_text)
     }
 
-    pub async fn process_fetcher_output(&mut self) -> Result<()> {
-        while let Some(output) = self.fetcher.try_recv() {
+    pub async fn process_fetcher_output(&mut self) {
+        while let Some(output) = self.fetcher.try_recv().await {
             let Ok(output) = output else {
                 continue;
             };
-            let inputs = get_flake_inputs(&mut self.evaluator, &output.lock_file).await?;
+            let Ok(inputs) = get_flake_inputs(&mut self.evaluator, &output.lock_file).await else {
+                continue;
+            };
             self.files
                 .get_mut(&output.path)
                 .into_iter()
@@ -164,6 +169,5 @@ impl Analyzer {
                     }
                 });
         }
-        Ok(())
     }
 }

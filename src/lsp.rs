@@ -53,7 +53,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
 
     info!("Welcome to nix-analyzer!");
     for msg in &connection.receiver {
-        TOKIO_RUNTIME.block_on(analyzer.process_fetcher_output())?;
+        TOKIO_RUNTIME.block_on(analyzer.process_fetcher_output());
         match msg {
             Message::Request(req) => {
                 if connection.handle_shutdown(&req)? {
@@ -76,7 +76,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
                 handle_notification(&mut analyzer, not)?;
             }
         }
-        TOKIO_RUNTIME.block_on(analyzer.process_fetcher_output())?;
+        TOKIO_RUNTIME.block_on(analyzer.process_fetcher_output());
     }
     Ok(())
 }
@@ -230,7 +230,7 @@ fn handle_notification(analyzer: &mut Analyzer, not: Notification) -> Result<()>
 
             info!(?path, "Opened document");
 
-            analyzer.change_file(path, &params.text_document.text);
+            TOKIO_RUNTIME.block_on(analyzer.change_file(path, &params.text_document.text));
 
             return Ok(());
         }
@@ -243,14 +243,14 @@ fn handle_notification(analyzer: &mut Analyzer, not: Notification) -> Result<()>
 
             info!(?path, "Change document");
 
-            let mut contents = analyzer
-                .get_file_contents(path)
+            let mut contents = TOKIO_RUNTIME
+                .block_on(analyzer.get_file_contents(path))
                 .unwrap_or_default()
                 .to_string();
             for change in params.content_changes {
                 contents = change.text;
             }
-            analyzer.change_file(path, &contents);
+            TOKIO_RUNTIME.block_on(analyzer.change_file(path, &contents));
 
             return Ok(());
         }

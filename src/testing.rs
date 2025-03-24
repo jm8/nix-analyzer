@@ -5,7 +5,10 @@ use std::{
 
 use ropey::Rope;
 
-use crate::syntax::rope_offset_to_position;
+use crate::{
+    analyzer::Analyzer, evaluator::Evaluator, fetcher::BlockingFetcher,
+    syntax::rope_offset_to_position,
+};
 
 #[derive(Debug)]
 pub struct Location {
@@ -60,19 +63,18 @@ pub fn parse_test_input(input: &str) -> TestInput {
     TestInput { files, location }
 }
 
-// pub async fn create_test_analyzer(input: &TestInput) {
-//     let evaluator = Evaluator::new().await;
-//     let (fetcher_input_send, fetcher_input_recv) = crossbeam::channel::unbounded::<FetcherInput>();
-//     let (fetcher_output_send, fetcher_output_recv) =
-//         crossbeam::channel::unbounded::<FetcherOutput>();
+pub async fn create_test_analyzer(input: &TestInput) -> Analyzer {
+    let evaluator = Evaluator::new().await;
+    let mut analyzer = Analyzer::new(evaluator, Box::new(BlockingFetcher::new()));
 
-//     let mut analyzer = Analyzer::new(evaluator, fetcher_input_send, fetcher_output_recv);
+    for (path, content) in input.files.iter() {
+        analyzer.change_file(path, content).await;
+    }
 
-//     for (path, content) in input.files.iter() {
-//         analyzer.change_file(&path, &content);
-//     }
+    analyzer.process_fetcher_output().await;
 
-// }
+    analyzer
+}
 
 #[cfg(test)]
 mod test {

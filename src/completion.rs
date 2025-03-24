@@ -161,15 +161,15 @@ fn get_completion_strategy(
 #[cfg(test)]
 mod test {
 
-    use expect_test::{expect, Expect};
-    use itertools::Itertools;
-
+    use super::complete;
     use crate::{
         evaluator::Evaluator,
         file_types::{FileInfo, FileType},
+        testing::{create_test_analyzer, parse_test_input},
     };
-
-    use super::complete;
+    use expect_test::{expect, Expect};
+    use indoc::indoc;
+    use itertools::Itertools;
 
     async fn check_complete_with_filetype(source: &str, expected: Expect, file_type: &FileType) {
         let (left, right) = source.split("$0").collect_tuple().unwrap();
@@ -197,20 +197,19 @@ mod test {
     }
 
     async fn check_complete(source: &str, expected: Expect) {
-        check_complete_with_filetype(
-            source,
-            expected,
-            &FileType::Custom {
-                lambda_arg: "{}".to_string(),
-                schema: "{}".to_string(),
-            },
-        )
-        .await;
-    }
+        let input = parse_test_input(source);
+        let mut analyzer = create_test_analyzer(&input).await;
+        let location = input.location.unwrap();
+        let actual = analyzer
+            .complete(&location.path, location.line, location.col)
+            .await
+            .unwrap()
+            .iter()
+            .map(|item| item.label.clone())
+            .collect_vec();
 
-    // async fn check_complete_files(input: &str, expected: Expect) {
-    //     // let input = par
-    // }
+        expected.assert_debug_eq(&actual);
+    }
 
     #[test_log::test(tokio::test)]
     async fn test_complete_let_in() {
@@ -979,6 +978,74 @@ mod test {
                     "unique",
                     "zipLists",
                     "zipListsWith",
+                ]
+            "#]],
+        )
+        .await
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_flake_schema() {
+        check_complete(
+            indoc! {
+            r#"
+            ## /flake.nix
+            {
+                inputs.nixpkgs = {
+                    $0
+                }
+            }
+            "#},
+            expect![[r#"
+                [
+                    "dir",
+                    "flake",
+                    "narHash",
+                    "owner",
+                    "ref",
+                    "repo",
+                    "rev",
+                    "type",
+                    "url",
+                ]
+            "#]],
+        )
+        .await
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_complete_flake_fetch() {
+        check_complete(
+            indoc! {
+            r#"
+            ## /flake.nix
+            {
+              inputs.nixpkgs.url = "github:nixos/nixpkgs";
+
+              outputs = {nixpkgs, ...}: nixpkgs.$0
+            }
+
+            ## /flake.lock
+            {"nodes":{"nixpkgs":{"locked":{"lastModified":1742669843,"narHash":"sha256-G5n+FOXLXcRx+3hCJ6Rt6ZQyF1zqQ0DL0sWAMn2Nk0w=","owner":"nixos","repo":"nixpkgs","rev":"1e5b653dff12029333a6546c11e108ede13052eb","type":"github"},"original":{"owner":"nixos","ref":"nixos-unstable","repo":"nixpkgs","type":"github"}},"root":{"inputs":{"nixpkgs":"nixpkgs"}}},"root":"root","version":7}
+            "#},
+            expect![[r#"
+                [
+                    "_type",
+                    "checks",
+                    "devShells",
+                    "htmlDocs",
+                    "inputs",
+                    "lastModified",
+                    "lastModifiedDate",
+                    "legacyPackages",
+                    "lib",
+                    "narHash",
+                    "nixosModules",
+                    "outPath",
+                    "outputs",
+                    "rev",
+                    "shortRev",
+                    "sourceInfo",
                 ]
             "#]],
         )
