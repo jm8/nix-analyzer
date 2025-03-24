@@ -1,4 +1,10 @@
+use crate::{
+    evaluator::{proto::HoverRequest, Evaluator, LockFlakeResponse},
+    syntax::escape_string,
+    TOKIO_RUNTIME,
+};
 use anyhow::anyhow;
+use anyhow::Result;
 use crossbeam::channel::{Receiver, Sender};
 use lsp_server::{Message, Notification, Request};
 use lsp_types::{
@@ -8,53 +14,74 @@ use lsp_types::{
     WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
 use std::{
+    collections::VecDeque,
     path::PathBuf,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    thread::{self, JoinHandle},
 };
+use tracing::info;
 
-use crate::{
-    evaluator::{proto::HoverRequest, Evaluator, LockFlakeResponse},
-    syntax::escape_string,
-    TOKIO_RUNTIME,
-};
-
+#[derive(Debug)]
 pub struct FetcherInput {
     pub path: PathBuf,
     pub source: String,
     pub old_lock_file: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct FetcherOutput {
     pub path: PathBuf,
     pub lock_file: String,
 }
 
-pub struct Fetcher {
-    pub sender: Sender<FetcherOutput>,
-    pub receiver: Receiver<FetcherInput>,
-    pub connection_send: Sender<Message>,
-    evaluator: Evaluator,
-    counter: i32,
-    pub cancel: Arc<AtomicBool>,
+#[derive(Debug)]
+pub struct NonBlockingFetcher {
+    fetcher_input_send: Sender<FetcherInput>,
+    fetcher_output_recv: Receiver<Result<FetcherOutput>>,
+    fetcher_thread: JoinHandle<()>,
 }
 
-impl Fetcher {
+impl NonBlockingFetcher {
+    pub fn new(connection_send: Sender<Message>) -> Self {
+        let (fetcher_input_send, fetcher_input_recv) =
+            crossbeam::channel::unbounded::<FetcherInput>();
+        let (fetcher_output_send, fetcher_output_recv) =
+            crossbeam::channel::unbounded::<Result<FetcherOutput>>();
+
+        let fetcher_thread = thread::spawn(move || {
+            info!("Fetcher thread started");
+            NonBlockingFetcherThread::new(connection_send, fetcher_input_recv, fetcher_output_send)
+                .run();
+        });
+
+        Self {
+            fetcher_input_send,
+            fetcher_output_recv,
+            fetcher_thread,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct NonBlockingFetcherThread {
+    connection_send: Sender<Message>,
+    receiver: Receiver<FetcherInput>,
+    sender: Sender<Result<FetcherOutput>>,
+    evaluator: Evaluator,
+    counter: i32,
+}
+
+impl NonBlockingFetcherThread {
     pub fn new(
-        cancel: Arc<AtomicBool>,
-        sender: Sender<FetcherOutput>,
-        receiver: Receiver<FetcherInput>,
         connection_send: Sender<Message>,
+        receiver: Receiver<FetcherInput>,
+        sender: Sender<Result<FetcherOutput>>,
     ) -> Self {
         Self {
-            sender,
-            receiver,
             connection_send,
             counter: 0,
             evaluator: TOKIO_RUNTIME.block_on(Evaluator::new()),
-            cancel,
+            receiver,
+            sender,
         }
     }
 
@@ -129,58 +156,82 @@ impl Fetcher {
 
     pub fn run(mut self) {
         loop {
-            if self.cancel.load(Ordering::Relaxed) {
-                drop(self.evaluator);
-                break;
-            }
+            // if self.cancel.load(Ordering::Relaxed) {
+            //     drop(self.evaluator);
+            //     break;
+            // }
             let input = self.receiver.recv().unwrap();
-
             let token = self.start_progress(format!(
                 "Fetching flake inputs for {}",
                 input.path.display()
             ));
+            let result = process(input, &mut self.evaluator);
+            if let Err(ref err) = result {
+                self.error(err.to_string());
+            }
 
-            // let response = TOKIO_RUNTIME.block_on(self.evaluator.lock_flake(&LockFlakeRequest {
-            //     expression: input.source,
-            //     old_lock_file: input.old_lock_file,
-            // }));
-
-            // XXX: TODO: There is something broken when using follows, see Jackson's nix-home
-            let response = match input.old_lock_file {
-                Some(old_lock_file) => Ok(LockFlakeResponse {
-                    lock_file: old_lock_file.clone(),
-                }),
-                None => Err(anyhow!("No lock file")),
-            };
-
-            match response {
-                Ok(response) => {
-                    // Evaluate the flake inputs to make sure everything has been downloaded
-                    let _ = TOKIO_RUNTIME.block_on(self.evaluator.hover(&HoverRequest {
-                        expression: format!(
-                            "__nix_analyzer_get_flake_inputs {} {{}}",
-                            escape_string(&response.lock_file),
-                        ),
-                        attr: None,
-                    }));
-
-                    self.info(response.lock_file.to_string());
-                    self.sender
-                        .send(FetcherOutput {
-                            path: input.path,
-                            lock_file: response.lock_file,
-                        })
-                        .unwrap();
-                }
-                Err(_) => {
-                    self.error(format!(
-                        "Failed to fetch flake inputs for {}",
-                        input.path.display()
-                    ));
-                }
-            };
+            self.sender.send(result).unwrap();
 
             self.finish_progress(token);
         }
     }
+}
+
+#[derive(Debug)]
+pub struct BlockingFetcher {
+    outputs: VecDeque<Result<FetcherOutput>>,
+}
+
+pub trait Fetcher {
+    fn send(&mut self, input: FetcherInput, evaluator: &mut Evaluator);
+    fn try_recv(&mut self) -> Option<Result<FetcherOutput>>;
+}
+
+impl Fetcher for NonBlockingFetcher {
+    fn send(&mut self, input: FetcherInput, _evaluator: &mut Evaluator) {
+        let _ = self.fetcher_input_send.send(input);
+    }
+
+    fn try_recv(&mut self) -> Option<Result<FetcherOutput>> {
+        self.fetcher_output_recv.try_recv().ok()
+    }
+}
+
+impl Fetcher for BlockingFetcher {
+    fn send(&mut self, input: FetcherInput, evaluator: &mut Evaluator) {
+        self.outputs.push_back(process(input, evaluator));
+    }
+
+    fn try_recv(&mut self) -> Option<Result<FetcherOutput>> {
+        self.outputs.pop_front()
+    }
+}
+
+fn process(input: FetcherInput, evaluator: &mut Evaluator) -> Result<FetcherOutput> {
+    // let response = TOKIO_RUNTIME.block_on(self.evaluator.lock_flake(&LockFlakeRequest {
+    //     expression: input.source,
+    //     old_lock_file: input.old_lock_file,
+    // }));
+
+    // XXX: TODO: There is something broken when using follows, see Jackson's nix-home
+    let response = match input.old_lock_file {
+        Some(old_lock_file) => Ok(LockFlakeResponse {
+            lock_file: old_lock_file.clone(),
+        }),
+        None => Err(anyhow!("No lock file")),
+    }?;
+
+    // Evaluate the flake inputs to make sure everything has been downloaded
+    let _ = TOKIO_RUNTIME.block_on(evaluator.hover(&HoverRequest {
+        expression: format!(
+            "__nix_analyzer_get_flake_inputs {} {{}}",
+            escape_string(&response.lock_file),
+        ),
+        attr: None,
+    }));
+
+    Ok(FetcherOutput {
+        path: input.path,
+        lock_file: response.lock_file,
+    })
 }

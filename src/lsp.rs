@@ -8,22 +8,11 @@ use lsp_types::{
     Position, Range, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextEdit, Uri, WorkDoneProgressOptions,
 };
-use std::{
-    path::Path,
-    str::FromStr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread::{self},
-};
+use std::{path::Path, str::FromStr};
 use tracing::{error, info, warn};
 
 use crate::{
-    analyzer::Analyzer,
-    evaluator::Evaluator,
-    fetcher::{Fetcher, FetcherInput, FetcherOutput},
-    hover::HoverResult,
+    analyzer::Analyzer, evaluator::Evaluator, fetcher::NonBlockingFetcher, hover::HoverResult,
     TOKIO_RUNTIME,
 };
 
@@ -56,26 +45,11 @@ pub fn capabilities() -> ServerCapabilities {
 pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()> {
     let _params: InitializeParams = serde_json::from_value(params).unwrap();
 
-    let (fetcher_input_send, fetcher_input_recv) = crossbeam::channel::unbounded::<FetcherInput>();
-    let (fetcher_output_send, fetcher_output_recv) =
-        crossbeam::channel::unbounded::<FetcherOutput>();
-
-    let fetcher_connection_sender = connection.sender.clone();
-    let fetcher_cancel = Arc::new(AtomicBool::new(false));
-    let fetcher_cancel_clone = fetcher_cancel.clone();
-    let fetcher_thread = thread::spawn(move || {
-        info!("Fetcher thread started");
-        Fetcher::new(
-            fetcher_cancel_clone,
-            fetcher_output_send,
-            fetcher_input_recv,
-            fetcher_connection_sender,
-        )
-        .run();
-    });
-
     let evaluator = TOKIO_RUNTIME.block_on(async { Evaluator::new().await });
-    let mut analyzer = Analyzer::new(evaluator, fetcher_input_send, fetcher_output_recv);
+    let mut analyzer = Analyzer::new(
+        evaluator,
+        Box::new(NonBlockingFetcher::new(connection.sender.clone())),
+    );
 
     info!("Welcome to nix-analyzer!");
     for msg in &connection.receiver {
@@ -83,8 +57,7 @@ pub fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()
         match msg {
             Message::Request(req) => {
                 if connection.handle_shutdown(&req)? {
-                    fetcher_cancel.store(true, Ordering::Relaxed);
-                    let _ = fetcher_thread.join();
+                    // let _ = fetcher_thread.join();
                     return Ok(());
                 }
 

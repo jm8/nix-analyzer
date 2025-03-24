@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::evaluator::Evaluator;
-use crate::fetcher::{FetcherInput, FetcherOutput};
+use crate::fetcher::{Fetcher, FetcherInput};
 use crate::file_types::{init_file_info, FileInfo, FileType, LockedFlake};
 use crate::flakes::get_flake_inputs;
 use crate::hover::HoverResult;
@@ -9,7 +9,6 @@ use crate::safe_stringification::safe_stringify_flake;
 use crate::syntax::parse;
 use crate::{completion, hover};
 use anyhow::{anyhow, bail, Context, Result};
-use crossbeam::channel::{Receiver, Sender};
 use lsp_types::{CompletionItem, Diagnostic};
 use ropey::Rope;
 use std::collections::HashMap;
@@ -23,25 +22,18 @@ pub struct File {
     file_info: FileInfo,
 }
 
-#[derive(Debug)]
 pub struct Analyzer {
     pub evaluator: Evaluator,
     pub files: HashMap<PathBuf, File>,
-    pub fetcher_input_send: Sender<FetcherInput>,
-    pub fetcher_output_recv: Receiver<FetcherOutput>,
+    pub fetcher: Box<dyn Fetcher>,
 }
 
 impl Analyzer {
-    pub fn new(
-        evaluator: Evaluator,
-        fetcher_input_send: Sender<FetcherInput>,
-        fetcher_output_recv: Receiver<FetcherOutput>,
-    ) -> Self {
+    pub fn new(evaluator: Evaluator, fetcher: Box<dyn Fetcher>) -> Self {
         Self {
             evaluator,
             files: HashMap::new(),
-            fetcher_input_send,
-            fetcher_output_recv,
+            fetcher,
         }
     }
 
@@ -62,16 +54,17 @@ impl Analyzer {
                 .get_file_contents(&path.parent().unwrap().join("flake.lock"))
                 .map(|s| s.to_string())
                 .ok();
-            self.fetcher_input_send
-                .send(FetcherInput {
+            self.fetcher.send(
+                FetcherInput {
                     path: path.to_path_buf(),
                     source: safe_stringify_flake(
                         parse(contents).expr().as_ref(),
                         path.parent().unwrap(),
                     ),
                     old_lock_file,
-                })
-                .unwrap();
+                },
+                &mut self.evaluator,
+            );
             file.file_info.file_type = FileType::Flake {
                 locked: LockedFlake::Pending,
             };
@@ -154,7 +147,10 @@ impl Analyzer {
     }
 
     pub async fn process_fetcher_output(&mut self) -> Result<()> {
-        if let Ok(output) = self.fetcher_output_recv.try_recv() {
+        while let Some(output) = self.fetcher.try_recv() {
+            let Ok(output) = output else {
+                continue;
+            };
             let inputs = get_flake_inputs(&mut self.evaluator, &output.lock_file).await?;
             self.files
                 .get_mut(&output.path)

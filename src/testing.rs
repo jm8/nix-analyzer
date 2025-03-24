@@ -22,7 +22,7 @@ pub struct TestInput {
 
 pub fn parse_test_input(input: &str) -> TestInput {
     let mut files = BTreeMap::new();
-    let mut lines = input.lines().peekable();
+    let lines = input.lines().peekable();
     let mut current_path = PathBuf::from("/nowhere.nix");
     let mut current_content = Vec::new();
     let mut location = None;
@@ -44,7 +44,7 @@ pub fn parse_test_input(input: &str) -> TestInput {
         }
     };
 
-    while let Some(line) = lines.next() {
+    for line in lines {
         eprintln!("LINE = {:?}", line);
         if line.starts_with("## ") {
             add_file(&current_path, &current_content);
