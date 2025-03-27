@@ -25,6 +25,7 @@ enum HoverOrigin {
     Select,
     Builtin,
     Schema(Arc<Schema>),
+    Path(PathBuf),
 }
 
 #[derive(Debug)]
@@ -52,6 +53,15 @@ pub async fn hover(
             .ok_or(anyhow!("no description"))?
             .to_string();
         return Ok(HoverResult { md, position: None });
+    }
+    if let HoverOrigin::Path(path) = strategy.origin {
+        let md = format!("```\n{}\n```", path.display());
+        let position = Some(Position {
+            line: 1,
+            col: 1,
+            path,
+        });
+        return Ok(HoverResult { md, position });
     }
 
     let expression = strategy.expression.ok_or(anyhow!("no expression"))?;
@@ -82,6 +92,7 @@ pub async fn hover(
         HoverOrigin::Select => None,
         HoverOrigin::Builtin => None,
         HoverOrigin::Schema(_) => None,
+        HoverOrigin::Path(_) => None,
     };
 
     let position = if let Some(origin_range) = origin_range {
@@ -111,6 +122,23 @@ fn get_hover_strategy(source: &str, file_info: &FileInfo, offset: u32) -> Option
     let text_range = location.token.text_range();
     let text_range = TextRange::new(text_range.start(), text_range.end());
     let range = rope_text_range_to_range(&rope, text_range);
+
+    if let Expr::Path(path) = location.expr {
+        let path = PathBuf::from(path.to_string());
+        let path = if path.is_absolute() {
+            path
+        } else {
+            file_info
+                .base_path()
+                .join(path.strip_prefix("./").unwrap_or(&path))
+        };
+        return Some(HoverStrategy {
+            range: range,
+            expression: None,
+            attr: None,
+            origin: HoverOrigin::Path(path),
+        });
+    }
 
     let schema = get_schema(&location.expr, file_info);
 
@@ -273,12 +301,14 @@ pub struct HoverResult {
 mod test {
 
     use expect_test::{expect, Expect};
+    use indoc::indoc;
     use itertools::Itertools;
 
     use crate::{
         evaluator::Evaluator,
         file_types::{FileInfo, FileType},
         schema::HOME_MANAGER_SCHEMA,
+        testing::{create_test_analyzer, parse_test_input},
     };
 
     use super::hover;
@@ -317,15 +347,25 @@ mod test {
     }
 
     async fn check_hover(source: &str, expected: Expect) {
-        check_hover_with_filetype(
-            source,
-            expected,
-            &FileType::Custom {
-                lambda_arg: "{}".to_string(),
-                schema: "{}".to_string(),
-            },
-        )
-        .await;
+        let input = parse_test_input(source);
+        let mut analysis = create_test_analyzer(&input).await;
+        let location = input.location.unwrap();
+        let actual = analysis
+            .hover(&location.path, location.line, location.col)
+            .await
+            .unwrap()
+            .unwrap();
+        let actual = match actual.position {
+            Some(position) => format!(
+                "{}:{}:{}\n\n{}",
+                position.path.display(),
+                position.line,
+                position.col,
+                actual.md
+            ),
+            None => format!("no position\n\n{}", actual.md),
+        };
+        expected.assert_eq(&actual);
     }
 
     #[test_log::test(tokio::test)]
@@ -413,7 +453,7 @@ mod test {
         check_hover(
             "let x = 5; in x$0",
             expect![[r#"
-                /test/test.nix:0:4
+                /nowhere.nix:0:4
 
                 ### integer
 
@@ -445,7 +485,7 @@ mod test {
         check_hover(
             r#"let aaa = "hello"; bbb = "world"; in { inherit aa$0a; }"#,
             expect![[r#"
-                /test/test.nix:0:4
+                /nowhere.nix:0:4
 
                 ### string
 
@@ -461,7 +501,7 @@ mod test {
         check_hover(
             r#"let x = {aaa = "hello"; bbb = "world";}; in { inherit (x) aa$0a; }"#,
             expect![[r#"
-                /test/test.nix:0:46
+                /nowhere.nix:0:46
 
                 ### string
 
@@ -564,6 +604,23 @@ mod test {
                 nixpkgs_path: env!("NIXPKGS").to_string(),
                 schema: HOME_MANAGER_SCHEMA.clone(),
             },
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_path() {
+        check_hover(
+            indoc! {"
+            ## /test/hello/world/whatever.nix
+            ./ot$0her.nix
+            "},
+            expect![[r#"
+                /test/hello/world/other.nix:1:1
+
+                ```
+                /test/hello/world/other.nix
+                ```"#]],
         )
         .await;
     }
