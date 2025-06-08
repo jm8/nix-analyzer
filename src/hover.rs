@@ -368,6 +368,11 @@ mod test {
         expected.assert_eq(&actual);
     }
 
+    async fn check_hover_nixpkgs(relative_path: &str, source: &str, expected: Expect) {
+        let input = format!("## {}/{}\n\n{}", env!("NIXPKGS"), relative_path, source);
+        check_hover(&input, expected).await;
+    }
+
     #[test_log::test(tokio::test)]
     async fn test_hover_builtin() {
         check_hover(
@@ -560,7 +565,7 @@ mod test {
 
                 *Type:* boolean
             "#]],
-            &FileType::Package {
+            &FileType::Other {
                 nixpkgs_path: env!("NIXPKGS").to_string(),
                 schema: HOME_MANAGER_SCHEMA.clone(),
             },
@@ -580,7 +585,7 @@ mod test {
 
                 *Type:* boolean
             "#]],
-            &FileType::Package {
+            &FileType::Other {
                 nixpkgs_path: env!("NIXPKGS").to_string(),
                 schema: HOME_MANAGER_SCHEMA.clone(),
             },
@@ -600,7 +605,7 @@ mod test {
 
                 *Type:* boolean
             "#]],
-            &FileType::Package {
+            &FileType::Other {
                 nixpkgs_path: env!("NIXPKGS").to_string(),
                 schema: HOME_MANAGER_SCHEMA.clone(),
             },
@@ -616,10 +621,35 @@ mod test {
             ./ot$0her.nix
             "},
             expect![[r#"
-                /test/hello/world/other.nix:1:1
+            /test/hello/world/other.nix:1:1
 
-                ```
-                /test/hello/world/other.nix
+            ```
+            /test/hello/world/other.nix
+            ```"#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_nixpkgs_lib() {
+        check_hover_nixpkgs(
+            "lib/default.nix",
+            indoc! {r#"
+            let makeExtensible' = rattrs: let self = rattrs self // { extend = f: lib.makeExtensible (lib.extends f rattrs); }; in self;
+            lib = makeExtensible' (self: let
+                callLibs = file: import file { lib = self; };
+            in {
+                trivial = callLibs ./trivial.nix;
+                inherit (self.trivial) i$0d;
+            }
+            "#},
+            expect![[r#"
+                /nix/store/1gn7gki3wbgw5v4vcd349660gsd1qb43-source/lib/default.nix:6:4
+
+                ### function
+
+                ```nix
+                «lambda id @ /nix/store/1gn7gki3wbgw5v4vcd349660gsd1qb43-source/lib/trivial.nix:39:8»
                 ```"#]],
         )
         .await;

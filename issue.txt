@@ -1,0 +1,1 @@
+When hovering in /nix/store/1gn7gki3wbgw5v4vcd349660gsd1qb43-source/lib/deprecated/misc.nix there is a parser error

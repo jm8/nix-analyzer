@@ -12,6 +12,7 @@ mod hover;
 mod lambda_arg;
 mod lsp;
 mod modules;
+mod nixpkgs_lambda_arg;
 mod safe_stringification;
 mod schema;
 mod syntax;

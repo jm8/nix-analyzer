@@ -119,7 +119,7 @@ pub fn get_schema(expr: &Expr, file_info: &FileInfo) -> Arc<Schema> {
 pub fn get_schema_root(expr: &Expr, file_info: &FileInfo) -> (Arc<Schema>, Expr) {
     let root_expr = ancestor_exprs_inclusive(expr).last().unwrap();
     let root_schema = match &file_info.file_type {
-        FileType::Package {
+        FileType::Other {
             nixpkgs_path: _,
             schema,
         } => schema.clone(),
@@ -128,6 +128,7 @@ pub fn get_schema_root(expr: &Expr, file_info: &FileInfo) -> (Arc<Schema>, Expr)
             schema,
         } => Arc::new(serde_json::from_str(schema).unwrap_or_default()),
         FileType::Flake { .. } => FLAKE_SCHEMA.clone(),
+        FileType::Nixpkgs { .. } => Arc::new(Schema::default()),
     };
     (root_schema, root_expr)
 }

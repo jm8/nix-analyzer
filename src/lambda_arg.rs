@@ -3,11 +3,26 @@ use rowan::ast::AstNode;
 
 use crate::{
     file_types::{FileInfo, FileType, LockedFlake},
+    nixpkgs_lambda_arg::get_nixpkgs_lambda_arg,
     safe_stringification::{safe_stringify_opt, safe_stringify_opt_param},
     syntax::{ancestor_exprs, parse},
 };
 
 pub fn get_lambda_arg(lambda: &Lambda, file_info: &FileInfo) -> String {
+    if let FileInfo {
+        file_type:
+            FileType::Nixpkgs {
+                nixpkgs_path,
+                relative_path,
+            },
+        ..
+    } = file_info
+    {
+        if let Some(lambda) = get_nixpkgs_lambda_arg(lambda, nixpkgs_path, relative_path) {
+            return lambda;
+        }
+    }
+
     if is_root_lambda(lambda) {
         if let Some(root_lambda) = get_root_lambda(file_info) {
             return root_lambda;
@@ -21,7 +36,7 @@ pub fn get_lambda_arg(lambda: &Lambda, file_info: &FileInfo) -> String {
 
 pub fn get_root_lambda(file_info: &FileInfo) -> Option<String> {
     match &file_info.file_type {
-        FileType::Package { nixpkgs_path, .. } => Some(format!("(import {} {{}})", nixpkgs_path)),
+        FileType::Other { nixpkgs_path, .. } => Some(format!("(import {} {{}})", nixpkgs_path)),
         FileType::Custom { lambda_arg, .. } => Some(safe_stringify_opt(
             parse(lambda_arg).expr().as_ref(),
             file_info.base_path(),
@@ -36,6 +51,7 @@ pub fn get_root_lambda(file_info: &FileInfo) -> Option<String> {
                     inputs,
                 },
         } => Some(inputs.clone()),
+        FileType::Nixpkgs { .. } => None, // This is handled by get_nixpkgs_lambda_arg
     }
 }
 

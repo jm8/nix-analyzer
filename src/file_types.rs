@@ -1,5 +1,6 @@
 use crate::schema::{Schema, HOME_MANAGER_SCHEMA};
 use std::{
+    ffi::OsStr,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -25,9 +26,13 @@ pub enum LockedFlake {
 
 #[derive(Debug, Clone)]
 pub enum FileType {
-    Package {
+    Other {
         nixpkgs_path: String,
         schema: Arc<Schema>,
+    },
+    Nixpkgs {
+        nixpkgs_path: PathBuf,
+        relative_path: PathBuf,
     },
     Flake {
         locked: LockedFlake,
@@ -39,18 +44,39 @@ pub enum FileType {
 }
 
 pub fn init_file_info(path: &Path, _source: &str) -> FileInfo {
-    let default = FileType::Package {
-        nixpkgs_path: env!("NIXPKGS").to_owned(),
-        schema: HOME_MANAGER_SCHEMA.clone(),
-    };
-    FileInfo {
-        file_type: if path.ends_with("flake.nix") {
-            FileType::Flake {
+    if path.file_name() == Some(OsStr::new("flake.nix")) {
+        return FileInfo {
+            file_type: FileType::Flake {
                 locked: LockedFlake::None,
-            }
-        } else {
-            default
-        },
-        path: path.to_owned(),
+            },
+            path: path.to_path_buf(),
+        };
     }
+
+    if let Some(nixpkgs_path) = get_nixpkgs_path(path) {
+        return FileInfo {
+            file_type: FileType::Nixpkgs {
+                relative_path: path.strip_prefix(&nixpkgs_path).unwrap().to_path_buf(),
+                nixpkgs_path,
+            },
+            path: path.to_path_buf(),
+        };
+    }
+
+    FileInfo {
+        file_type: FileType::Other {
+            nixpkgs_path: env!("NIXPKGS").to_owned(),
+            schema: HOME_MANAGER_SCHEMA.clone(),
+        },
+        path: path.to_path_buf(),
+    }
+}
+
+fn get_nixpkgs_path(path: &Path) -> Option<PathBuf> {
+    for p in path.ancestors() {
+        if p.join("pkgs/top-level/all-packages.nix").exists() {
+            return Some(p.to_owned());
+        }
+    }
+    return None;
 }
