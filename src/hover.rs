@@ -56,10 +56,16 @@ pub async fn hover(
     }
     if let HoverOrigin::Path(path) = strategy.origin {
         let md = format!("```\n{}\n```", path.display());
+        let default_nix_path = path.join("default.nix");
+        let goto_path = if path.is_dir() && default_nix_path.exists() {
+            default_nix_path
+        } else {
+            path
+        };
         let position = Some(Position {
             line: 1,
             col: 1,
-            path,
+            path: goto_path,
         });
         return Ok(HoverResult { md, position });
     }
@@ -626,6 +632,23 @@ mod test {
             ```
             /test/hello/world/other.nix
             ```"#]],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hover_default_nix_path() {
+        check_hover_nixpkgs(
+            "default.nix",
+            indoc! {"
+            import ./l$0ib
+            "},
+            expect![[r#"
+                /nix/store/1gn7gki3wbgw5v4vcd349660gsd1qb43-source/lib/default.nix:1:1
+
+                ```
+                /nix/store/1gn7gki3wbgw5v4vcd349660gsd1qb43-source/lib
+                ```"#]],
         )
         .await;
     }
